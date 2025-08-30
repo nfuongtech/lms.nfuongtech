@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Filament\Imports;
+
+use App\Models\ChuyenDe;
+use App\Models\DonVi;
+use App\Models\GiangVien;
+use Filament\Actions\Imports\Importer;
+use Filament\Actions\Imports\Models\Import;
+use Illuminate\Support\Facades\Log;
+
+class GiangVienImporter extends Importer
+{
+    protected static ?string $model = GiangVien::class;
+
+    public static function getColumns(): array
+    {
+        return [
+            \Filament\Actions\Imports\Columns\ImportColumn::make('ma_so')->requiredMapping()->rules(['required', 'max:255', 'unique:giang_viens,ma_so']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('ho_ten')->requiredMapping()->rules(['required', 'max:255']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('gioi_tinh')->rules(['nullable', 'max:255']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('nam_sinh')->numeric()->rules(['nullable', 'integer']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('ds_chuyen_de')->rules(['nullable']), // Cột chứa danh sách mã chuyên đề, cách nhau bởi dấu phẩy
+            \Filament\Actions\Imports\Columns\ImportColumn::make('ho_khau_noi_lam_viec')->rules(['nullable']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('ma_don_vi')->rules(['nullable', 'exists:don_vis,ma_don_vi']), // Cột chứa mã đơn vị
+            \Filament\Actions\Imports\Columns\ImportColumn::make('trinh_do')->rules(['nullable']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('chuyen_mon')->rules(['nullable']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('so_nam_kinh_nghiem')->numeric()->rules(['nullable', 'integer']),
+            \Filament\Actions\Imports\Columns\ImportColumn::make('tom_tat_kinh_nghiem')->rules(['nullable']),
+        ];
+    }
+
+    public function resolveRecord(): ?GiangVien
+    {
+        $giangVien = GiangVien::firstOrNew(['ma_so' => $this->data['ma_so']]);
+
+        // Xử lý liên kết với Đơn vị
+        if (!empty($this->data['ma_don_vi'])) {
+            $donVi = DonVi::where('ma_don_vi', $this->data['ma_don_vi'])->first();
+            if ($donVi) {
+                $giangVien->don_vi_id = $donVi->id;
+            }
+        }
+
+        return $giangVien;
+    }
+
+    protected function afterSave(GiangVien $record): void
+    {
+        // Xử lý liên kết với Chuyên đề
+        if (!empty($this->data['ds_chuyen_de'])) {
+            $maChuyenDes = explode(',', $this->data['ds_chuyen_de']);
+            $chuyenDeIds = ChuyenDe::whereIn('ma_so', array_map('trim', $maChuyenDes))->pluck('id');
+            $record->chuyenDes()->sync($chuyenDeIds);
+        }
+    }
+
+    public static function getCompletedNotificationBody(Import $import): string
+    {
+        $body = 'Đã import thành công ' . number_format($import->successful_rows) . ' dòng.';
+        if ($failedRowsCount = $import->getFailedRowsCount()) {
+            $body .= ' ' . number_format($failedRowsCount) . ' dòng bị lỗi.';
+        }
+        return $body;
+    }
+}
