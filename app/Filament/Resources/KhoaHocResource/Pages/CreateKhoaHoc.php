@@ -3,10 +3,14 @@
 namespace App\Filament\Resources\KhoaHocResource\Pages;
 
 use App\Filament\Resources\KhoaHocResource;
-use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateKhoaHoc extends CreateRecord
 {
     protected static string $resource = KhoaHocResource::class;
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Tạo khóa học thành công!';
+    }
 }

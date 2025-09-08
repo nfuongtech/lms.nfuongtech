@@ -26,19 +26,10 @@ class DonViResource extends Resource
     {
         return $form
             ->schema([
-                TextInput::make('thaco_tdtv')
-                    ->label('THACO/TĐTV')
-                    ->required()
-                    ->datalist(fn () => DonVi::query()->pluck('thaco_tdtv')->unique()),
-                TextInput::make('cong_ty_ban_nvqt')
-                    ->label('Công ty/Ban NVQT')
-                    ->datalist(fn () => DonVi::query()->pluck('cong_ty_ban_nvqt')->unique()),
-                TextInput::make('phong_bo_phan')
-                    ->label('Phòng/Bộ phận')
-                    ->datalist(fn () => DonVi::query()->pluck('phong_bo_phan')->unique()),
-                TextInput::make('noi_lam_viec_chi_tiet')
-                    ->label('Nơi làm việc (Xã, Tỉnh/TP)') // Sửa lại tiêu đề
-                    ->datalist(fn () => DonVi::query()->pluck('noi_lam_viec_chi_tiet')->unique()), // Thêm gợi ý
+                TextInput::make('thaco_tdtv')->label('THACO/TĐTV')->required(),
+                TextInput::make('cong_ty_ban_nvqt')->label('Công ty/Ban NVQT'),
+                TextInput::make('phong_bo_phan')->label('Phòng/Bộ phận'),
+                TextInput::make('noi_lam_viec_chi_tiet')->label('Nơi làm việc (Xã, Tỉnh/TP)'),
             ]);
     }
 
@@ -46,33 +37,21 @@ class DonViResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('ma_don_vi')->label('Mã đơn vị')->searchable()->sortable(),
-                TextColumn::make('ten_hien_thi')->label('Tên hiển thị')->searchable(),
-                TextColumn::make('noi_lam_viec_chi_tiet')->label('Nơi làm việc (Xã, Tỉnh/TP)')->searchable(), // Sửa lại tiêu đề
-                TextColumn::make('hoc_viens_count')->counts('hocViens')->label('Số lượng HV')->sortable(),
+                TextColumn::make('ma_don_vi')->label('Mã đơn vị')->sortable()->searchable(),
+                TextColumn::make('ten_hien_thi')->label('Tên hiển thị')->sortable()->searchable(),
+                TextColumn::make('noi_lam_viec_chi_tiet')->label('Nơi làm việc'),
+                TextColumn::make('hoc_viens_count')->counts('hocViens')->label('Số HV'),
             ])
             ->filters([
                 SelectFilter::make('thaco_tdtv')
-                    ->label('THACO/TĐTV')
                     ->options(fn () => DonVi::query()->pluck('thaco_tdtv', 'thaco_tdtv')->unique())
-                    ->searchable(),
+                    ->label('THACO/TĐTV'),
                 SelectFilter::make('cong_ty_ban_nvqt')
-                    ->label('Công ty/Ban NVQT')
-                    ->options(fn () => DonVi::query()->whereNotNull('cong_ty_ban_nvqt')->pluck('cong_ty_ban_nvqt', 'cong_ty_ban_nvqt')->unique())
-                    ->searchable(),
-                SelectFilter::make('phong_bo_phan')
-                    ->label('Phòng/Bộ phận')
-                    ->options(fn () => DonVi::query()->whereNotNull('phong_bo_phan')->pluck('phong_bo_phan', 'phong_bo_phan')->unique())
-                    ->searchable(),
+                    ->options(fn () => DonVi::query()->pluck('cong_ty_ban_nvqt', 'cong_ty_ban_nvqt')->unique())
+                    ->label('Công ty/Ban NVQT'),
             ], layout: FiltersLayout::AboveContent)
-            ->actions([
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->actions([Tables\Actions\EditAction::make()])
+            ->bulkActions([Tables\Actions\DeleteBulkAction::make()]);
     }
 
     public static function getPages(): array

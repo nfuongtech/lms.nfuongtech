@@ -5,20 +5,21 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\HocVienResource\Pages;
 use App\Models\DonVi;
 use App\Models\HocVien;
+use App\Models\TuyChonKetQua;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class HocVienResource extends Resource
 {
     protected static ?string $model = HocVien::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationGroup = 'Đào tạo';
+    protected static ?string $navigationIcon = 'heroicon-o-user-group';
+    protected static ?string $navigationLabel = 'Học viên';
     protected static ?string $modelLabel = 'Học viên';
     protected static ?string $pluralModelLabel = 'Học viên';
 
@@ -27,78 +28,74 @@ class HocVienResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Thông tin cá nhân')
-                    ->description('Các thông tin cơ bản của học viên.')
                     ->schema([
                         Forms\Components\FileUpload::make('hinh_anh_path')
                             ->label('Hình ảnh 3x4')
                             ->image()
                             ->directory('hoc-vien-images'),
+
+                        // MSNV hiển thị để admin có thể nhập (hoặc để trống để auto-gen)
                         Forms\Components\TextInput::make('msnv')
                             ->label('MSNV')
-                            ->required()
-                            ->unique(ignoreRecord: true),
+                            ->hint('Có thể để trống để hệ thống tự sinh mã theo YYYYMMDD-XXX')
+                            ->unique(ignoreRecord: true)
+                            ->maxLength(50),
+
                         Forms\Components\TextInput::make('ho_ten')
                             ->label('Họ và tên')
-                            ->required(),
+                            ->required()
+                            ->maxLength(255),
+
                         Forms\Components\Select::make('gioi_tinh')
                             ->label('Giới tính')
                             ->options(['Nam' => 'Nam', 'Nữ' => 'Nữ', 'Khác' => 'Khác']),
+
                         Forms\Components\DatePicker::make('nam_sinh')
                             ->label('Năm sinh')
                             ->displayFormat('d/m/Y'),
-                        Forms\Components\TextInput::make('sdt')
-                            ->label('Số điện thoại')
-                            ->tel(),
+
                         Forms\Components\TextInput::make('email')
-                            ->label('Email')
+                            ->label('Email (nhận thông báo)')
                             ->email()
+                            ->required()
                             ->unique(ignoreRecord: true),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Thông tin công việc')
                     ->schema([
-                        Forms\Components\DatePicker::make('ngay_vao')
-                            ->label('Ngày vào')
-                            ->displayFormat('d/m/Y'),
-                        Forms\Components\TextInput::make('chuc_vu')
-                            ->label('Chức vụ'),
+                        Forms\Components\DatePicker::make('ngay_vao')->label('Ngày vào'),
+                        Forms\Components\TextInput::make('chuc_vu')->label('Chức vụ'),
+
+                        // Select liên kết DonVi qua quan hệ 'donVi' và hiển thị ten_hien_thi
                         Forms\Components\Select::make('don_vi_id')
-                            ->label('Đơn vị (Tên hiển thị)')
-                            ->relationship(name: 'donVi', titleAttribute: 'thaco_tdtv')
-                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->ten_hien_thi)
+                            ->label('Đơn vị')
+                            ->relationship('donVi', 'ten_hien_thi')
                             ->searchable()
                             ->preload()
+                            ->required()
                             ->createOptionForm([
                                 Forms\Components\TextInput::make('thaco_tdtv')->label('THACO/TĐTV')->required(),
                                 Forms\Components\TextInput::make('cong_ty_ban_nvqt')->label('Công ty/Ban NVQT'),
                                 Forms\Components\TextInput::make('phong_bo_phan')->label('Phòng/Bộ phận'),
-                                Forms\Components\TextInput::make('noi_lam_viec_chi_tiet')->label('Nơi làm việc (Xã, Tỉnh/TP)'),
+                                Forms\Components\TextInput::make('noi_lam_viec_chi_tiet')->label('Nơi làm việc'),
                             ])
                             ->createOptionUsing(function (array $data): int {
-                                $today = now()->format('Ymd');
-                                $lastRecord = DonVi::where('ma_don_vi', 'like', "{$today}-%")->latest('ma_don_vi')->first();
-                                if ($lastRecord) {
-                                    $lastNumber = (int) substr($lastRecord->ma_don_vi, -3);
-                                    $newNumber = $lastNumber + 1;
-                                } else {
-                                    $newNumber = 1;
-                                }
-                                $data['ma_don_vi'] = $today . '-' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
-
-                                return DonVi::create($data)->id;
+                                // tạo DonVi mới và trả id
+                                $donVi = DonVi::create($data);
+                                return $donVi->id;
                             }),
-                        Forms\Components\Select::make('don_vi_phap_nhan_id')
-                            ->label('Đơn vị trả lương')
-                            ->relationship('donViPhapNhan', 'ten_don_vi')
-                            ->searchable()
-                            ->preload(),
+
                         Forms\Components\Select::make('tinh_trang')
                             ->label('Tình trạng')
-                            ->options([
-                                'Đang làm việc' => 'Đang làm việc',
-                                'Đã nghỉ việc' => 'Đã nghỉ việc',
-                                'Nghỉ thai sản' => 'Nghỉ thai sản',
-                            ])->required(),
+                            ->options(fn () => TuyChonKetQua::where('loai', 'tinh_trang_hoc_vien')->pluck('gia_tri', 'gia_tri')->toArray())
+                            ->required()
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('gia_tri')->label('Tên trạng thái')->required(),
+                            ])
+                            ->createOptionUsing(fn ($data) => TuyChonKetQua::create([
+                                'loai' => 'tinh_trang_hoc_vien',
+                                'gia_tri' => $data['gia_tri'],
+                            ])->gia_tri),
                     ])->columns(2),
             ]);
     }
@@ -107,56 +104,19 @@ class HocVienResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('hinh_anh_path')->label('Hình ảnh')->circular(),
-                Tables\Columns\TextColumn::make('msnv')->label('MSNV')->searchable(),
-                Tables\Columns\TextColumn::make('ho_ten')->label('Họ và tên')->searchable(),
+                Tables\Columns\ImageColumn::make('hinh_anh_path')->label('Ảnh')->circular(),
+                Tables\Columns\TextColumn::make('msnv')->label('MSNV')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('ho_ten')->label('Họ tên')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('chuc_vu')->label('Chức vụ'),
-                Tables\Columns\TextColumn::make('donVi.thaco_tdtv')->label('THACO/TĐTV'),
-                Tables\Columns\TextColumn::make('sdt')->label('Số điện thoại'),
+                Tables\Columns\TextColumn::make('donVi.ten_hien_thi')->label('Đơn vị')->searchable(),
                 Tables\Columns\TextColumn::make('email')->label('Email')->searchable(),
-                Tables\Columns\TextColumn::make('tinh_trang')->label('Tình trạng'),
+                Tables\Columns\BadgeColumn::make('tinh_trang')->label('Tình trạng'),
             ])
-            ->filters([
-                // ===== BỘ LỌC ĐÃ ĐƯỢỢC NÂNG CẤP GIAO DIỆN =====
-                Tables\Filters\Filter::make('loc_thong_tin_hoc_vien')
-                    ->form([
-                        Forms\Components\Section::make() // Bọc trong Section
-                            ->schema([
-                                Forms\Components\Grid::make(4)
-                                    ->schema([
-                                        Forms\Components\TextInput::make('msnv')
-                                            ->placeholder('Nhập MSNV...')
-                                            ->prefixIcon('heroicon-o-identification'), // Thêm icon
-                                        Forms\Components\TextInput::make('ho_ten')
-                                            ->placeholder('Nhập họ và tên...')
-                                            ->prefixIcon('heroicon-o-user'),
-                                        Forms\Components\TextInput::make('thaco_tdtv')
-                                            ->placeholder('Nhập THACO/TĐTV...')
-                                            ->prefixIcon('heroicon-o-building-office-2'),
-                                        Forms\Components\TextInput::make('noi_lam_viec')
-                                            ->placeholder('Nhập nơi làm việc...')
-                                            ->prefixIcon('heroicon-o-map-pin'),
-                                    ])
-                            ])->compact(), // Dùng layout compact cho gọn
-                    ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when($data['msnv'], fn(Builder $query, $search): Builder => $query->where('msnv', 'like', "%{$search}%"))
-                            ->when($data['ho_ten'], fn(Builder $query, $search): Builder => $query->where('ho_ten', 'like', "%{$search}%"))
-                            ->when($data['thaco_tdtv'], fn(Builder $query, $search): Builder => $query->whereHas('donVi', fn($q) => $q->where('thaco_tdtv', 'like', "%{$search}%")))
-                            ->when($data['noi_lam_viec'], fn(Builder $query, $search): Builder => $query->whereHas('donVi', fn($q) => $q->where('noi_lam_viec_chi_tiet', 'like', "%{$search}%")));
-                    })
-            ], layout: Tables\Enums\FiltersLayout::AboveContent)
-            ->actions([
-                Tables\Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->filters([])
+            ->actions([Tables\Actions\EditAction::make()])
+            ->bulkActions([Tables\Actions\DeleteBulkAction::make()]);
     }
-    
+
     public static function getPages(): array
     {
         return [

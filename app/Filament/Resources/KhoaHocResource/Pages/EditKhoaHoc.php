@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\KhoaHocResource\Pages;
 
 use App\Filament\Resources\KhoaHocResource;
-use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Actions;
 
 class EditKhoaHoc extends EditRecord
 {
@@ -13,7 +13,13 @@ class EditKhoaHoc extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->label('Xóa'),
         ];
+    }
+
+    protected function getSavedNotificationTitle(): ?string
+    {
+        return 'Cập nhật khóa học thành công!';
     }
 }

@@ -1,23 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ScheduleController; // Dòng này rất quan trọng
+use App\Http\Controllers\DangKyController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
-*/
-
-// Route mặc định cho trang chủ
-Route::get('/', function () {
-    return view('welcome');
-});
-
-// Route mới để cung cấp dữ liệu lịch học cho trang chủ
-Route::get('/api/schedule-events', [ScheduleController::class, 'getEvents']);
+Route::get('/dang-kies', [DangKyController::class, 'index'])->name('dang-kies.index');
+Route::post('/dang-kies/lookup-hocviens', [DangKyController::class, 'lookupHocViens'])->name('dang-kies.lookup');
+Route::post('/dang-kies/store', [DangKyController::class, 'store'])->name('dang-kies.store');

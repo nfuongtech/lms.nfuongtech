@@ -1,45 +1,22 @@
 <?php
-
+// file: app/Models/DangKy.php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne; // Thêm dòng này
 
 class DangKy extends Model
 {
-    use HasFactory;
+    protected $table = 'dang_kies';
+    protected $fillable = ['hoc_vien_id','khoa_hoc_id'];
 
-    protected $fillable = [
-        'hoc_vien_id',
-        'khoa_hoc_id',
-    ];
-
-    public function khoaHoc(): BelongsTo
+    public function hocVien()
     {
-        return $this->belongsTo(KhoaHoc::class);
+        return $this->belongsTo(HocVien::class, 'hoc_vien_id');
     }
 
-    public function hocVien(): BelongsTo
+    public function khoaHoc()
     {
-        return $this->belongsTo(HocVien::class);
-    }
-
-    /**
-     * Mối quan hệ: Một Lượt ghi danh có nhiều Lượt điểm danh.
-     */
-    public function diemDanhs(): HasMany
-    {
-        return $this->hasMany(DiemDanh::class);
-    }
-
-    /**
-     * Mối quan hệ: Một Lượt ghi danh có một Kết quả cuối khóa.
-     */
-    public function ketQuaKhoaHoc(): HasOne
-    {
-        return $this->hasOne(KetQuaKhoaHoc::class);
+        return $this->belongsTo(KhoaHoc::class, 'khoa_hoc_id');
     }
 }
+

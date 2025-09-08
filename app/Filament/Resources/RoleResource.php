@@ -15,17 +15,9 @@ class RoleResource extends Resource
     protected static ?string $model = Role::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
-    protected static ?string $navigationGroup = 'Quản lý phân quyền';
-
-    public static function getNavigationLabel(): string
-    {
-        return 'Vai trò';
-    }
-
-    public static function getPluralLabel(): string
-    {
-        return 'Vai trò';
-    }
+    protected static ?string $navigationGroup = 'Hệ thống'; // Đổi tên nhóm
+    protected static ?string $modelLabel = 'Vai trò';
+    protected static ?string $pluralModelLabel = 'Vai trò';
 
     public static function form(Form $form): Form
     {
@@ -48,7 +40,6 @@ class RoleResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label('Tên vai trò')
                     ->sortable()
@@ -56,10 +47,7 @@ class RoleResource extends Resource
                 Tables\Columns\TextColumn::make('permissions.name')
                     ->label('Quyền')
                     ->badge()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Ngày tạo')
-                    ->dateTime(),
+                    ->limit(50),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

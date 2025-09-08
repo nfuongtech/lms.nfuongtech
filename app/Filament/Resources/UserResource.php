@@ -3,38 +3,49 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserResource\Pages;
-use App\Filament\Resources\UserResource\RelationManagers;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Hash;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationGroup = 'Hệ thống';
+    protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static ?string $modelLabel = 'Người dùng';
+    protected static ?string $pluralModelLabel = 'Người dùng';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\TextInput::make('name')
+                    ->label('Họ và tên')
                     ->required()
                     ->maxLength(255),
                 Forms\Components\TextInput::make('email')
+                    ->label('Địa chỉ Email')
                     ->email()
                     ->required()
+                    ->unique(ignoreRecord: true)
                     ->maxLength(255),
-                Forms\Components\DateTimePicker::make('email_verified_at'),
                 Forms\Components\TextInput::make('password')
+                    ->label('Mật khẩu mới')
                     ->password()
-                    ->required()
-                    ->maxLength(255),
+                    ->dehydrateStateUsing(fn ($state) => filled($state) ? Hash::make($state) : "")
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->helperText('Để trống nếu không muốn thay đổi mật khẩu.'),
+                Forms\Components\Select::make('roles')
+                    ->label('Vai trò')
+                    ->multiple()
+                    ->relationship('roles', 'name')
+                    ->preload()
+                    ->searchable()
             ]);
     }
 
@@ -42,24 +53,10 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('email_verified_at')
-                    ->dateTime()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
+                Tables\Columns\TextColumn::make('name')->label('Họ và tên')->searchable(),
+                Tables\Columns\TextColumn::make('email')->label('Email')->searchable(),
+                Tables\Columns\TextColumn::make('roles.name')->label('Vai trò')->badge(),
+                Tables\Columns\TextColumn::make('created_at')->label('Ngày tạo')->dateTime('d/m/Y'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -69,13 +66,6 @@ class UserResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
     }
 
     public static function getPages(): array

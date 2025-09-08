@@ -15,17 +15,9 @@ class PermissionResource extends Resource
     protected static ?string $model = Permission::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-key';
-    protected static ?string $navigationGroup = 'Quản lý phân quyền';
-
-    public static function getNavigationLabel(): string
-    {
-        return 'Quyền';
-    }
-
-    public static function getPluralLabel(): string
-    {
-        return 'Quyền';
-    }
+    protected static ?string $navigationGroup = 'Hệ thống'; // Đổi tên nhóm
+    protected static ?string $modelLabel = 'Quyền';
+    protected static ?string $pluralModelLabel = 'Quyền';
 
     public static function form(Form $form): Form
     {
@@ -41,14 +33,10 @@ class PermissionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label('Tên quyền')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Ngày tạo')
-                    ->dateTime(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
