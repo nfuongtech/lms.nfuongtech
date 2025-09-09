@@ -4,25 +4,39 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Content;
+use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 class PlanNotificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $subject;
-    public $content;
+    public $tieude;
+    public $noidung;
 
-    public function __construct($subject, $content)
+    public function __construct($tieude, $noidung)
     {
-        $this->subject = $subject;
-        $this->content = $content;
+        $this->tieude = $tieude;
+        $this->noidung = $noidung;
     }
 
-    public function build()
+    public function envelope(): Envelope
     {
-        // Sử dụng html() để gửi nội dung raw HTML
-        return $this->subject($this->subject)
-                    ->html($this->content);
+        return new Envelope(
+            subject: $this->tieude,
+        );
+    }
+
+    public function content(): Content
+    {
+        return new Content(
+            htmlString: $this->noidung,
+        );
+    }
+
+    public function attachments(): array
+    {
+        return [];
     }
 }

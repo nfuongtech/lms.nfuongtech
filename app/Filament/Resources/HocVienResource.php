@@ -11,14 +11,15 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class HocVienResource extends Resource
 {
     protected static ?string $model = HocVien::class;
 
-    protected static ?string $navigationGroup = 'Đào tạo';
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
+    protected static ?string $navigationGroup = 'Đào tạo';
     protected static ?string $navigationLabel = 'Học viên';
     protected static ?string $modelLabel = 'Học viên';
     protected static ?string $pluralModelLabel = 'Học viên';
@@ -27,39 +28,59 @@ class HocVienResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Thông tin cá nhân')
-                    ->schema([
-                        Forms\Components\FileUpload::make('hinh_anh_path')
-                            ->label('Hình ảnh 3x4')
-                            ->image()
-                            ->directory('hoc-vien-images'),
+                Forms\Components\Grid::make(3)->schema([ // Chia làm 3 cột: 1 ảnh, 2 thông tin
+                    // Cột 1: Hình ảnh
+                    Forms\Components\Section::make('Hình ảnh 3x4')
+                        ->schema([
+                            Forms\Components\FileUpload::make('hinh_anh_path')
+                                ->label('')
+                                ->image()
+                                ->directory('hoc-vien-images')
+                                ->imageResizeMode('cover')
+                                ->imageCropAspectRatio('3:4')
+                                ->imageResizeTargetWidth('150')
+                                ->imageResizeTargetHeight('200')
+                                ->alignCenter()
+                                ->panelLayout('compact'),
+                        ])
+                        ->columnSpan(1),
 
-                        // MSNV hiển thị để admin có thể nhập (hoặc để trống để auto-gen)
-                        Forms\Components\TextInput::make('msnv')
-                            ->label('MSNV')
-                            ->hint('Có thể để trống để hệ thống tự sinh mã theo YYYYMMDD-XXX')
-                            ->unique(ignoreRecord: true)
-                            ->maxLength(50),
+                    // Cột 2: Thông tin cá nhân (chia 2 cột nhỏ)
+                    Forms\Components\Section::make('Thông tin cá nhân')
+                        ->schema([
+                            Forms\Components\Grid::make(2)->schema([
+                                Forms\Components\TextInput::make('msnv')
+                                    ->label('MSNV')
+                                    ->hint('Có thể để trống để hệ thống tự sinh mã theo HV-YYMMDDXX')
+                                    ->unique(ignoreRecord: true)
+                                    ->maxLength(50)
+                                    ->columnSpan(1), // 20%
 
-                        Forms\Components\TextInput::make('ho_ten')
-                            ->label('Họ và tên')
-                            ->required()
-                            ->maxLength(255),
+                                Forms\Components\TextInput::make('ho_ten')
+                                    ->label('Họ và tên')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->columnSpan(1), // 80%
 
-                        Forms\Components\Select::make('gioi_tinh')
-                            ->label('Giới tính')
-                            ->options(['Nam' => 'Nam', 'Nữ' => 'Nữ', 'Khác' => 'Khác']),
+                                Forms\Components\Select::make('gioi_tinh')
+                                    ->label('Giới tính')
+                                    ->options(['Nam' => 'Nam', 'Nữ' => 'Nữ', 'Khác' => 'Khác'])
+                                    ->columnSpan(1),
 
-                        Forms\Components\DatePicker::make('nam_sinh')
-                            ->label('Năm sinh')
-                            ->displayFormat('d/m/Y'),
+                                Forms\Components\DatePicker::make('nam_sinh')
+                                    ->label('Năm sinh')
+                                    ->displayFormat('d/m/Y')
+                                    ->columnSpan(1),
 
-                        Forms\Components\TextInput::make('email')
-                            ->label('Email (nhận thông báo)')
-                            ->email()
-                            ->required()
-                            ->unique(ignoreRecord: true),
-                    ])->columns(2),
+                                Forms\Components\TextInput::make('email')
+                                    ->label('Email (nhận thông báo)')
+                                    // ->email() // Bỏ ràng buộc email để cho phép trống
+                                    ->unique(ignoreRecord: true)
+                                    ->columnSpan(2), // Không bắt buộc, chiếm toàn bộ dòng
+                            ]),
+                        ])
+                        ->columnSpan(2),
+                ]),
 
                 Forms\Components\Section::make('Thông tin công việc')
                     ->schema([
@@ -104,7 +125,7 @@ class HocVienResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('hinh_anh_path')->label('Ảnh')->circular(),
+                Tables\Columns\ImageColumn::make('hinh_anh_path')->label('Ảnh')->circular()->width(40),
                 Tables\Columns\TextColumn::make('msnv')->label('MSNV')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('ho_ten')->label('Họ tên')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('chuc_vu')->label('Chức vụ'),
@@ -112,9 +133,62 @@ class HocVienResource extends Resource
                 Tables\Columns\TextColumn::make('email')->label('Email')->searchable(),
                 Tables\Columns\BadgeColumn::make('tinh_trang')->label('Tình trạng'),
             ])
-            ->filters([])
-            ->actions([Tables\Actions\EditAction::make()])
-            ->bulkActions([Tables\Actions\DeleteBulkAction::make()]);
+            ->filters([
+                Tables\Filters\SelectFilter::make('don_vi.thaco_tdtv')
+                    ->label('THACO/TĐTV')
+                    ->relationship('donVi', 'thaco_tdtv')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('tinh_trang')
+                    ->label('Tình trạng')
+                    ->options(fn () => TuyChonKetQua::where('loai', 'tinh_trang_hoc_vien')->pluck('gia_tri', 'gia_tri')->toArray())
+                    ->searchable()
+                    ->preload(),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->headerActions([
+                Tables\Actions\CreateAction::make(),
+            ]);
+    }
+
+    // --- Bắt đầu: Thêm phương thức lấy thống kê ---
+    public static function getThongKeTheoDonVi(): array
+    {
+        $stats = HocVien::join('don_vis', 'hoc_viens.don_vi_id', '=', 'don_vis.id')
+            ->selectRaw('don_vis.thaco_tdtv, don_vis.cong_ty_ban_nvqt, COUNT(hoc_viens.id) as so_luong')
+            ->where('hoc_viens.tinh_trang', 'Đang làm việc')
+            ->groupBy('don_vis.thaco_tdtv', 'don_vis.cong_ty_ban_nvqt')
+            ->orderBy('don_vis.thaco_tdtv')
+            ->orderBy('don_vis.cong_ty_ban_nvqt')
+            ->get();
+
+        $result = [];
+        $stt = 1;
+        foreach ($stats as $stat) {
+            $result[] = [
+                'stt' => $stt++,
+                'thaco_tdtv' => $stat->thaco_tdtv,
+                'cong_ty_ban_nvqt' => $stat->cong_ty_ban_nvqt,
+                'so_luong' => $stat->so_luong,
+            ];
+        }
+
+        return $result;
+    }
+    // --- Kết thúc: Thêm phương thức lấy thống kê ---
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
     }
 
     public static function getPages(): array

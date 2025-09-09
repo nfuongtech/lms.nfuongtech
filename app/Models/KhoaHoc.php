@@ -2,86 +2,89 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model; // Hoặc \Illuminate\Database\Eloquent\Factories\HasFactory; nếu bạn dùng factory
+// use Illuminate\Database\Eloquent\Factories\HasFactory; // Bỏ comment nếu cần
+
+// Import model liên quan
+use App\Models\ChuongTrinh;
+use App\Models\DangKy; // Cần import để dùng trong quan hệ
+use App\Models\HocVien;
+use App\Models\LichHoc; // Nếu có quan hệ với lich_hocs
 
 class KhoaHoc extends Model
 {
-    use HasFactory;
+    // use HasFactory; // Bỏ comment nếu cần
 
-    protected $table = 'khoa_hocs';
-
+    /**
+     * Các thuộc tính có thể gán hàng loạt.
+     *
+     * @var array<string>
+     */
     protected $fillable = [
-        'ten_khoa_hoc',
-        'ma_khoa_hoc',
         'chuong_trinh_id',
-        'ngay_bat_dau',
-        'ngay_ket_thuc',
-        'trang_thai',
+        'ma_khoa_hoc',
+        'nam',
+        'trang_thai', // Ví dụ: Soạn thảo, Kế hoạch, Ban hành, Đang đào tạo, Kết thúc
         'ghi_chu',
-        // thêm các cột khác nếu cần
+        // Thêm các cột khác nếu có và cần fillable
     ];
 
+    /**
+     * Các thuộc tính sẽ được cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
-        'ngay_bat_dau' => 'date',
-        'ngay_ket_thuc' => 'date',
+        // 'nam' => 'integer', // Nếu bạn muốn cast nam thành integer
+        // 'created_at' => 'datetime',
+        // 'updated_at' => 'datetime',
     ];
 
-    /* === Quan hệ === */
+    // --- Bắt đầu: Các phương thức quan hệ ---
+
+    /**
+     * Một Khóa học thuộc về một Chương trình.
+     */
     public function chuongTrinh()
     {
         return $this->belongsTo(ChuongTrinh::class, 'chuong_trinh_id');
     }
 
+    /**
+     * Một Khóa học có nhiều Đăng ký.
+     * Đây là phương thức được gọi trong lỗi, cần được định nghĩa chính xác.
+     */
+    public function dangKys() // Tên phương thức phải là 'dangKys' để khớp với cách gọi $khoaHoc->dangKys
+    {
+        return $this->hasMany(DangKy::class, 'khoa_hoc_id');
+    }
+
+    /**
+     * Một Khóa học có nhiều Lịch học.
+     */
     public function lichHocs()
     {
         return $this->hasMany(LichHoc::class, 'khoa_hoc_id');
     }
 
-    public function dangKies()
-    {
-        return $this->hasMany(DangKy::class, 'khoa_hoc_id');
-    }
-
+    /**
+     * Một Khóa học có nhiều Học viên thông qua bảng trung gian dang_kies.
+     * Quan hệ Many-to-Many.
+     */
     public function hocViens()
     {
-        // Lấy học viên qua bảng dang_kies (dang_kies.hoc_vien_id)
-        return $this->hasManyThrough(
-            HocVien::class,
-            DangKy::class,
-            'khoa_hoc_id', // FK on DangKy
-            'id',          // PK on HocVien
-            'id',          // PK on KhoaHoc
-            'hoc_vien_id'  // FK on DangKy that references HocVien
-        );
+        return $this->belongsToMany(HocVien::class, 'dang_kies', 'khoa_hoc_id', 'hoc_vien_id');
     }
 
-    public function edits()
+    /**
+     * Đếm số lượng đăng ký.
+     * Phương thức accessor để dùng với withCount hoặc gọi trực tiếp.
+     * Ví dụ: $khoaHoc->so_luong_hoc_vien
+     */
+    public function getSoLuongHocVienAttribute()
     {
-        return $this->hasMany(KhoaHocEdit::class, 'khoa_hoc_id');
+        return $this->dangKys()->count();
     }
 
-    /* === Ghi lịch chỉnh sửa (auto) === */
-    protected static function booted()
-    {
-        static::updating(function ($model) {
-            // Lấy thay đổi (tránh push bảng timestamps)
-            $original = $model->getOriginal();
-            $changes = array_diff_assoc($model->getAttributes(), $original);
-            unset($changes['updated_at'], $changes['created_at']);
-
-            if (!empty($changes)) {
-                // Lưu lịch sử chỉnh sửa
-                KhoaHocEdit::create([
-                    'khoa_hoc_id' => $model->id,
-                    'user_id' => auth()->id() ?? null,
-                    'changes' => $changes,
-                ]);
-            }
-        });
-
-        static::created(function ($model) {
-            // Nếu cần làm cache count hay hành động khác sau khi tạo
-        });
-    }
+    // --- Kết thúc: Các phương thức quan hệ ---
 }

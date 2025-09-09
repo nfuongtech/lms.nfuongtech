@@ -3,23 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class EmailLog extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'khoa_hoc_id',
-        'email',
-        'subject',
-        'body',
-        'status',
         'email_account_id',
-        'sent_at',
+        'recipient_email', // Tên cột đúng theo laravel_db.pdf
+        'subject',
+        'content',
+        'status',
+        'error_message',
+        // 'khoa_hoc_id', // Nếu bạn muốn lưu thêm khóa học liên quan
     ];
 
-    protected $casts = [
-        'sent_at' => 'datetime',
-    ];
+    public function emailAccount()
+    {
+        return $this->belongsTo(EmailAccount::class);
+    }
 }

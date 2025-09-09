@@ -27,9 +27,9 @@ class LichHoc extends Model
     ];
 
     protected $casts = [
-        'ngay_hoc' => 'date',
-        'gio_bat_dau' => 'time',
-        'gio_ket_thuc' => 'time',
+        // 'ngay_hoc' => 'date',
+        'gio_bat_dau' => 'string',
+        'gio_ket_thuc' => 'string',
     ];
 
     public function khoaHoc()

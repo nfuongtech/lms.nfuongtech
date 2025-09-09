@@ -1,5 +1,6 @@
 <?php
 namespace App\Filament\Resources;
+
 use App\Filament\Resources\EmailTemplateResource\Pages;
 use App\Models\EmailTemplate;
 use Filament\Forms;
@@ -24,9 +25,12 @@ class EmailTemplateResource extends Resource
                 Forms\Components\Select::make('loai_thong_bao')
                     ->label('Loại thông báo')
                     ->options([
+                        'tao_khoa_hoc' => 'Tạo Khóa học', // Thêm mới
                         'ban_hanh' => 'Ban hành Kế hoạch',
                         'thay_doi' => 'Thay đổi Kế hoạch',
                         'tam_hoan' => 'Tạm hoãn Kế hoạch',
+                        'them_hoc_vien' => 'Thêm Học viên vào Khóa học', // Thêm mới
+                        'ket_thuc_khoa_hoc' => 'Kết thúc Khóa học', // Thêm mới
                     ])
                     ->required(),
                 Forms\Components\TextInput::make('tieu_de')->label('Tiêu đề Email')->required(),
@@ -35,16 +39,20 @@ class EmailTemplateResource extends Resource
                     ->required()->columnSpanFull(),
             ]);
     }
+
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('ten_mau')->label('Tên mẫu'),
-                Tables\Columns\TextColumn::make('loai_thong_bao')->label('Loại thông báo')->badge(),
-                Tables\Columns\TextColumn::make('tieu_de')->label('Tiêu đề'),
+                Tables\Columns\TextColumn::make('ten_mau')->label('Tên mẫu')->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('loai_thong_bao')->label('Loại thông báo')->badge()->searchable(),
+                Tables\Columns\TextColumn::make('tieu_de')->label('Tiêu đề')->limit(50),
             ])
-            ->actions([Tables\Actions\EditAction::make(),]);
+            ->actions([
+                Tables\Actions\EditAction::make(),
+            ]);
     }
+
     public static function getPages(): array
     {
         return [

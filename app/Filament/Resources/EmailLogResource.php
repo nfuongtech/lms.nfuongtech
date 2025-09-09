@@ -22,7 +22,8 @@ class EmailLogResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\TextInput::make('recipient')
+            // Form này thường không cần thiết nếu chỉ xem log, nhưng có thể giữ lại để tạo log thủ công nếu cần
+            Forms\Components\TextInput::make('recipient_email') // Sửa tên cột
                 ->label('Người nhận')
                 ->required(),
 
@@ -30,7 +31,7 @@ class EmailLogResource extends Resource
                 ->label('Tiêu đề')
                 ->required(),
 
-            Forms\Components\Textarea::make('body')
+            Forms\Components\Textarea::make('content') // Sửa tên cột
                 ->label('Nội dung')
                 ->rows(6),
 
@@ -49,7 +50,7 @@ class EmailLogResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('recipient')
+                Tables\Columns\TextColumn::make('recipient_email') // Sửa tên cột
                     ->label('Người nhận')
                     ->searchable()
                     ->sortable(),
@@ -59,13 +60,17 @@ class EmailLogResource extends Resource
                     ->limit(50)
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('emailAccount.name') // Quan hệ với EmailAccount
+                    ->label('Tài khoản gửi')
+                    ->sortable(),
+
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Trạng thái')
                     ->colors([
                         'success' => 'success',
-                        'failed'  => 'danger',
-                        'pending' => 'warning',
-                        'gray'    => fn ($state) => ! in_array($state, ['success','failed','pending']),
+                        'danger' => 'danger',
+                        'warning' => 'warning',
+                        'gray' => fn ($state) => ! in_array($state, ['success','failed','pending']),
                     ])
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'success' => 'Thành công',

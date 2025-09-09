@@ -11,8 +11,10 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table as TablesTable;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Config;
 use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
+use App\Mail\PlanNotificationMail; // Đảm bảo đã có
 
 class EmailAccountResource extends Resource
 {
@@ -34,11 +36,19 @@ class EmailAccountResource extends Resource
                 ->label('Password / SMTP secret')
                 ->password()
                 ->revealable()
-                ->required(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord),
+                // Chỉ required khi tạo mới
+                ->required(fn (string $context): bool => $context === 'create'),
             Forms\Components\Toggle::make('encryption_tls')->label('TLS Encryption')->default(true),
             Forms\Components\Toggle::make('active')->label('Kích hoạt')->default(true),
             Forms\Components\Toggle::make('is_default')->label('Mặc định')->default(false)
-                ->helperText('Chỉ một tài khoản được đặt mặc định cho hệ thống'),
+                ->helperText('Chỉ một tài khoản được đặt mặc định cho hệ thống')
+                ->live()
+                ->afterStateUpdated(function ($state, $set, $record) {
+                    // Nếu đánh dấu là mặc định, bỏ đánh dấu các tài khoản khác
+                    if ($state && $record) {
+                        EmailAccount::where('id', '!=', $record->id)->update(['is_default' => false]);
+                    }
+                }),
         ]);
     }
 
@@ -70,44 +80,44 @@ class EmailAccountResource extends Resource
                         $subject = "Test Email từ {$record->name}";
                         $content = "<p>Đây là email test từ tài khoản: <strong>{$record->email}</strong>.</p>";
 
+                        // Cấu hình mailer động
+                        Config::set('mail.mailers.dynamic', [
+                            'transport' => 'smtp',
+                            'host' => $record->host,
+                            'port' => $record->port,
+                            'encryption' => $record->encryption_tls ? 'tls' : null,
+                            'username' => $record->username,
+                            'password' => $record->password,
+                        ]);
+                        Config::set('mail.from', [
+                            'address' => $record->email,
+                            'name' => $record->name,
+                        ]);
+
+                        $success = true;
+                        $errorMessage = null;
                         try {
-                            config([
-                                'mail.mailers.dynamic' => [
-                                    'transport' => 'smtp',
-                                    'host' => $record->host,
-                                    'port' => $record->port,
-                                    'encryption' => $record->encryption_tls ? 'tls' : null,
-                                    'username' => $record->username,
-                                    'password' => $record->password,
-                                ],
-                                'mail.from' => [
-                                    'address' => $record->email,
-                                    'name' => $record->name,
-                                ],
-                            ]);
-
-                            Mail::mailer('dynamic')->to($to)->send(new \App\Mail\PlanNotificationMail($subject, $content));
-
-                            EmailLog::create([
-                                'email_account_id' => $record->id,
-                                'recipient_email' => $to,
-                                'subject' => $subject,
-                                'content' => $content,
-                                'status' => 'success',
-                            ]);
-
-                            Notification::make()->title('Gửi email test thành công!')->success()->send();
+                            Mail::mailer('dynamic')->to($to)->send(new PlanNotificationMail($subject, $content));
                         } catch (\Throwable $e) {
-                            EmailLog::create([
-                                'email_account_id' => $record->id,
-                                'recipient_email' => $to,
-                                'subject' => $subject,
-                                'content' => $content,
-                                'status' => 'failed',
-                                'error_message' => $e->getMessage(),
-                            ]);
+                            $success = false;
+                            $errorMessage = $e->getMessage();
+                            \Log::error("Test email failed for account {$record->email}: " . $e->getMessage());
+                        }
 
-                            Notification::make()->title('Lỗi khi gửi email test')->body($e->getMessage())->danger()->send();
+                        // Lưu log
+                        EmailLog::create([
+                            'email_account_id' => $record->id,
+                            'recipient_email' => $to,
+                            'subject' => $subject,
+                            'content' => $content,
+                            'status' => $success ? 'success' : 'failed',
+                            'error_message' => $errorMessage,
+                        ]);
+
+                        if ($success) {
+                            Notification::make()->title('Gửi email test thành công!')->success()->send();
+                        } else {
+                            Notification::make()->title('Lỗi khi gửi email test')->body($errorMessage)->danger()->send();
                         }
                     })
                     ->color('primary'),

@@ -4,59 +4,66 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 
 class HocVien extends Model
 {
     use HasFactory;
 
-    protected $table = 'hoc_viens';
-
     protected $fillable = [
         'msnv',
         'ho_ten',
+        'gioi_tinh',
+        'nam_sinh',
         'email',
-        'so_dien_thoai',
+        'ngay_vao',
         'chuc_vu',
         'don_vi_id',
         'tinh_trang',
         'hinh_anh_path',
-        'nam_sinh',
-        'gioi_tinh',
-        'ngay_vao',
     ];
+
+    protected $casts = [
+        'nam_sinh' => 'date',
+        'ngay_vao' => 'date',
+    ];
+
+    // --- Bắt đầu: Tự sinh MSNV nếu để trống ---
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($hocVien) {
+            if (empty($hocVien->msnv)) {
+                // Định dạng mong muốn: HV-YYMMDDXX
+                $prefix = 'TT-' . now()->format('ymd'); // Ví dụ: HV-250405
+                $fullPrefix = $prefix . '%'; // Để tìm kiếm LIKE 'HV-250405%'
+
+                // Tìm bản ghi cuối cùng trong ngày với định dạng này
+                $lastHocVien = static::where('msnv', 'like', $fullPrefix)
+                    ->orderBy('msnv', 'desc')
+                    ->first();
+
+                if ($lastHocVien) {
+                    // Trích xuất phần số cuối cùng (XX)
+                    // Ví dụ: MSNV là 'HV-25040503', phần số là '03'
+                    $lastPart = substr($lastHocVien->msnv, -2); // Lấy 2 ký tự cuối
+                    $lastNumber = intval($lastPart);
+
+                    // Tăng số lên 1, đảm bảo có 2 chữ số
+                    $newNumber = str_pad(min($lastNumber + 1, 99), 2, '0', STR_PAD_LEFT);
+                } else {
+                    // Nếu chưa có bản ghi nào trong ngày, bắt đầu từ 01
+                    $newNumber = '01';
+                }
+
+                $hocVien->msnv = $prefix . $newNumber; // Ví dụ: HV-25040501
+            }
+        });
+    }
+    // --- Kết thúc: Tự sinh MSNV nếu để trống ---
 
     public function donVi()
     {
         return $this->belongsTo(DonVi::class, 'don_vi_id');
-    }
-
-    public function dangKys()
-    {
-        return $this->hasMany(DangKy::class, 'hoc_vien_id');
-    }
-
-    /**
-     * Tự động sinh MSNV khi creating nếu msnv rỗng.
-     * Đảm bảo sinh duy nhất theo ngày: YYYYMMDD-XXX
-     */
-    protected static function booted()
-    {
-        static::creating(function (HocVien $hv) {
-            if (empty($hv->msnv)) {
-                $date = now()->format('Ymd');
-
-                // Lấy số lớn nhất hiện có cho ngày này (kết quả là int)
-                // Note: sử dụng DB raw để parse cuối chuỗi sau dấu '-' nếu format đúng.
-                $last = DB::table('hoc_viens')
-                    ->selectRaw("MAX(CAST(SUBSTRING_INDEX(msnv, '-', -1) AS UNSIGNED)) as max_seq")
-                    ->where('msnv', 'like', "{$date}-%")
-                    ->first();
-
-                $lastSeq = $last->max_seq ? intval($last->max_seq) : 0;
-                $newSeq = $lastSeq + 1;
-                $hv->msnv = $date . '-' . str_pad($newSeq, 3, '0', STR_PAD_LEFT);
-            }
-        });
     }
 }
