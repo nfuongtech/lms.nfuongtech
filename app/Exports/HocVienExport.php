@@ -3,70 +3,67 @@
 namespace App\Exports;
 
 use App\Models\HocVien;
-use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 
-class HocVienExport implements FromQuery, WithHeadings, WithMapping
+class HocVienExport implements FromCollection, WithHeadings, WithMapping
 {
-    /**
-    * @return \Illuminate\Support\Collection
-    */
-    public function query()
+    protected $query;
+
+    public function __construct($query = null)
     {
-        return HocVien::with('donVi');
+        $this->query = $query ?? HocVien::query();
     }
 
-    /**
-     * Map each row to an array for Excel.
-     *
-     * @param HocVien $hocVien
-     * @return array
-     */
+    public function collection()
+    {
+        return $this->query->with(['donVi', 'donViPhapNhan'])->get();
+    }
+
+    public function headings(): array
+    {
+        return [
+            'msnv',
+            'ho_ten',
+            'gioi_tinh',
+            'nam_sinh',
+            'ngay_vao',
+            'chuc_vu',
+            'email',
+            'sdt',
+            'tinh_trang',
+            'thaco_tdtv',
+            'cong_ty_ban_nvqt',
+            'phong_bo_phan',
+            'noi_lam_viec_chi_tiet',
+            'ma_don_vi',
+            'ma_so_thue',
+            'ten_don_vi',
+            'dia_chi',
+        ];
+    }
+
     public function map($hocVien): array
     {
         return [
             $hocVien->msnv,
             $hocVien->ho_ten,
             $hocVien->gioi_tinh,
-            $hocVien->nam_sinh ? date('d/m/Y', strtotime($hocVien->nam_sinh)) : 'N/A',
-            $hocVien->email,
-            $hocVien->ngay_vao ? date('d/m/Y', strtotime($hocVien->ngay_vao)) : 'N/A',
+            optional($hocVien->nam_sinh)->format('d/m/Y'),
+            optional($hocVien->ngay_vao)->format('d/m/Y'),
             $hocVien->chuc_vu,
-            $hocVien->donVi->ma_don_vi ?? 'N/A',
-            $hocVien->donVi->ten_hien_thi ?? 'N/A',
-            $hocVien->donVi->thaco_tdtv ?? 'N/A',
-            $hocVien->donVi->cong_ty_ban_nvqt ?? 'N/A',
-            $hocVien->donVi->phong_bo_phan ?? 'N/A',
-            $hocVien->donVi->noi_lam_viec_chi_tiet ?? 'N/A',
+            $hocVien->email,
+            $hocVien->sdt,
             $hocVien->tinh_trang,
-            $hocVien->hinh_anh_path,
-        ];
-    }
-
-    /**
-     * Define the headings for the Excel file.
-     *
-     * @return array
-     */
-    public function headings(): array
-    {
-        return [
-            'MSNV',
-            'Họ và tên',
-            'Giới tính',
-            'Năm sinh',
-            'Email',
-            'Ngày vào',
-            'Chức vụ',
-            'Mã đơn vị',
-            'Tên đơn vị',
-            'THACO/TĐTV',
-            'Công ty/Ban NVQT',
-            'Phòng/Bộ phận',
-            'Nơi làm việc chi tiết',
-            'Tình trạng',
-            'Đường dẫn hình ảnh',
+            $hocVien->donVi?->thaco_tdtv,
+            $hocVien->donVi?->cong_ty_ban_nvqt,
+            $hocVien->donVi?->phong_bo_phan,
+            $hocVien->donVi?->noi_lam_viec_chi_tiet,
+            $hocVien->donVi?->ma_don_vi,
+            $hocVien->donViPhapNhan?->ma_so_thue,
+            $hocVien->donViPhapNhan?->ten_don_vi,
+            $hocVien->donViPhapNhan?->dia_chi,
         ];
     }
 }

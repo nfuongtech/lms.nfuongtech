@@ -15,9 +15,7 @@ class User extends Authenticatable implements FilamentUser
     use HasFactory, Notifiable, HasRoles;
 
     /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
+     * Các cột cho phép gán giá trị hàng loạt
      */
     protected $fillable = [
         'name',
@@ -26,9 +24,7 @@ class User extends Authenticatable implements FilamentUser
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
+     * Các cột ẩn khi serialize
      */
     protected $hidden = [
         'password',
@@ -36,9 +32,7 @@ class User extends Authenticatable implements FilamentUser
     ];
 
     /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
+     * Các cột cast
      */
     protected function casts(): array
     {
@@ -53,16 +47,32 @@ class User extends Authenticatable implements FilamentUser
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        // Tại đây bạn có thể thêm logic phức tạp hơn, ví dụ:
-        // return str_ends_with($this->email, '@yourdomain.com') && $this->hasVerifiedEmail();
         return true;
     }
 
     /**
-     * Get the giangVien record associated with the user.
+     * Quan hệ: Một User có một Giảng viên
      */
     public function giangVien(): HasOne
     {
         return $this->hasOne(GiangVien::class);
+    }
+
+    /**
+     * Logic khi xóa User:
+     * - Không xóa Giảng viên
+     * - Giữ lại bản ghi giang_viens nhưng set user_id = null
+     * - Đặt tình trạng thành "Không tồn tại user"
+     */
+    protected static function booted()
+    {
+        static::deleting(function ($user) {
+            if ($user->giangVien) {
+                $user->giangVien->update([
+                    'user_id' => null,
+                    'tinh_trang' => 'Không tồn tại user',
+                ]);
+            }
+        });
     }
 }

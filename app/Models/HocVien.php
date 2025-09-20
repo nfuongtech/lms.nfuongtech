@@ -15,9 +15,11 @@ class HocVien extends Model
         'gioi_tinh',
         'nam_sinh',
         'email',
+        'sdt', // ⚡ thêm vào fillable
         'ngay_vao',
         'chuc_vu',
         'don_vi_id',
+        'don_vi_phap_nhan_id',
         'tinh_trang',
         'hinh_anh_path',
     ];
@@ -27,43 +29,81 @@ class HocVien extends Model
         'ngay_vao' => 'date',
     ];
 
-    // --- Bắt đầu: Tự sinh MSNV nếu để trống ---
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($hocVien) {
-            if (empty($hocVien->msnv)) {
-                // Định dạng mong muốn: HV-YYMMDDXX
-                $prefix = 'TT-' . now()->format('ymd'); // Ví dụ: HV-250405
-                $fullPrefix = $prefix . '%'; // Để tìm kiếm LIKE 'HV-250405%'
+            $hocVien->msnv ??= self::generateMSNV();
+            $hocVien->tinh_trang ??= 'Đang làm việc';
+            $hocVien->sdt = self::normalizePhone($hocVien->sdt);
+        });
 
-                // Tìm bản ghi cuối cùng trong ngày với định dạng này
-                $lastHocVien = static::where('msnv', 'like', $fullPrefix)
-                    ->orderBy('msnv', 'desc')
-                    ->first();
-
-                if ($lastHocVien) {
-                    // Trích xuất phần số cuối cùng (XX)
-                    // Ví dụ: MSNV là 'HV-25040503', phần số là '03'
-                    $lastPart = substr($lastHocVien->msnv, -2); // Lấy 2 ký tự cuối
-                    $lastNumber = intval($lastPart);
-
-                    // Tăng số lên 1, đảm bảo có 2 chữ số
-                    $newNumber = str_pad(min($lastNumber + 1, 99), 2, '0', STR_PAD_LEFT);
-                } else {
-                    // Nếu chưa có bản ghi nào trong ngày, bắt đầu từ 01
-                    $newNumber = '01';
-                }
-
-                $hocVien->msnv = $prefix . $newNumber; // Ví dụ: HV-25040501
-            }
+        static::updating(function ($hocVien) {
+            $hocVien->sdt = self::normalizePhone($hocVien->sdt);
         });
     }
-    // --- Kết thúc: Tự sinh MSNV nếu để trống ---
+
+    /**
+     * Chuẩn hóa số điện thoại
+     */
+    private static function normalizePhone(?string $sdt): ?string
+    {
+        if (empty($sdt)) {
+            return null;
+        }
+
+        $sdt = trim($sdt);
+
+        // Nếu bắt đầu bằng dấu "+" (số quốc tế) → giữ nguyên dấu "+"
+        if (str_starts_with($sdt, '+')) {
+            // Bỏ khoảng trắng, dấu chấm, gạch ngang nhưng giữ "+"
+            return '+' . preg_replace('/[^\d]/', '', substr($sdt, 1));
+        }
+
+        // Không có "+": chỉ giữ số
+        $sdt = preg_replace('/\D/', '', $sdt);
+
+        // Nếu bắt đầu bằng "84" thì đổi thành "0"
+        if (str_starts_with($sdt, '84') && strlen($sdt) > 2) {
+            $sdt = '0' . substr($sdt, 2);
+        }
+
+        return $sdt;
+    }
+
+    /**
+     * Sinh mã học viên tự động HV-YYMMXXX
+     */
+    private static function generateMSNV(): string
+    {
+        $prefix = 'HV-' . now()->format('ym');
+        $last = self::where('msnv', 'like', $prefix . '%')
+            ->orderBy('msnv', 'desc')
+            ->first();
+
+        if ($last && preg_match('/(\d{3})$/', $last->msnv, $m)) {
+            $num = intval($m[1]) + 1;
+        } else {
+            $num = 1;
+        }
+
+        $num = min($num, 999);
+        return $prefix . str_pad($num, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function donViPhapNhan()
+    {
+        return $this->belongsTo(DonViPhapNhan::class, 'don_vi_phap_nhan_id', 'ma_so_thue');
+    }
 
     public function donVi()
     {
         return $this->belongsTo(DonVi::class, 'don_vi_id');
+    }
+
+    public function dangKies()
+    {
+        return $this->hasMany(DangKy::class, 'hoc_vien_id');
     }
 }

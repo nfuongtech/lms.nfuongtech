@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GiangVienResource\Pages;
 
 use App\Filament\Resources\GiangVienResource;
+use App\Models\GiangVien;
 use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -18,31 +19,44 @@ class CreateGiangVien extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         return DB::transaction(function () use ($data) {
-            // Tách dữ liệu của ChuyenDe ra khỏi data chính
-            $chuyenDeData = $data['chuyenDes'] ?? [];
-            $giangVienData = Arr::except($data, ['email', 'chuyenDes']);
+            $giangVienData = Arr::only($data, [
+                'ma_so', 'ho_ten', 'hinh_anh_path', 'gioi_tinh',
+                'nam_sinh', 'email', 'dien_thoai', 'ho_khau_noi_lam_viec',
+                'don_vi', 'trinh_do', 'chuyen_mon', 'so_nam_kinh_nghiem',
+                'tom_tat_kinh_nghiem', 'tinh_trang',
+            ]);
 
-            // 1. Tìm hoặc tạo mới tài khoản người dùng
-            $user = User::firstOrCreate(
-                ['email' => $data['email']], // Điều kiện tìm kiếm
-                [
-                    'name' => $data['ho_ten'],
-                    'password' => Hash::make(Str::random(12)), // Tạo mật khẩu ngẫu nhiên an toàn
-                ]
-            );
+            $email = trim($data['email'] ?? '');
 
-            // 2. Gán user_id vào dữ liệu của Giảng viên
-            $giangVienData['user_id'] = $user->id;
-
-            // 3. Tạo bản ghi Giảng viên
-            $giangVien = static::getModel()::create($giangVienData);
-
-            // 4. Liên kết các chuyên đề (nếu có)
-            if (!empty($chuyenDeData)) {
-                $giangVien->chuyenDes()->sync($chuyenDeData);
+            if (in_array($giangVienData['tinh_trang'], ['Đang làm việc', 'Đang giảng dạy']) && empty($email)) {
+                throw new \Exception('Trạng thái này yêu cầu phải có Email để tạo User đăng nhập.');
             }
 
-            return $giangVien;
+            $userId = null;
+            if (!empty($email)) {
+                $user = User::firstOrCreate(
+                    ['email' => $email],
+                    [
+                        'name' => $giangVienData['ho_ten'] ?? $giangVienData['ma_so'],
+                        'password' => Hash::make(Str::random(12)),
+                    ]
+                );
+                $userId = $user->id;
+            }
+
+            $giangVienData['user_id'] = $userId;
+
+            return GiangVien::create($giangVienData);
         });
+    }
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Đã tạo Giảng viên thành công!';
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
     }
 }

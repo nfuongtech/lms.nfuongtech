@@ -20,7 +20,7 @@ class EmailAccountResource extends Resource
 {
     protected static ?string $model = EmailAccount::class;
     protected static ?string $navigationIcon = 'heroicon-o-envelope';
-    protected static ?string $navigationGroup = 'Thiết lập';
+    protected static ?string $navigationGroup = 'Hệ thống';
     protected static ?string $label = 'Tài khoản Email';
     protected static ?string $pluralLabel = 'Danh sách Email';
 

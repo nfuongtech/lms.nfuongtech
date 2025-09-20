@@ -33,18 +33,52 @@ class ChuyenDeResource extends Resource
                     ->label('Mã số')
                     ->required()
                     ->unique(ignoreRecord: true),
+
                 TextInput::make('ten_chuyen_de')
                     ->label('Tên Chuyên đề/Học phần')
                     ->required(),
+
                 TextInput::make('thoi_luong')
                     ->label('Thời lượng (giờ)')
-                    ->numeric()
-                    ->required(),
-                TextInput::make('doi_tuong_dao_tao')
-                    ->label('Đối tượng đào tạo')
-                    ->required(),
+                    ->required()
+                    ->helperText('Nhập số. Dùng dấu chấm cho thập phân — ví dụ: 3.5 hoặc 4.0')
+                    ->rule('regex:/^\d+([.,]\d)?$/')
+                    ->afterStateHydrated(function ($state, callable $set) {
+                        if ($state === null || $state === '') {
+                            return;
+                        }
+                        $normalized = str_replace(',', '.', (string)$state);
+                        if (is_numeric($normalized)) {
+                            $set('thoi_luong', number_format((float)$normalized, 1, '.', ''));
+                        }
+                    })
+                    ->dehydrateStateUsing(function ($state) {
+                        if ($state === null || $state === '') {
+                            return null;
+                        }
+                        $normalized = str_replace(',', '.', (string)$state);
+                        $normalized = preg_replace('/[^0-9.]/', '', $normalized);
+                        if ($normalized === '') {
+                            return null;
+                        }
+                        return number_format((float)$normalized, 2, '.', '');
+                    }),
 
-                // Giảng viên nhiều-nhiều
+                Select::make('doi_tuong_dao_tao')
+                    ->label('Đối tượng đào tạo')
+                    ->options(fn () => TuyChonKetQua::where('loai', 'doi_tuong_dao_tao')->pluck('gia_tri', 'gia_tri'))
+                    ->searchable()
+                    ->createOptionForm([
+                        TextInput::make('gia_tri')->label('Thêm đối tượng mới')->required(),
+                    ])
+                    ->createOptionUsing(function (array $data): string {
+                        $opt = TuyChonKetQua::create([
+                            'loai' => 'doi_tuong_dao_tao',
+                            'gia_tri' => $data['gia_tri'],
+                        ]);
+                        return $opt->gia_tri;
+                    }),
+
                 Select::make('giangViens')
                     ->label('Giảng viên')
                     ->relationship('giangViens', 'ho_ten')
@@ -57,9 +91,7 @@ class ChuyenDeResource extends Resource
                     ->options(fn () => TuyChonKetQua::where('loai', 'trang_thai_tai_lieu')->pluck('gia_tri', 'gia_tri'))
                     ->searchable()
                     ->createOptionForm([
-                        TextInput::make('gia_tri')
-                            ->label('Giá trị tùy chọn mới')
-                            ->required(),
+                        TextInput::make('gia_tri')->label('Giá trị tùy chọn mới')->required(),
                     ])
                     ->createOptionUsing(function (array $data): string {
                         $newOption = TuyChonKetQua::create([
@@ -70,15 +102,23 @@ class ChuyenDeResource extends Resource
                     }),
 
                 FileUpload::make('bai_giang_path')
-                    ->label('Bài giảng kèm theo')
+                    ->label('Tài liệu')
                     ->directory('bai-giang')
                     ->multiple()
                     ->reorderable()
-                    ->appendFiles(),
+                    ->appendFiles()
+                    ->getUploadedFileNameForStorageUsing(function ($file, $record = null) {
+                        static $counter = 1;
+                        $maSo = $record?->ma_so ?? 'UNSAVED';
+                        $name = now()->format('Ymd') . '-' . $maSo . '_0' . $counter;
+                        $counter++;
+                        return $name . '.' . $file->getClientOriginalExtension();
+                    }),
 
                 Textarea::make('muc_tieu')
                     ->label('Mục tiêu')
                     ->columnSpanFull(),
+
                 Textarea::make('noi_dung')
                     ->label('Nội dung')
                     ->columnSpanFull(),
@@ -89,31 +129,93 @@ class ChuyenDeResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('ma_so')->label('Mã số')->searchable()->sortable(),
-                TextColumn::make('ten_chuyen_de')->label('Tên Chuyên đề/Học phần')->searchable(),
-                TextColumn::make('thoi_luong')->label('Thời lượng (giờ)'),
-                TextColumn::make('giangViens.ho_ten')->label('Giảng viên')->badge(),
+                TextColumn::make('id')
+                    ->label('TT')
+                    ->rowIndex()
+                    ->toggleable(),
+
+                TextColumn::make('ma_so')
+                    ->label('Mã số')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('ten_chuyen_de')
+                    ->label('Tên Chuyên đề/Học phần')
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('thoi_luong')
+                    ->label('Thời lượng (giờ)')
+                    ->formatStateUsing(fn ($state) => $state ? number_format((float)str_replace(',', '.', $state), 1, '.', '') : '')
+                    ->toggleable(),
+
+                TextColumn::make('doi_tuong_dao_tao')
+                    ->label('Đối tượng đào tạo')
+                    ->toggleable(),
+
+                TextColumn::make('giangViens.ho_ten')
+                    ->label('Giảng viên')
+                    ->badge()
+                    ->toggleable(),
+
+                TextColumn::make('muc_tieu')
+                    ->label('Mục tiêu')
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('noi_dung')
+                    ->label('Nội dung')
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                // Cột tài liệu hiển thị link file
+                ViewColumn::make('bai_giang_path')
+                    ->label('Tài liệu')
+                    ->view('tables.columns.document-links')
+                    ->toggleable(false),
+
                 TextColumn::make('trang_thai_tai_lieu')
                     ->label('Trạng thái tài liệu')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'Đã ban hành' => 'success',
-                        'Đang biên soạn' => 'warning',
-                        'Đã thẩm định' => 'info',
-                        default => 'gray',
-                    }),
-                ViewColumn::make('bai_giang_path')
-                    ->label('Tài liệu')
-                    ->view('tables.columns.document-links'),
+                    ->color(fn (?string $state): string => $state === 'Đang áp dụng' ? 'success' : 'warning')
+                    ->toggleable(),
+
+                TextColumn::make('created_at')
+                    ->label('Ngày tạo')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([])
+            ->filters([
+                Tables\Filters\Filter::make('ma_so')
+                    ->form([TextInput::make('ma_so')->label('Mã số')])
+                    ->query(fn ($query, $data) => !empty($data['ma_so']) ? $query->where('ma_so', 'like', "%{$data['ma_so']}%") : null),
+
+                Tables\Filters\Filter::make('ten_chuyen_de')
+                    ->form([TextInput::make('ten_chuyen_de')->label('Tên Chuyên đề/Học phần')])
+                    ->query(fn ($query, $data) => !empty($data['ten_chuyen_de']) ? $query->where('ten_chuyen_de', 'like', "%{$data['ten_chuyen_de']}%") : null),
+
+                Tables\Filters\SelectFilter::make('giang_vien')
+                    ->label('Giảng viên')
+                    ->relationship('giangViens', 'ho_ten')
+                    ->searchable()
+                    ->preload(),
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                Tables\Actions\DeleteBulkAction::make(), // Delete bulk action màu đỏ
+            ])
+            ->headerActions([
+                Tables\Actions\Action::make('exportExcel')
+                    ->label('Xuất Excel')
+                    ->button()
+                    ->color('gray')
+                    ->url(route('export.chuyende')),
+
+                Tables\Actions\CreateAction::make()->label('Tạo Chuyên đề/Học phần'),
             ]);
     }
 

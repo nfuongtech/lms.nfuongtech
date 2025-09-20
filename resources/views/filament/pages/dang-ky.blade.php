@@ -14,17 +14,15 @@
                 </select>
             </div>
 
-            {{-- Trạng thái kế hoạch --}}
+            {{-- Trạng thái kế hoạch (theo yêu cầu: Dự thảo, Ban hành, Đang đào tạo, Kết thúc) --}}
             <div class="w-2/12 min-w-[160px]">
                 <label class="block text-xs font-medium text-gray-700">Trạng thái Kế hoạch</label>
                 <select wire:model.live="selectedTrangThaiKeHoach" class="fi-input w-full text-xs rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">-- Tất cả --</option>
-                    <option value="Soạn thảo">Soạn thảo</option>
-                    <option value="Kế hoạch">Kế hoạch</option>
+                    <option value="Dự thảo">Dự thảo</option>
                     <option value="Ban hành">Ban hành</option>
                     <option value="Đang đào tạo">Đang đào tạo</option>
                     <option value="Kết thúc">Kết thúc</option>
-                    <option value="Tạm hoãn">Tạm hoãn</option>
                 </select>
             </div>
 
@@ -92,6 +90,41 @@
         @if($selectedKhoaHoc)
             @php
                 $kh = \App\Models\KhoaHoc::with('chuongTrinh', 'lichHocs.giangVien')->find($selectedKhoaHoc);
+
+                // Tổng giờ chương trình áp dụng (lấy theo chuongTrinh liên kết nếu có)
+                $tongThoiLuongChuongTrinh = 0;
+                if ($kh && $kh->chuongTrinh) {
+                    // Cố gắng lấy cột 'so_gio' hoặc 'thoi_luong' hoặc 'gio'
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'so_gio')) {
+                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                            ->where('tinh_trang', 'Đang áp dụng')->sum('so_gio');
+                    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'thoi_luong')) {
+                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                            ->where('tinh_trang', 'Đang áp dụng')->sum('thoi_luong');
+                    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'gio')) {
+                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                            ->where('tinh_trang', 'Đang áp dụng')->sum('gio');
+                    } else {
+                        // fallback: tổng theo lichHocs thoi_luong
+                        $tongThoiLuongChuongTrinh = $kh->lichHocs->sum('thoi_luong');
+                    }
+                }
+
+                // Tổng giờ lịch học thực tế (tính theo thời gian bắt đầu - kết thúc trên lichHocs)
+                $tongThoiLuongThucTe = $kh->lichHocs->reduce(function($carry, $lich) {
+                    if (!empty($lich->gio_bat_dau) && !empty($lich->gio_ket_thuc)) {
+                        try {
+                            $start = \Carbon\Carbon::parse($lich->gio_bat_dau);
+                            $end = \Carbon\Carbon::parse($lich->gio_ket_thuc);
+                            $carry += $end->diffInMinutes($start) / 60;
+                        } catch (\Throwable $e) {
+                            // ignore faulty format
+                        }
+                    } elseif (isset($lich->thoi_luong)) {
+                        $carry += $lich->thoi_luong;
+                    }
+                    return $carry;
+                }, 0);
             @endphp
             <div class="bg-white shadow rounded-xl p-5 border border-gray-200">
                 <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
@@ -124,7 +157,8 @@
                             <tr>
                                 <th class="px-4 py-2 border-b">Mã Khóa/Lớp</th>
                                 <th class="px-4 py-2 border-b">Tên chương trình</th>
-                                <th class="px-4 py-2 border-b">Thời lượng (giờ)</th>
+                                <th class="px-4 py-2 border-b">Tổng giờ CT áp dụng</th>
+                                <th class="px-4 py-2 border-b">Tổng giờ lịch học thực tế</th>
                                 <th class="px-4 py-2 border-b">Giảng viên</th>
                                 <th class="px-4 py-2 border-b">Thời gian đào tạo</th>
                                 <th class="px-4 py-2 border-b">Trạng thái</th>
@@ -135,7 +169,14 @@
                             <tr class="bg-white border-b hover:bg-gray-50">
                                 <td class="px-4 py-3 font-medium text-gray-900">{{ $kh->ma_khoa_hoc }}</td>
                                 <td class="px-4 py-3">{{ $kh->chuongTrinh->ten_chuong_trinh ?? '' }}</td>
-                                <td class="px-4 py-3">{{ $kh->lichHocs->sum('thoi_luong') }}</td>
+                                <td class="px-4 py-3">{{ $tongThoiLuongChuongTrinh }}</td>
+                                <td class="px-4 py-3">
+                                    @php
+                                        $colorClass = ($tongThoiLuongThucTe < $tongThoiLuongChuongTrinh) ? 'text-red-600 font-semibold' : 'text-gray-700';
+                                        $displayThucTe = number_format($tongThoiLuongThucTe, 2);
+                                    @endphp
+                                    <span class="{{ $colorClass }}">{{ $displayThucTe }}</span>
+                                </td>
                                 <td class="px-4 py-3">
                                     {{ $kh->lichHocs->pluck('giangVien.ho_ten')->filter()->join(', ') }}
                                 </td>
@@ -208,7 +249,6 @@
                         @empty
                             <tr>
                                 <td colspan="7" class="px-4 py-6 text-center text-gray-500">
-                                    {{-- Xóa bỏ hình thừa --}}
                                     <span class="block">Chưa có học viên nào được ghi danh</span>
                                 </td>
                             </tr>
@@ -295,8 +335,8 @@
                             <label class="block text-sm font-medium text-gray-700">Chọn Mẫu Email <span class="text-red-500">*</span></label>
                             <select wire:model="selectedEmailTemplateId" class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                                 <option value="">-- Chọn mẫu --</option>
-                                @foreach(\App\Models\EmailTemplate::all() as $template)
-                                    <option value="{{ $template->id }}">{{ $template->ten_mau }}</option>
+                                @foreach($this->getEmailTemplates() as $template)
+                                    <option value="{{ $template->id }}">{{ $template->ten_mau ?? $template->tieu_de ?? 'Mẫu #' . $template->id }}</option>
                                 @endforeach
                             </select>
                             @error('selectedEmailTemplateId') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
@@ -305,7 +345,7 @@
                             <label class="block text-sm font-medium text-gray-700">Chọn Tài Khoản Gửi <span class="text-red-500">*</span></label>
                             <select wire:model="selectedEmailAccountId" class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                                 <option value="">-- Chọn tài khoản --</option>
-                                @foreach(\App\Models\EmailAccount::where('active', 1)->get() as $account)
+                                @foreach($this->getEmailAccounts() as $account)
                                     <option value="{{ $account->id }}">{{ $account->name }} ({{ $account->email }})</option>
                                 @endforeach
                             </select>
@@ -317,6 +357,9 @@
                             <p>Số học viên sẽ nhận email: <span class="font-semibold">{{ $hocViensDaDangKy->count() }}</span></p>
                         @elseif($loaiEmail === 'giang_vien')
                             <p>Số giảng viên sẽ nhận email: <span class="font-semibold">{{ $this->getDanhSachGiangVien()->count() }}</span></p>
+                        @endif
+                        @if($hocViensDaDangKy->isEmpty() && $this->getDanhSachGiangVien()->isEmpty())
+                            <p class="mt-2 text-sm text-yellow-600">Chú ý: Hiện không có học viên/giảng viên nào để gửi — bạn vẫn có thể chọn mẫu và kiểm tra nội dung.</p>
                         @endif
                     </div>
                     <div class="mt-6 flex justify-end space-x-3">

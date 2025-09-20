@@ -16,4 +16,14 @@ class EditChuyenDe extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
+    protected function getSavedRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+
+    protected function getDeletedRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }

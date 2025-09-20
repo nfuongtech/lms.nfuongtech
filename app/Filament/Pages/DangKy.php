@@ -21,6 +21,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ThongTinKhoaHocExport;
 use App\Exports\DanhSachHocVienExport;
 // --- Hết thêm cho xuất Excel ---
+use App\Models\ChuongTrinh;
+use Illuminate\Support\Facades\Schema;
 
 class DangKy extends Page
 {
@@ -57,6 +59,9 @@ class DangKy extends Page
     public $loaiEmail = 'hoc_vien'; // 'hoc_vien' hoặc 'giang_vien'
     // --- Hết thêm biến cho gửi email ---
 
+    // Biến giữ thời lượng (có thể dùng trong view nếu cần)
+    public $thoiLuong = 0;
+
     public function mount(): void
     {
         $this->refreshHocViens();
@@ -79,6 +84,70 @@ class DangKy extends Page
     public function updatedSelectedKhoaHoc(): void
     {
         $this->refreshHocViens();
+
+        // --- Bổ sung: tính thời lượng từ chuong_trinhs "Đang áp dụng" dựa trên chuongTrinh của khóa học ---
+        $this->computeThoiLuongForSelectedKhoaHoc();
+    }
+
+    /**
+     * Tính tổng thời lượng (giờ) cho khóa học được chọn lấy từ bảng chuong_trinhs
+     * (dùng chuongTrinh liên kết từ KhoaHoc thay vì where('khoa_hoc_id', ...))
+     */
+    private function computeThoiLuongForSelectedKhoaHoc(): void
+    {
+        $this->thoiLuong = 0;
+
+        if (!$this->selectedKhoaHoc) {
+            return;
+        }
+
+        $khoaHoc = KhoaHoc::with('chuongTrinh', 'lichHocs')->find($this->selectedKhoaHoc);
+        if (!$khoaHoc) {
+            return;
+        }
+
+        // Nếu khóa học liên kết tới 1 chuongTrinh cụ thể thì dùng id đó để lọc chuong_trinhs
+        $chuongTrinh = $khoaHoc->chuongTrinh ?? null;
+
+        // Xác định tên cột giờ trên bảng chuong_trinhs (nhiều tên cột phổ biến)
+        $column = null;
+        if (Schema::hasColumn('chuong_trinhs', 'so_gio')) {
+            $column = 'so_gio';
+        } elseif (Schema::hasColumn('chuong_trinhs', 'thoi_luong')) {
+            $column = 'thoi_luong';
+        } elseif (Schema::hasColumn('chuong_trinhs', 'gio')) {
+            $column = 'gio';
+        }
+
+        if ($chuongTrinh && $column) {
+            // Truy vấn an toàn: dùng id của chuongTrinh (KHÔNG dùng khoa_hoc_id)
+            $this->thoiLuong = ChuongTrinh::where('id', $chuongTrinh->id)
+                ->where('tinh_trang', 'Đang áp dụng')
+                ->sum($column);
+        } else {
+            // Fallback an toàn: tổng theo lichHocs của khóa học (không gây lỗi SQL)
+            try {
+                $this->thoiLuong = $khoaHoc->lichHocs->sum(function($lich) {
+                    // cố gắng dùng trực tiếp trường 'thoi_luong' của lichHoc nếu có
+                    if (isset($lich->thoi_luong)) {
+                        return $lich->thoi_luong;
+                    }
+                    // nếu không, cố gắng tính từ gio_bat_dau/gio_ket_thuc (minutes -> hours)
+                    if ($lich->gio_bat_dau && $lich->gio_ket_thuc) {
+                        try {
+                            $start = \Carbon\Carbon::parse($lich->gio_bat_dau);
+                            $end = \Carbon\Carbon::parse($lich->gio_ket_thuc);
+                            return $end->diffInMinutes($start) / 60;
+                        } catch (\Throwable $e) {
+                            return 0;
+                        }
+                    }
+                    return 0;
+                }) ?? 0;
+            } catch (\Throwable $e) {
+                $this->thoiLuong = 0;
+            }
+        }
     }
 
     public function updatedMsnvInput($value): void
@@ -115,13 +184,14 @@ class DangKy extends Page
         $this->validate([
             'newHocVien.msnv' => 'required|unique:hoc_viens,msnv',
             'newHocVien.ho_ten' => 'required',
-            'newHocVien.email' => 'nullable|email',
+            'newHocVien.email' => 'nullable|email|unique:hoc_viens,email',
             'newHocVien.nam_sinh' => 'nullable|date_format:d/m/Y',
         ], [
             'newHocVien.msnv.unique' => 'MSNV đã tồn tại',
             'newHocVien.msnv.required' => 'Vui lòng nhập MSNV',
             'newHocVien.ho_ten.required' => 'Vui lòng nhập họ tên',
             'newHocVien.email.email' => 'Email không hợp lệ',
+            'newHocVien.email.unique' => 'Email đã tồn tại',
             'newHocVien.nam_sinh.date_format' => 'Năm sinh không đúng định dạng dd/mm/yyyy',
         ]);
 
@@ -225,13 +295,9 @@ class DangKy extends Page
                 ->send();
             return;
         }
-        if ($this->hocViensDaDangKy->isEmpty() && $this->getDanhSachGiangVien()->isEmpty()) {
-            Notification::make()
-                ->title('Không có học viên hoặc giảng viên nào để gửi email')
-                ->warning()
-                ->send();
-            return;
-        }
+
+        // MỞ modal bất kể có học viên/giảng viên hay không (để người dùng xem template/tài khoản) —
+        // nếu không có recipient, hiển thị cảnh báo trong modal (blade xử lý nếu cần).
         $this->showGuiEmailModal = true;
     }
 
@@ -245,6 +311,28 @@ class DangKy extends Page
             return collect();
         }
         return $khoaHoc->lichHocs->pluck('giangVien')->filter();
+    }
+
+    // Hỗ trợ lấy danh sách mẫu email an toàn cho view
+    public function getEmailTemplates(): Collection
+    {
+        try {
+            return EmailTemplate::all();
+        } catch (\Throwable $e) {
+            \Log::error('Lỗi khi load EmailTemplate: ' . $e->getMessage());
+            return collect();
+        }
+    }
+
+    // Hỗ trợ lấy danh sách tài khoản email an toàn cho view
+    public function getEmailAccounts(): Collection
+    {
+        try {
+            return EmailAccount::where('active', 1)->get();
+        } catch (\Throwable $e) {
+            \Log::error('Lỗi khi load EmailAccount: ' . $e->getMessage());
+            return collect();
+        }
     }
 
     public function guiEmailHangLoat()
@@ -318,8 +406,9 @@ class DangKy extends Page
                     '{ten_chuong_trinh}' => $khoaHoc->chuongTrinh->ten_chuong_trinh ?? 'N/A',
                 ];
 
-                $tieuDe = $template->tieu_de;
-                $noiDung = $template->noi_dung;
+                $tieuDe = $template->tieu_de ?? ($template->ten_mau ?? 'Không có tiêu đề');
+                $noiDung = $template->noi_dung ?? '';
+
                 foreach ($placeholders as $placeholder => $value) {
                     $tieuDe = str_replace($placeholder, $value, $tieuDe);
                     $noiDung = str_replace($placeholder, $value, $noiDung);
@@ -372,8 +461,9 @@ class DangKy extends Page
                     '{ten_chuong_trinh}' => $khoaHoc->chuongTrinh->ten_chuong_trinh ?? 'N/A',
                 ];
 
-                $tieuDe = $template->tieu_de;
-                $noiDung = $template->noi_dung;
+                $tieuDe = $template->tieu_de ?? ($template->ten_mau ?? 'Không có tiêu đề');
+                $noiDung = $template->noi_dung ?? '';
+
                 foreach ($placeholders as $placeholder => $value) {
                     $tieuDe = str_replace($placeholder, $value, $tieuDe);
                     $noiDung = str_replace($placeholder, $value, $noiDung);
@@ -472,8 +562,8 @@ class DangKy extends Page
             '{ten_chuong_trinh}' => $khoaHoc->chuongTrinh->ten_chuong_trinh ?? 'N/A',
         ];
 
-        $tieuDe = $template->tieu_de;
-        $noiDung = $template->noi_dung;
+        $tieuDe = $template->tieu_de ?? ($template->ten_mau ?? 'Không có tiêu đề');
+        $noiDung = $template->noi_dung ?? '';
         foreach ($placeholders as $placeholder => $value) {
             $tieuDe = str_replace($placeholder, $value, $tieuDe);
             $noiDung = str_replace($placeholder, $value, $noiDung);
@@ -608,6 +698,17 @@ class DangKy extends Page
         return $query->get();
     }
     // --- Hết hàm lấy danh sách ---
+
+    public function getHocVienFormSchema(): array
+    {
+        try {
+            $form = HocVienResource::form(Form::make());
+            return $form->getSchema();
+        } catch (\Throwable $e) {
+            \Log::error('Lỗi khi lấy HocVienResource form schema: ' . $e->getMessage());
+            return [];
+        }
+    }
 
     public static function getSlug(): string
     {
