@@ -3,25 +3,59 @@
     <div class="space-y-6">
 
         {{-- Bộ lọc --}}
-        <div class="flex flex-wrap items-center gap-4">
+        <div class="flex flex-wrap items-end gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Khóa học</label>
-                <select wire:model.live="selectedKhoaHoc" class="fi-input w-64 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                    <option value="">-- Chọn --</option>
-                    @foreach(\App\Models\KhoaHoc::all() as $kh)
-                        <option value="{{ $kh->id }}">{{ $kh->ma_khoa_hoc }} - {{ $kh->chuongTrinh->ten_chuong_trinh ?? '' }}</option>
+                <label class="block text-sm font-medium text-gray-700">Năm</label>
+                <select wire:model.live="selectedNam" class="fi-input w-48 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                    <option value="">-- Chọn năm --</option>
+                    @foreach($availableNams as $nam)
+                        <option value="{{ $nam }}">{{ $nam }}</option>
                     @endforeach
                 </select>
             </div>
+
+            @if($selectedNam)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Tuần</label>
+                    <select wire:model.live="selectedTuan" class="fi-input w-40 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                        <option value="">-- Chọn tuần --</option>
+                        @foreach($availableWeeks as $tuan)
+                            <option value="{{ $tuan }}">Tuần {{ $tuan }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+
+            @if($selectedNam && $selectedTuan)
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Tìm kiếm mã khóa học</label>
+                    <input
+                        type="text"
+                        wire:model.debounce.500ms="searchMaKhoaHoc"
+                        class="fi-input w-60 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                        placeholder="Nhập mã khóa học..."
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Khóa học</label>
+                    <select wire:model.live="selectedKhoaHoc" class="fi-input w-64 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                        <option value="">-- Chọn --</option>
+                        @foreach($availableKhoaHocs as $kh)
+                            <option value="{{ $kh->id }}">{{ $kh->ma_khoa_hoc }} - {{ $kh->chuongTrinh->ten_chuong_trinh ?? '' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
 
             @if($selectedKhoaHoc)
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Buổi học</label>
                     <select wire:model.live="selectedLichHoc" class="fi-input w-64 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                         <option value="">-- Chọn buổi học --</option>
-                        @foreach(\App\Models\LichHoc::where('khoa_hoc_id', $selectedKhoaHoc)->get() as $lh)
+                        @foreach($availableLichHocs as $lh)
                             <option value="{{ $lh->id }}">
-                                {{ $lh->chuyenDe->ten_chuyen_de ?? 'N/A' }} - 
+                                {{ $lh->chuyenDe->ten_chuyen_de ?? 'N/A' }} -
                                 {{ $lh->ngay_hoc ? date('d/m/Y', strtotime($lh->ngay_hoc)) : 'N/A' }} ({{ $lh->gio_bat_dau ? date('H:i', strtotime($lh->gio_bat_dau)) : 'N/A' }}-{{ $lh->gio_ket_thuc ? date('H:i', strtotime($lh->gio_ket_thuc)) : 'N/A' }}) tại {{ $lh->dia_diem ?? '...' }}
                             </option>
                         @endforeach

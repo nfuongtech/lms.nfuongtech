@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\KhoaHoc;
 use App\Models\DangKy;
 use App\Models\DiemDanh;
+use App\Models\LichHoc;
 use App\Models\KetQuaKhoaHoc;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Mail;
 
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Collection;
 
 class DiemDanhHocVien extends Page
 {
@@ -27,6 +29,14 @@ class DiemDanhHocVien extends Page
     protected static string $view = 'filament.pages.diem-danh-hoc-vien';
 
     // --- Chọn Khóa học, Buổi học ---
+    public $namHienTai;
+    public $availableNams = [];
+    public $selectedNam = null;
+    public $availableWeeks = [];
+    public $selectedTuan = null;
+    public $availableKhoaHocs = [];
+    public $availableLichHocs = [];
+    public $searchMaKhoaHoc = '';
     public $selectedKhoaHoc = null;
     public $selectedLichHoc = null;
 
@@ -42,12 +52,61 @@ class DiemDanhHocVien extends Page
 
     public function mount(): void
     {
+        $this->namHienTai = now()->year;
+        $this->selectedNam = $this->namHienTai;
+
+        $this->availableNams = LichHoc::query()
+            ->select('nam')
+            ->distinct()
+            ->orderBy('nam', 'desc')
+            ->pluck('nam')
+            ->toArray();
+
+        if (!in_array($this->selectedNam, $this->availableNams, true)) {
+            $this->availableNams[] = $this->selectedNam;
+            rsort($this->availableNams);
+        }
+
+        $this->availableWeeks = $this->getAvailableWeeksProperty()->toArray();
+        $this->availableKhoaHocs = collect();
+        $this->availableLichHocs = collect();
+
+        $this->refreshAvailableKhoaHocs();
         $this->refreshHocViens();
+    }
+
+    public function updatedSelectedNam(): void
+    {
+        $this->selectedTuan = null;
+        $this->selectedKhoaHoc = null;
+        $this->selectedLichHoc = null;
+        $this->availableWeeks = $this->getAvailableWeeksProperty()->toArray();
+        $this->availableKhoaHocs = collect();
+        $this->availableLichHocs = collect();
+
+        $this->refreshAvailableKhoaHocs();
+        $this->refreshHocViens();
+    }
+
+    public function updatedSelectedTuan(): void
+    {
+        $this->selectedKhoaHoc = null;
+        $this->selectedLichHoc = null;
+
+        $this->refreshAvailableKhoaHocs();
+        $this->availableLichHocs = collect();
+        $this->refreshHocViens();
+    }
+
+    public function updatedSearchMaKhoaHoc(): void
+    {
+        $this->refreshAvailableKhoaHocs();
     }
 
     public function updatedSelectedKhoaHoc(): void
     {
         $this->selectedLichHoc = null;
+        $this->refreshAvailableLichHocs();
         $this->refreshHocViens();
     }
 
@@ -56,16 +115,98 @@ class DiemDanhHocVien extends Page
         $this->refreshHocViens();
     }
 
+    public function getAvailableWeeksProperty()
+    {
+        if (!$this->selectedNam) {
+            return collect();
+        }
+
+        return LichHoc::query()
+            ->select('tuan')
+            ->where('nam', $this->selectedNam)
+            ->distinct()
+            ->orderBy('tuan')
+            ->pluck('tuan');
+    }
+
+    private function refreshAvailableKhoaHocs(): void
+    {
+        if (!$this->selectedNam || !$this->selectedTuan) {
+            $this->availableKhoaHocs = collect();
+            return;
+        }
+
+        $lichHocIds = LichHoc::query()
+            ->where('nam', $this->selectedNam)
+            ->where('tuan', $this->selectedTuan)
+            ->pluck('khoa_hoc_id')
+            ->unique();
+
+        $query = KhoaHoc::with('chuongTrinh')
+            ->whereIn('id', $lichHocIds);
+
+        if ($this->searchMaKhoaHoc) {
+            $query->where('ma_khoa_hoc', 'like', '%' . $this->searchMaKhoaHoc . '%');
+        }
+
+        $this->availableKhoaHocs = $query
+            ->orderBy('ma_khoa_hoc')
+            ->get();
+
+        if ($this->selectedKhoaHoc && !$this->availableKhoaHocs->contains('id', $this->selectedKhoaHoc)) {
+            $this->selectedKhoaHoc = null;
+            $this->selectedLichHoc = null;
+            $this->availableLichHocs = collect();
+        } elseif ($this->selectedKhoaHoc) {
+            $this->refreshAvailableLichHocs();
+        }
+    }
+
+    private function refreshAvailableLichHocs(): void
+    {
+        if (!$this->selectedKhoaHoc || !$this->selectedNam || !$this->selectedTuan) {
+            $this->availableLichHocs = collect();
+            return;
+        }
+
+        $this->availableLichHocs = LichHoc::query()
+            ->where('khoa_hoc_id', $this->selectedKhoaHoc)
+            ->where('nam', $this->selectedNam)
+            ->where('tuan', $this->selectedTuan)
+            ->orderBy('ngay_hoc')
+            ->get();
+
+        if ($this->selectedLichHoc && !$this->availableLichHocs->contains('id', $this->selectedLichHoc)) {
+            $this->selectedLichHoc = null;
+        }
+    }
+
     private function refreshHocViens(): void
     {
         $this->hocViensDaDangKy = [];
         $this->diemDanhData = [];
 
-        if (!$this->selectedKhoaHoc || !$this->selectedLichHoc) {
+        if (
+            !$this->selectedNam ||
+            !$this->selectedTuan ||
+            !$this->selectedKhoaHoc ||
+            !$this->selectedLichHoc
+        ) {
+            return;
+        }
+
+        $availableKhoaHocCollection = $this->availableKhoaHocs instanceof Collection
+            ? $this->availableKhoaHocs
+            : collect($this->availableKhoaHocs);
+
+        $availableKhoaHocIds = $availableKhoaHocCollection->pluck('id');
+
+        if (!$availableKhoaHocIds->contains($this->selectedKhoaHoc)) {
             return;
         }
 
         $dangKies = DangKy::with(['hocVien'])
+            ->whereIn('khoa_hoc_id', $availableKhoaHocIds)
             ->where('khoa_hoc_id', $this->selectedKhoaHoc)
             ->get();
 
