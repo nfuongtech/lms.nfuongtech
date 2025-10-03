@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\HocVienHoanThanhResource\Pages;
 
 use App\Filament\Resources\HocVienHoanThanhResource;
-use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Actions;
 
 class ListHocVienHoanThanhs extends ListRecords
 {
@@ -13,7 +13,7 @@ class ListHocVienHoanThanhs extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()->label('Thêm'),
         ];
     }
 }
