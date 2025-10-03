@@ -7,8 +7,6 @@ use App\Models\DangKy;
 use App\Models\DiemDanh;
 use App\Models\LichHoc;
 use App\Models\KetQuaKhoaHoc;
-use App\Models\HocVienHoanThanh;
-use App\Models\HocVienKhongHoanThanh;
 // Email & cấu hình
 use App\Models\EmailTemplate;
 use App\Models\EmailAccount;
@@ -36,13 +34,20 @@ class DiemDanhHocVien extends Page
     public $selectedTuan = null;
     public $availableKhoaHocs = [];
     public $availableLichHocs = [];
-    public $searchMaKhoaHoc = '';
     public $selectedKhoaHoc = null;
     public $selectedLichHoc = null;
 
     // --- Danh sách học viên & dữ liệu điểm danh ---
     public $hocViensDaDangKy = [];
     public $diemDanhData = [];
+    public $isEditing = []; // đóng/mở theo từng học viên
+
+    // --- Bảng liệt kê Khóa học theo Năm (kèm khả năng bấm mở buổi học) ---
+    // mỗi phần tử: [
+    //   'khoa_hoc_id','ma_khoa_hoc','ten_khoa_hoc','trang_thai','so_buoi','tuan','max_tuan',
+    //   'ngay_dao_tao','giang_vien','so_luong_hv','lichs' => [ {id,tuan,ngay_hoc,gio_bat_dau,gio_ket_thuc,ten_chuyen_de,dia_diem}, ... ]
+    // ]
+    public $khoaHocYearRows = [];
 
     // --- Biến cho gửi email (khôi phục để khớp Blade) ---
     public $showGuiEmailModal = false;
@@ -72,7 +77,9 @@ class DiemDanhHocVien extends Page
         $this->availableLichHocs = collect();
 
         $this->refreshAvailableKhoaHocs();
+        $this->refreshAvailableLichHocs();
         $this->refreshHocViens();
+        $this->refreshKhoaHocYearRows();
     }
 
     public function updatedSelectedNam(): void
@@ -85,7 +92,9 @@ class DiemDanhHocVien extends Page
         $this->availableLichHocs = collect();
 
         $this->refreshAvailableKhoaHocs();
+        $this->refreshAvailableLichHocs();
         $this->refreshHocViens();
+        $this->refreshKhoaHocYearRows();
     }
 
     public function updatedSelectedTuan(): void
@@ -96,11 +105,6 @@ class DiemDanhHocVien extends Page
         $this->refreshAvailableKhoaHocs();
         $this->availableLichHocs = collect();
         $this->refreshHocViens();
-    }
-
-    public function updatedSearchMaKhoaHoc(): void
-    {
-        $this->refreshAvailableKhoaHocs();
     }
 
     public function updatedSelectedKhoaHoc(): void
@@ -142,14 +146,8 @@ class DiemDanhHocVien extends Page
             ->pluck('khoa_hoc_id')
             ->unique();
 
-        $query = KhoaHoc::with('chuongTrinh')
-            ->whereIn('id', $lichHocIds);
-
-        if ($this->searchMaKhoaHoc) {
-            $query->where('ma_khoa_hoc', 'like', '%' . $this->searchMaKhoaHoc . '%');
-        }
-
-        $this->availableKhoaHocs = $query
+        $this->availableKhoaHocs = KhoaHoc::with('chuongTrinh')
+            ->whereIn('id', $lichHocIds)
             ->orderBy('ma_khoa_hoc')
             ->get();
 
@@ -157,8 +155,6 @@ class DiemDanhHocVien extends Page
             $this->selectedKhoaHoc = null;
             $this->selectedLichHoc = null;
             $this->availableLichHocs = collect();
-        } elseif ($this->selectedKhoaHoc) {
-            $this->refreshAvailableLichHocs();
         }
     }
 
@@ -185,6 +181,7 @@ class DiemDanhHocVien extends Page
     {
         $this->hocViensDaDangKy = [];
         $this->diemDanhData = [];
+        $this->isEditing = [];
 
         if (
             !$this->selectedNam ||
@@ -205,7 +202,7 @@ class DiemDanhHocVien extends Page
             return;
         }
 
-        $dangKies = DangKy::with(['hocVien'])
+        $dangKies = DangKy::with(['hocVien', 'hocVien.dangKies'])
             ->whereIn('khoa_hoc_id', $availableKhoaHocIds)
             ->where('khoa_hoc_id', $this->selectedKhoaHoc)
             ->get();
@@ -222,9 +219,150 @@ class DiemDanhHocVien extends Page
                 'ly_do_vang'       => $diemDanh->ly_do_vang ?? '',
                 'diem_buoi_hoc'    => $diemDanh->diem_buoi_hoc ?? null,
                 'danh_gia_ky_luat' => $diemDanh->danh_gia_ky_luat ?? '',
-                // Nếu bảng diem_danhs có các cột khác thì thêm vào đây cho khớp.
+            ];
+
+            // MẶC ĐỊNH "ĐÓNG" nếu đã có bản ghi điểm danh cho buổi này (đảm bảo load lại trang vẫn đóng)
+            $this->isEditing[$dk->id] = $diemDanh ? false : true;
+        }
+    }
+
+    private function refreshKhoaHocYearRows(): void
+    {
+        $this->khoaHocYearRows = [];
+        if (!$this->selectedNam) return;
+
+        // Lấy tất cả Khoa học có lịch trong năm
+        $khoaHocIds = LichHoc::query()
+            ->where('nam', $this->selectedNam)
+            ->pluck('khoa_hoc_id')
+            ->unique();
+
+        if ($khoaHocIds->isEmpty()) return;
+
+        $khoaHocs = KhoaHoc::with([
+            'chuongTrinh',
+            'lichHocs' => function ($q) {
+                $q->orderBy('ngay_hoc');
+            },
+            'lichHocs.chuyenDe',
+            'lichHocs.giangVien',
+        ])
+        ->whereIn('id', $khoaHocIds)
+        ->orderBy('ma_khoa_hoc')
+        ->get();
+
+        $rows = [];
+
+        foreach ($khoaHocs as $kh) {
+            $lichTrongNam = $kh->lichHocs->where('nam', $this->selectedNam);
+
+            $soBuoi = $lichTrongNam->count();
+            $tuanSet = $lichTrongNam->pluck('tuan')->unique()->values();
+            $tuanCsv = $tuanSet->implode(', ');
+            $maxTuan = $tuanSet->count() ? (int) $tuanSet->max() : 0;
+
+            $ngayMin = $lichTrongNam->min('ngay_hoc');
+            $ngayMax = $lichTrongNam->max('ngay_hoc');
+            if ($ngayMin && $ngayMax) {
+                $ngayDaoTao = date('d/m/Y', strtotime($ngayMin)) . ' - ' . date('d/m/Y', strtotime($ngayMax));
+            } elseif ($ngayMin) {
+                $ngayDaoTao = date('d/m/Y', strtotime($ngayMin));
+            } else {
+                $ngayDaoTao = '';
+            }
+
+            // Gộp giảng viên
+            $giangVienNames = [];
+            foreach ($lichTrongNam as $lh) {
+                $gv = $lh->giangVien ?? null;
+                if ($gv && !empty($gv->ho_ten)) {
+                    $giangVienNames[$gv->ho_ten] = true;
+                }
+            }
+            $giangVienCsv = implode(', ', array_keys($giangVienNames));
+
+            // Số lượng HV đã đăng ký
+            $soLuongHv = DangKy::where('khoa_hoc_id', $kh->id)->count();
+
+            // Trạng thái hiển thị
+            $trangThai = $kh->trang_thai ?? ($soBuoi > 0 ? 'Hoạt động' : '');
+
+            // Lắp danh sách buổi học chi tiết (để click chọn)
+            $lichs = [];
+            foreach ($lichTrongNam as $lh) {
+                $lichs[] = [
+                    'id'            => $lh->id,
+                    'tuan'          => $lh->tuan,
+                    'ngay_hoc'      => $lh->ngay_hoc,
+                    'gio_bat_dau'   => $lh->gio_bat_dau,
+                    'gio_ket_thuc'  => $lh->gio_ket_thuc,
+                    'ten_chuyen_de' => optional($lh->chuyenDe)->ten_chuyen_de,
+                    'dia_diem'      => $lh->dia_diem,
+                ];
+            }
+
+            $rows[] = [
+                'khoa_hoc_id'  => $kh->id,
+                'ma_khoa_hoc'  => $kh->ma_khoa_hoc ?? '',
+                'ten_khoa_hoc' => optional($kh->chuongTrinh)->ten_chuong_trinh ?? ($kh->ten_khoa_hoc ?? ''),
+                'trang_thai'   => $trangThai,
+                'so_buoi'      => $soBuoi,
+                'tuan'         => $tuanCsv,
+                'max_tuan'     => $maxTuan,
+                'ngay_dao_tao' => $ngayDaoTao,
+                'giang_vien'   => $giangVienCsv,
+                'so_luong_hv'  => $soLuongHv,
+                'lichs'        => $lichs,
             ];
         }
+
+        // SẮP XẾP THEO TUẦN MỚI NHẤT (max_tuan DESC), phụ theo mã khóa
+        usort($rows, function ($a, $b) {
+            return ($b['max_tuan'] <=> $a['max_tuan'])
+                ?: strcmp($a['ma_khoa_hoc'], $b['ma_khoa_hoc']);
+        });
+
+        $this->khoaHocYearRows = $rows;
+    }
+
+    /**
+     * Chọn buổi học từ bảng "Danh sách Khóa học trong năm"
+     * LƯU Ý: không dùng type-hint tham số để Livewire bind ổn định.
+     */
+    public function chonBuoiTuBangNam($khoaHocId, $tuan, $lichHocId): void
+    {
+        // Chuẩn hóa kiểu
+        $khoaHocId = (int) $khoaHocId;
+        $tuan      = (int) $tuan;
+        $lichHocId = (int) $lichHocId;
+
+        // B1: đặt tuần trước (để load availableKhoaHocs theo tuần đó)
+        $this->selectedTuan = $tuan;
+        $this->refreshAvailableKhoaHocs();
+
+        // B2: đặt khóa học -> nạp buổi
+        $this->selectedKhoaHoc = $khoaHocId;
+        $this->refreshAvailableLichHocs();
+
+        // B3: đặt buổi học nếu tồn tại trong danh sách được nạp
+        if ($this->availableLichHocs->contains('id', $lichHocId)) {
+            $this->selectedLichHoc = $lichHocId;
+        } else {
+            $this->selectedLichHoc = $this->availableLichHocs->first()->id ?? null;
+        }
+
+        // B4: nạp học viên + dữ liệu điểm danh
+        $this->refreshHocViens();
+    }
+
+    public function dongDiemDanh(int $dangKyId): void
+    {
+        $this->isEditing[$dangKyId] = false;
+    }
+
+    public function moSuaDiemDanh(int $dangKyId): void
+    {
+        $this->isEditing[$dangKyId] = true;
     }
 
     public function luuDiemDanh(): void
@@ -237,35 +375,50 @@ class DiemDanhHocVien extends Page
         $ok = 0; $fail = 0;
 
         foreach ($this->diemDanhData as $dangKyId => $data) {
+            // Ràng buộc nghiệp vụ
+            $trangThai = $data['trang_thai'] ?? 'co_mat';
+            $lyDo = $data['ly_do_vang'] ?? null;
+
+            if ($trangThai === 'co_mat') {
+                $data['ly_do_vang'] = null;
+            } elseif ($trangThai === 'vang_phep') {
+                if (!$lyDo || trim($lyDo) === '') {
+                    $fail++;
+                    \Log::warning("Điểm danh bỏ qua (thiếu lý do vắng phép) cho dang_ky_id $dangKyId");
+                    continue;
+                }
+            }
+
+            // Chuẩn hóa điểm
+            if (array_key_exists('diem_buoi_hoc', $data) && $data['diem_buoi_hoc'] !== null && $data['diem_buoi_hoc'] !== '') {
+                $diem = (float) $data['diem_buoi_hoc'];
+                if ($diem < 0) $diem = 0;
+                if ($diem > 10) $diem = 10;
+                $data['diem_buoi_hoc'] = $diem;
+            } else {
+                $data['diem_buoi_hoc'] = null;
+            }
+
             try {
                 DiemDanh::updateOrCreate(
                     ['dang_ky_id' => $dangKyId, 'lich_hoc_id' => $this->selectedLichHoc],
                     $data
                 );
                 $ok++;
+                $this->isEditing[$dangKyId] = false; // đóng tuyệt đối
             } catch (\Throwable $e) {
                 $fail++;
                 \Log::error("Lỗi lưu điểm danh cho dang_ky_id $dangKyId: " . $e->getMessage());
             }
         }
 
-        // Tính & ghi kết quả sang ket_qua_khoa_hocs (Observer sẽ lo đồng bộ 2 bảng hoàn thành/không hoàn thành)
         $this->tinhToanKetQuaKhoaHoc();
 
         Notification::make()
             ->title('Lưu điểm danh thành công!')
-            ->body("Thành công: $ok. Thất bại: $fail.")
+            ->body("Thành công: $ok. Thất bại / bỏ qua: $fail.")
             ->success()
             ->send();
-
-        // Reset trạng thái modal email (nếu Blade có)
-        $this->showGuiEmailModal = false;
-        $this->selectedEmailTemplateId = null;
-        $this->selectedEmailAccountId = null;
-        $this->loaiEmail = 'hoc_vien';
-
-        // Reload lại trang cho chắc chắn
-        redirect()->route('filament.admin.pages.diem-danh-hoc-vien');
     }
 
     private function tinhToanKetQuaKhoaHoc(): void
@@ -293,9 +446,7 @@ class DiemDanhHocVien extends Page
             $diemTongKhoa = $soBuoiCoDiem > 0 ? round($tongDiem / $soBuoiCoDiem, 2) : null;
             $tyLeVang = $tongSoBuoi > 0 ? ($soBuoiVang / $tongSoBuoi) * 100 : 0;
 
-            // Quy tắc đạt/hoàn thành:
-            // - Vắng <= 20%
-            // - Không yêu cầu điểm nếu không nhập (null) hoặc điểm TB >= 5
+            // Chỉ 2 trạng thái: Hoàn thành / Không hoàn thành
             $ketQua = ($tyLeVang <= 20 && ($diemTongKhoa === null || $diemTongKhoa >= 5))
                 ? 'hoan_thanh'
                 : 'khong_hoan_thanh';
@@ -304,15 +455,14 @@ class DiemDanhHocVien extends Page
                 ['dang_ky_id' => $dk->id],
                 [
                     'diem_tong_khoa' => $diemTongKhoa,
-                    'ket_qua'        => $ketQua,                     // 'hoan_thanh' ↔ Đạt/Hoàn thành; 'khong_hoan_thanh' ↔ Không đạt/Không hoàn thành
+                    'ket_qua'        => $ketQua,
                     'can_hoc_lai'    => $ketQua === 'khong_hoan_thanh' ? 1 : 0,
                 ]
             );
-            // Ghi nhớ: Đồng bộ sang 2 bảng hoc_vien_hoan_thanh / hoc_vien_khong_hoan_thanh do Observer xử lý.
         }
     }
 
-    // ================== KHỐI EMAIL (khôi phục để khớp Blade) ==================
+    // ================== KHỐI EMAIL ==================
     public function moModalGuiEmail(): void
     {
         if (!$this->selectedKhoaHoc) {
@@ -328,7 +478,6 @@ class DiemDanhHocVien extends Page
 
     public function guiEmailHangLoat(): void
     {
-        // Nếu Blade có form gửi email thì giữ nguyên API như cũ để không lỗi:
         $this->validate([
             'selectedEmailTemplateId' => 'required|exists:email_templates,id',
             'selectedEmailAccountId'  => 'required|exists:email_accounts,id',
@@ -384,19 +533,39 @@ class DiemDanhHocVien extends Page
                     continue;
                 }
 
+                // Thay placeholder mở rộng
+                $dangKy = $hocVien->dangKies()->where('khoa_hoc_id', $this->selectedKhoaHoc)->first();
+                $dd = null;
+                if ($dangKy) {
+                    $dd = DiemDanh::where('dang_ky_id', $dangKy->id)
+                        ->where('lich_hoc_id', $this->selectedLichHoc)
+                        ->first();
+                }
+                $ttMap = [
+                    'co_mat' => 'Có mặt',
+                    'vang_phep' => 'Vắng phép',
+                    'vang_khong_phep' => 'Vắng không phép',
+                ];
                 $placeholders = [
                     '{ten_hoc_vien}'     => $hocVien->ho_ten ?? 'N/A',
                     '{msnv}'             => $hocVien->msnv ?? 'N/A',
                     '{ma_khoa_hoc}'      => $khoaHoc->ma_khoa_hoc ?? 'N/A',
                     '{ten_chuong_trinh}' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? 'N/A',
+                    '{chuc_vu}'          => $hocVien->chuc_vu ?? '',
+                    '{don_vi}'           => optional($hocVien->donVi)->ten_hien_thi ?? '',
+                    '{tinh_trang}'       => $ttMap[$dd->trang_thai ?? 'co_mat'] ?? 'Có mặt',
+                    '{ly_do_vang}'       => $dd->ly_do_vang ?? '',
+                    '{diem_buoi_hoc}'    => ($dd && $dd->diem_buoi_hoc !== null) ? (string)$dd->diem_buoi_hoc : '',
+                    '{danh_gia_ky_luat}' => $dd->danh_gia_ky_luat ?? '',
                 ];
 
                 $tieuDe  = strtr($template->tieu_de,  $placeholders);
                 $noiDung = strtr($template->noi_dung, $placeholders);
 
                 try {
-                    // Dùng mailable tối giản: gửi raw html
-                    Mail::mailer('dynamic')->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
+                    Mail::mailer('dynamic')
+                        ->to($recipientEmail)
+                        ->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
                     $ok++;
                     $status = 'success'; $err = null;
                 } catch (\Throwable $e) {
@@ -441,7 +610,9 @@ class DiemDanhHocVien extends Page
                 $noiDung = strtr($template->noi_dung, $placeholders);
 
                 try {
-                    Mail::mailer('dynamic')->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
+                    Mail::mailer('dynamic')
+                        ->to($recipientEmail)
+                        ->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
                     $ok++;
                     $status = 'success'; $err = null;
                 } catch (\Throwable $e) {
@@ -477,7 +648,7 @@ class DiemDanhHocVien extends Page
     {
         if (!$this->selectedKhoaHoc) return collect();
 
-        // Lấy qua relation từ KhoaHoc -> lichHocs -> giangVien (tùy model Sư phụ định nghĩa)
+        // Lấy qua relation từ KhoaHoc -> lichHocs -> giangVien (tùy model định nghĩa)
         $khoaHoc = KhoaHoc::with('lichHocs.giangVien')->find($this->selectedKhoaHoc);
         if (!$khoaHoc) return collect();
 
