@@ -2,25 +2,19 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class HocVienKhongHoanThanh extends Model
 {
-    use HasFactory;
-
-    protected $table = 'hoc_vien_khong_hoan_thanh';
-
+    // table mặc định: hoc_vien_khong_hoan_thanhs
     protected $fillable = [
         'hoc_vien_id',
         'khoa_hoc_id',
         'ket_qua_khoa_hoc_id',
         'ly_do_khong_hoan_thanh',
         'co_the_ghi_danh_lai',
-        // KHÔNG có 'ghi_chu'
     ];
 
-    // ====== QUAN HỆ BỔ SUNG ======
     public function hocVien()
     {
         return $this->belongsTo(HocVien::class, 'hoc_vien_id');
@@ -31,7 +25,7 @@ class HocVienKhongHoanThanh extends Model
         return $this->belongsTo(KhoaHoc::class, 'khoa_hoc_id');
     }
 
-    public function ketQuaKhoaHoc()
+    public function ketQua()
     {
         return $this->belongsTo(KetQuaKhoaHoc::class, 'ket_qua_khoa_hoc_id');
     }
