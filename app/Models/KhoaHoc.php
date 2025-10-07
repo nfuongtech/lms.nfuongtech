@@ -3,38 +3,32 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\ChuongTrinh;
-use App\Models\DangKy;
-use App\Models\HocVien;
-use App\Models\LichHoc;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class KhoaHoc extends Model
 {
-    // use HasFactory;
+    use HasFactory;
+
+    protected $table = 'khoa_hocs';
 
     protected $fillable = [
-        'chuong_trinh_id',
         'ma_khoa_hoc',
+        'ten_khoa_hoc',
+        'chuong_trinh_id',
         'nam',
-        'trang_thai', // Chỉ dùng: Dự thảo, Ban hành, Đang đào tạo, Kết thúc
-        'ghi_chu',
+        'yeu_cau_phan_tram_gio',
+        'yeu_cau_diem_tb',
     ];
 
     protected $casts = [
-        // 'nam' => 'integer',
-        // 'created_at' => 'datetime',
-        // 'updated_at' => 'datetime',
+        // Bảo đảm hiển thị đúng định dạng
+        'yeu_cau_phan_tram_gio' => 'integer',
+        'yeu_cau_diem_tb'       => 'decimal:1',
     ];
 
-    // --- Quan hệ ---
     public function chuongTrinh()
     {
         return $this->belongsTo(ChuongTrinh::class, 'chuong_trinh_id');
-    }
-
-    public function dangKys()
-    {
-        return $this->hasMany(DangKy::class, 'khoa_hoc_id');
     }
 
     public function lichHocs()
@@ -42,33 +36,11 @@ class KhoaHoc extends Model
         return $this->hasMany(LichHoc::class, 'khoa_hoc_id');
     }
 
-    public function hocViens()
+    // Dự phòng: nếu 'ten_khoa_hoc' trống thì lấy theo chương trình
+    public function getTenKhoaHocAttribute(): string
     {
-        return $this->belongsToMany(HocVien::class, 'dang_kies', 'khoa_hoc_id', 'hoc_vien_id');
-    }
-
-    public function getSoLuongHocVienAttribute()
-    {
-        return $this->dangKys()->count();
-    }
-
-    // --- Chuẩn hóa trạng thái ---
-    public function getTrangThaiAttribute($value)
-    {
-        // Nếu DB còn lưu "Kế hoạch" thì ép thành "Ban hành"
-        if ($value === 'Kế hoạch') {
-            return 'Ban hành';
-        }
-        return $value;
-    }
-
-    public function setTrangThaiAttribute($value)
-    {
-        // Nếu ai đó gán "Kế hoạch" → tự động đổi thành "Ban hành"
-        if ($value === 'Kế hoạch') {
-            $this->attributes['trang_thai'] = 'Ban hành';
-        } else {
-            $this->attributes['trang_thai'] = $value;
-        }
+        $val = $this->attributes['ten_khoa_hoc'] ?? null;
+        if ($val !== null && $val !== '') return (string) $val;
+        return (string) ($this->chuongTrinh->ten_chuong_trinh ?? '');
     }
 }
