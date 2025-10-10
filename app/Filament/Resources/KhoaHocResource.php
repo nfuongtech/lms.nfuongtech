@@ -124,13 +124,13 @@ class KhoaHocResource extends Resource
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\TextInput::make('yeu_cau_phan_tram_gio')
-                        ->label('Yêu cầu % giờ học (>=')
+                        ->label('Yêu cầu % giờ học (>=)')
                         ->numeric()->step(1)->integer()->minValue(1)->maxValue(100)
                         ->default(80)->required()
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\TextInput::make('yeu_cau_diem_tb')
-                        ->label('Yêu cầu điểm trung bình (>=')
+                        ->label('Yêu cầu điểm trung bình (>=)')
                         ->rule('regex:/^\d+([.,]\d)?$/')
                         ->default('5,0')->required()
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
@@ -143,12 +143,15 @@ class KhoaHocResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('rowIndex')->label('TT')->rowIndex(),
+                Tables\Columns\TextColumn::make('rowIndex')
+                    ->label('TT')
+                    ->rowIndex()
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('ma_khoa_hoc')
                     ->label('Mã khóa')
                     ->searchable()
-                    ->alignCenter()
+                    ->alignLeft()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ten_khoa_hoc')
@@ -329,7 +332,6 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
-                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
@@ -410,3 +412,4 @@ class KhoaHocResource extends Resource
         ];
     }
 }
+

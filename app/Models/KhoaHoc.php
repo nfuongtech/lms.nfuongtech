@@ -106,6 +106,27 @@ class KhoaHoc extends Model
         ];
     }
 
+    public function computeTimelineStatus(): string
+    {
+        [$start, $end] = $this->resolveScheduleBounds();
+
+        if (!$start || !$end) {
+            return 'Dự thảo';
+        }
+
+        $now = now();
+
+        if ($now->lt($start)) {
+            return 'Ban hành';
+        }
+
+        if ($now->gt($end)) {
+            return 'Kết thúc';
+        }
+
+        return 'Đang đào tạo';
+    }
+
     public function scopeWhereTrangThaiHienThi(Builder $query, array $states): Builder
     {
         $normalized = collect($states)

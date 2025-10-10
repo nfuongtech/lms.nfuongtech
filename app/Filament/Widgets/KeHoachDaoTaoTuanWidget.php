@@ -27,12 +27,13 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
             ->columns([
                 Tables\Columns\TextColumn::make('rowIndex')
                     ->label('TT')
-                    ->rowIndex(),
+                    ->rowIndex()
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('ma_khoa_hoc')
                     ->label('Mã khóa')
                     ->searchable()
-                    ->alignCenter(),
+                    ->alignLeft(),
 
                 Tables\Columns\TextColumn::make('ten_khoa_hoc')
                     ->label('Tên khóa học')

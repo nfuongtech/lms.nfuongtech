@@ -63,13 +63,11 @@ class LichHocsRelationManager extends RelationManager
                 Forms\Components\TimePicker::make('gio_ket_thuc')->label('Giờ kết thúc')
                     ->seconds(false)->required()->columnSpan(2),
 
-                // Chuyên đề / Học phần lọc theo Chương trình của KhoaHoc
                 Forms\Components\Select::make('chuyen_de_id')->label('Chuyên đề / Học phần')
                     ->options(function () {
                         $owner = $this->currentOwner();
                         if (!$owner?->chuong_trinh_id) return [];
 
-                        // 1) ưu tiên pivot CT<->CD
                         $pivot = self::detectTable([
                             'chuong_trinh_chuyen_de',
                             'chuong_trinh_chuyen_des',
@@ -83,7 +81,6 @@ class LichHocsRelationManager extends RelationManager
                                 ->where('chuong_trinh_id', $owner->chuong_trinh_id)
                                 ->pluck('chuyen_de_id');
                         } elseif (Schema::hasColumn('chuyen_des','chuong_trinh_id')) {
-                            // 2) fallback cột chuong_trinh_id ngay trên bảng chuyen_des
                             $cdIds = DB::table('chuyen_des')
                                 ->where('chuong_trinh_id', $owner->chuong_trinh_id)
                                 ->pluck('id');
@@ -115,13 +112,11 @@ class LichHocsRelationManager extends RelationManager
                     })
                     ->searchable()->preload()->required()->reactive()->columnSpan(5),
 
-                // Giảng viên lọc theo CHUYÊN ĐỀ đã chọn
                 Forms\Components\Select::make('giang_vien_id')->label('Giảng viên')
                     ->options(function (Forms\Get $get) {
                         $cdId = $get('chuyen_de_id');
                         if (!$cdId) return [];
 
-                        // Tên pivot CD<->GV phổ biến
                         $pivotGV = self::detectTable([
                             'chuyen_de_giang_vien',
                             'chuyen_de_giang_viens',
@@ -148,7 +143,6 @@ class LichHocsRelationManager extends RelationManager
                     })
                     ->searchable()->preload()->required()->columnSpan(4),
 
-                // Địa điểm
                 Forms\Components\Select::make('dia_diem_id')->label('Địa điểm đào tạo')
                     ->options(function () {
                         $label = Schema::hasColumn('dia_diem_dao_taos','ten_phong') ? 'ten_phong' : 'ma_phong';
@@ -181,7 +175,10 @@ class LichHocsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('rowIndex')->label('TT')->rowIndex(),
+                Tables\Columns\TextColumn::make('rowIndex')
+                    ->label('TT')
+                    ->rowIndex()
+                    ->alignCenter(),
                 Tables\Columns\TextColumn::make('ngay_hoc')->label('Ngày')->date('d/m/Y')->sortable(),
                 Tables\Columns\TextColumn::make('gio_bat_dau')->label('Bắt đầu')
                     ->formatStateUsing(fn (?string $state) => $state ? substr($state, 0, 5) : ''),

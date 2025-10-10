@@ -6,6 +6,8 @@ use App\Filament\Resources\KhoaHocResource;
 use App\Models\ChuongTrinh;
 use App\Models\QuyTacMaKhoa;
 use Filament\Actions;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
 class EditKhoaHoc extends EditRecord
@@ -17,19 +19,75 @@ class EditKhoaHoc extends EditRecord
         return 'Sửa Kế hoạch đào tạo';
     }
 
-    protected function getSaveButtonLabel(): string
-    {
-        return 'Lưu thay đổi';
-    }
-
     protected function getFormActions(): array
     {
         return [
-            $this->getSaveFormAction()->label('Lưu thay đổi'),
-            Actions\DeleteAction::make()
+            $this->getSaveFormAction()
+                ->label('Lưu thay đổi'),
+            Actions\Action::make('togglePause')
+                ->label(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
+                ->color(fn () => ($this->record->tam_hoan ?? false) ? 'info' : 'primary')
+                ->form(function () {
+                    if ($this->record->tam_hoan ?? false) {
+                        return [];
+                    }
+
+                    return [
+                        Textarea::make('ly_do_tam_hoan')
+                            ->label('Lý do tạm hoãn')
+                            ->required()
+                            ->rows(4)
+                            ->columnSpanFull(),
+                    ];
+                })
+                ->modalHeading(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn khóa học' : 'Tạm hoãn khóa học')
+                ->modalSubmitActionLabel(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
+                ->requiresConfirmation(fn () => (bool) ($this->record->tam_hoan ?? false))
+                ->action(function (array $data) {
+                    $record = $this->record;
+
+                    if (!$record) {
+                        return;
+                    }
+
+                    $isPausing = ! (bool) ($record->tam_hoan ?? false);
+
+                    $record->tam_hoan = $isPausing;
+                    $record->ly_do_tam_hoan = $isPausing
+                        ? ($data['ly_do_tam_hoan'] ?? null)
+                        : null;
+                    $record->trang_thai = $isPausing
+                        ? 'Tạm hoãn'
+                        : $record->computeTimelineStatus();
+                    $record->save();
+
+                    $message = $record->tam_hoan
+                        ? 'Khóa học đã được tạm hoãn.'
+                        : 'Đã hủy tạm hoãn khóa học.';
+
+                    Notification::make()
+                        ->title($message)
+                        ->success()
+                        ->send();
+
+                    $this->redirect(static::getResource()::getUrl('edit', ['record' => $record]));
+                }),
+            Actions\Action::make('delete')
                 ->label('Xóa')
+                ->color('danger')
                 ->modalHeading('Xóa Kế hoạch đào tạo')
-                ->modalSubmitActionLabel('Xóa'),
+                ->modalSubmitActionLabel('Xóa')
+                ->requiresConfirmation()
+                ->action(function () {
+                    $this->delete();
+
+                    Notification::make()
+                        ->title('Đã xóa Kế hoạch đào tạo.')
+                        ->success()
+                        ->send();
+
+                    $this->redirect(static::getResource()::getUrl('index'));
+                }),
             $this->getCancelFormAction(),
         ];
     }
