@@ -63,15 +63,16 @@ class ScheduleConflictService
             if ($gv) $msgs[] = 'Giảng viên đang bận khung giờ này.';
         }
 
-        if ($overrideConflicts && !empty($msgs)) {
-            if (class_exists(Notification::class)) {
-                Notification::make()
-                    ->title('Cảnh báo trùng lịch')
-                    ->body(implode("\n", $msgs))
-                    ->danger()
-                    ->persistent()
-                    ->send();
-            }
+        if (!empty($msgs) && class_exists(Notification::class)) {
+            Notification::make()
+                ->title('Cảnh báo trùng lịch')
+                ->body(implode("\n", $msgs))
+                ->danger()
+                ->persistent()
+                ->send();
+        }
+
+        if ($overrideConflicts) {
             return [];
         }
 

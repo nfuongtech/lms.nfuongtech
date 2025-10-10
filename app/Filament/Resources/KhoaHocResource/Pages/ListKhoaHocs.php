@@ -56,7 +56,7 @@ class ListKhoaHocs extends ListRecords
                 $gv = !empty($names) ? implode(', ', $names) : '';
 
                 // Tổng giờ
-                $tong = round((float) $kh->lichHocs->sum('so_gio_giang'), 2);
+                $tong = number_format((float) $kh->lichHocs->sum('so_gio_giang'), 1, '.', '');
 
                 // Ngày, Giờ đào tạo: tất cả lịch, mỗi lịch 1 dòng
                 $lich = $kh->lichHocs->sortBy([['ngay_hoc','asc'],['gio_bat_dau','asc']])->values();
@@ -72,26 +72,7 @@ class ListKhoaHocs extends ListRecords
                 $weeks = $lich->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
 
                 // Trạng thái: cùng logic như List
-                $qs = $kh->lichHocs()->select('ngay_hoc','gio_bat_dau','gio_ket_thuc');
-                if (!$qs->exists()) {
-                    $trangThai = 'Dự thảo';
-                } else {
-                    $all = $qs->get()->map(function ($lh) {
-                        $day = $lh->ngay_hoc instanceof \DateTimeInterface
-                            ? \Carbon\Carbon::instance($lh->ngay_hoc)->startOfDay()
-                            : \Carbon\Carbon::parse($lh->ngay_hoc)->startOfDay();
-                        $start = (clone $day)->setTimeFromTimeString($lh->gio_bat_dau ?: '00:00:00');
-                        $end   = (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc ?: '23:59:59');
-                        return compact('start','end');
-                    });
-                    $minStart = $all->min('start');
-                    $maxEnd   = $all->max('end');
-                    $now = now();
-
-                    if ($now->lt($minStart))      $trangThai = 'Ban hành';
-                    elseif ($now->between($minStart, $maxEnd)) $trangThai = 'Đang đào tạo';
-                    else                           $trangThai = 'Kết thúc';
-                }
+                $trangThai = $kh->trang_thai_hien_thi;
 
                 $sheet->fromArray([
                     $tt,
@@ -146,10 +127,7 @@ class ListKhoaHocs extends ListRecords
                     ->all();
                 $gv = !empty($names) ? implode(', ', $names) : '';
 
-                $tongValue = round((float) $kh->lichHocs->sum('so_gio_giang'), 2);
-                $tong = fmod($tongValue, 1.0) === 0.0
-                    ? (int) $tongValue
-                    : number_format($tongValue, 2, '.', '');
+                $tong = number_format((float) $kh->lichHocs->sum('so_gio_giang'), 1, '.', '');
 
                 $lich = $kh->lichHocs->sortBy([['ngay_hoc','asc'],['gio_bat_dau','asc']])->values();
                 $ngayGio = $lich->map(function ($lh) {
@@ -161,26 +139,7 @@ class ListKhoaHocs extends ListRecords
 
                 $weeks = $lich->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
 
-                $qs = $kh->lichHocs()->select('ngay_hoc','gio_bat_dau','gio_ket_thuc');
-                if (!$qs->exists()) {
-                    $trangThai = 'Dự thảo';
-                } else {
-                    $all = $qs->get()->map(function ($lh) {
-                        $day = $lh->ngay_hoc instanceof \DateTimeInterface
-                            ? \Carbon\Carbon::instance($lh->ngay_hoc)->startOfDay()
-                            : \Carbon\Carbon::parse($lh->ngay_hoc)->startOfDay();
-                        $start = (clone $day)->setTimeFromTimeString($lh->gio_bat_dau ?: '00:00:00');
-                        $end   = (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc ?: '23:59:59');
-                        return compact('start','end');
-                    });
-                    $minStart = $all->min('start');
-                    $maxEnd   = $all->max('end');
-                    $now = now();
-
-                    if ($now->lt($minStart))      $trangThai = 'Ban hành';
-                    elseif ($now->between($minStart, $maxEnd)) $trangThai = 'Đang đào tạo';
-                    else                           $trangThai = 'Kết thúc';
-                }
+                $trangThai = $kh->trang_thai_hien_thi;
 
                 fputcsv($out, [
                     $tt,

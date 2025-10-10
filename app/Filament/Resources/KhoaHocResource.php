@@ -124,13 +124,13 @@ class KhoaHocResource extends Resource
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\TextInput::make('yeu_cau_phan_tram_gio')
-                        ->label('Yêu cầu % giờ học (>=)')
+                        ->label('Yêu cầu % giờ học (>=')
                         ->numeric()->step(1)->integer()->minValue(1)->maxValue(100)
                         ->default(80)->required()
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\TextInput::make('yeu_cau_diem_tb')
-                        ->label('Yêu cầu điểm trung bình (>=)')
+                        ->label('Yêu cầu điểm trung bình (>=')
                         ->rule('regex:/^\d+([.,]\d)?$/')
                         ->default('5,0')->required()
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
@@ -148,6 +148,7 @@ class KhoaHocResource extends Resource
                 Tables\Columns\TextColumn::make('ma_khoa_hoc')
                     ->label('Mã khóa')
                     ->searchable()
+                    ->alignCenter()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ten_khoa_hoc')
@@ -169,18 +170,16 @@ class KhoaHocResource extends Resource
                         return !empty($names) ? implode(', ', $names) : '—';
                     })
                     ->wrap()
+                    ->alignCenter()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('tong_gio')
                     ->label('Tổng giờ')
-                    ->alignRight()
+                    ->alignCenter()
                     ->sortable()
                     ->formatStateUsing(function ($state) {
                         $value = (float) ($state ?? 0);
-                        if (abs($value - round($value)) < 0.01) {
-                            return (string) (int) round($value);
-                        }
-                        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+                        return number_format($value, 1, '.', '');
                     })
                     ->toggleable(),
 
@@ -211,6 +210,7 @@ class KhoaHocResource extends Resource
                         $record->lichHocs()->pluck('tuan')->filter()->unique()->sortDesc()
                             ->map(fn ($w) => (string) $w)->implode(', ')
                     )
+                    ->alignCenter()
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('trang_thai_hien_thi')
@@ -231,6 +231,7 @@ class KhoaHocResource extends Resource
                         'Tạm hoãn'     => 'danger',
                         default        => 'gray',
                     })
+                    ->alignCenter()
                     ->toggleable(),
             ])
             ->filters([

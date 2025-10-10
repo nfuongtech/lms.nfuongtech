@@ -6,6 +6,7 @@ use App\Enums\TrangThaiKhoaHoc;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class KhoaHoc extends Model
@@ -34,6 +35,8 @@ class KhoaHoc extends Model
         'tam_hoan'              => 'boolean',
     ];
 
+    protected ?array $scheduleBoundsCache = null;
+
     public function chuongTrinh()
     {
         return $this->belongsTo(ChuongTrinh::class, 'chuong_trinh_id');
@@ -42,6 +45,15 @@ class KhoaHoc extends Model
     public function lichHocs()
     {
         return $this->hasMany(LichHoc::class, 'khoa_hoc_id');
+    }
+
+    public function setRelation($relation, $value)
+    {
+        if ($relation === 'lichHocs') {
+            $this->scheduleBoundsCache = null;
+        }
+
+        return parent::setRelation($relation, $value);
     }
 
     // Dự phòng: nếu 'ten_khoa_hoc' trống thì lấy theo chương trình
@@ -60,19 +72,27 @@ class KhoaHoc extends Model
             return 'Tạm hoãn';
         }
 
-        if ($rawStatus instanceof TrangThaiKhoaHoc) {
-            $rawStatus = $rawStatus->value;
+        if (is_string($rawStatus) && Str::slug($rawStatus) === 'tam-hoan') {
+            return 'Tạm hoãn';
         }
 
-        return match ($rawStatus) {
-            TrangThaiKhoaHoc::BAN_HANH->value, 'Ban hành' => 'Ban hành',
-            TrangThaiKhoaHoc::DANG_DAO_TAO->value, 'Đang đào tạo' => 'Đang đào tạo',
-            TrangThaiKhoaHoc::TAM_HOAN->value, 'Tạm hoãn' => 'Tạm hoãn',
-            TrangThaiKhoaHoc::KET_THUC->value, 'Kết thúc' => 'Kết thúc',
-            TrangThaiKhoaHoc::CHINH_SUA_KE_HOACH->value, 'Chỉnh sửa kế hoạch' => 'Dự thảo',
-            TrangThaiKhoaHoc::KE_HOACH->value, 'Kế hoạch', 'Soạn thảo', null, '' => 'Dự thảo',
-            default => is_string($rawStatus) && trim($rawStatus) !== '' ? $rawStatus : 'Dự thảo',
-        };
+        [$start, $end] = $this->resolveScheduleBounds();
+
+        if (!$start || !$end) {
+            return 'Dự thảo';
+        }
+
+        $now = now();
+
+        if ($now->lt($start)) {
+            return 'Ban hành';
+        }
+
+        if ($now->gt($end)) {
+            return 'Kết thúc';
+        }
+
+        return 'Đang đào tạo';
     }
 
     public static function trangThaiHienThiOptions(): array
@@ -99,7 +119,9 @@ class KhoaHoc extends Model
             return $query;
         }
 
-        return $query->where(function (Builder $builder) use ($normalized) {
+        $now = now()->toDateTimeString();
+
+        return $query->where(function (Builder $builder) use ($normalized, $now) {
             if ($normalized->contains('tam-hoan')) {
                 $builder->orWhere(function (Builder $sub) {
                     $sub->where(function (Builder $inner) {
@@ -110,60 +132,119 @@ class KhoaHoc extends Model
                 });
             }
 
-            if ($normalized->contains('ban-hanh')) {
+            if ($normalized->contains('du-thao')) {
                 $builder->orWhere(function (Builder $sub) {
-                    $sub->where(function (Builder $inner) {
-                        $inner->whereNull('tam_hoan')
-                            ->orWhere('tam_hoan', false)
-                            ->orWhere('tam_hoan', 0)
-                            ->orWhere('tam_hoan', '0');
-                    })->whereIn('trang_thai', ['ban_hanh', 'Ban hành']);
+                    $sub->whereDoesntHave('lichHocs')
+                        ->where(function (Builder $inner) {
+                            $inner->whereNull('tam_hoan')
+                                ->orWhere('tam_hoan', false)
+                                ->orWhere('tam_hoan', 0)
+                                ->orWhere('tam_hoan', '0');
+                        })
+                        ->whereNotIn('trang_thai', ['tam_hoan', 'Tạm hoãn', 'tam hoan']);
+                });
+            }
+
+            if ($normalized->contains('ban-hanh')) {
+                $builder->orWhere(function (Builder $sub) use ($now) {
+                    $sub->whereHas('lichHocs')
+                        ->whereDoesntHave('lichHocs', function (Builder $inner) use ($now) {
+                            $inner->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")) <= ?', [$now]);
+                        })
+                        ->where(function (Builder $inner) {
+                            $inner->whereNull('tam_hoan')
+                                ->orWhere('tam_hoan', false)
+                                ->orWhere('tam_hoan', 0)
+                                ->orWhere('tam_hoan', '0');
+                        })
+                        ->whereNotIn('trang_thai', ['tam_hoan', 'Tạm hoãn', 'tam hoan']);
                 });
             }
 
             if ($normalized->contains('dang-dao-tao')) {
-                $builder->orWhere(function (Builder $sub) {
-                    $sub->where(function (Builder $inner) {
+                $builder->orWhere(function (Builder $sub) use ($now) {
+                    $sub->whereHas('lichHocs', function (Builder $inner) use ($now) {
+                        $inner->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")) <= ?', [$now])
+                            ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")) >= ?', [$now]);
+                    })
+                    ->where(function (Builder $inner) {
                         $inner->whereNull('tam_hoan')
                             ->orWhere('tam_hoan', false)
                             ->orWhere('tam_hoan', 0)
                             ->orWhere('tam_hoan', '0');
-                    })->whereIn('trang_thai', ['dang_dao_tao', 'Đang đào tạo']);
+                    })
+                    ->whereNotIn('trang_thai', ['tam_hoan', 'Tạm hoãn', 'tam hoan']);
                 });
             }
 
             if ($normalized->contains('ket-thuc')) {
-                $builder->orWhere(function (Builder $sub) {
-                    $sub->where(function (Builder $inner) {
-                        $inner->whereNull('tam_hoan')
-                            ->orWhere('tam_hoan', false)
-                            ->orWhere('tam_hoan', 0)
-                            ->orWhere('tam_hoan', '0');
-                    })->whereIn('trang_thai', ['ket_thuc', 'Kết thúc']);
-                });
-            }
-
-            if ($normalized->contains('du-thao')) {
-                $builder->orWhere(function (Builder $sub) {
-                    $sub->where(function (Builder $inner) {
-                        $inner->whereNull('tam_hoan')
-                            ->orWhere('tam_hoan', false)
-                            ->orWhere('tam_hoan', 0)
-                            ->orWhere('tam_hoan', '0');
-                    })->where(function (Builder $inner) {
-                        $inner->whereNull('trang_thai')
-                            ->orWhere('trang_thai', '')
-                            ->orWhereIn('trang_thai', [
-                                TrangThaiKhoaHoc::KE_HOACH->value,
-                                'Kế hoạch',
-                                TrangThaiKhoaHoc::CHINH_SUA_KE_HOACH->value,
-                                'Chỉnh sửa kế hoạch',
-                                'Dự thảo',
-                                'Soạn thảo',
-                            ]);
-                    });
+                $builder->orWhere(function (Builder $sub) use ($now) {
+                    $sub->whereHas('lichHocs')
+                        ->whereDoesntHave('lichHocs', function (Builder $inner) use ($now) {
+                            $inner->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")) >= ?', [$now]);
+                        })
+                        ->where(function (Builder $inner) {
+                            $inner->whereNull('tam_hoan')
+                                ->orWhere('tam_hoan', false)
+                                ->orWhere('tam_hoan', 0)
+                                ->orWhere('tam_hoan', '0');
+                        })
+                        ->whereNotIn('trang_thai', ['tam_hoan', 'Tạm hoãn', 'tam hoan']);
                 });
             }
         });
+    }
+
+    protected function resolveScheduleBounds(): array
+    {
+        if ($this->scheduleBoundsCache !== null) {
+            return $this->scheduleBoundsCache;
+        }
+
+        $schedules = $this->relationLoaded('lichHocs')
+            ? $this->lichHocs
+            : $this->lichHocs()->get(['ngay_hoc', 'gio_bat_dau', 'gio_ket_thuc']);
+
+        if ($schedules->isEmpty()) {
+            return $this->scheduleBoundsCache = [null, null];
+        }
+
+        $earliest = null;
+        $latest = null;
+
+        foreach ($schedules as $schedule) {
+            if (!$schedule->ngay_hoc) {
+                continue;
+            }
+
+            $startTime = $schedule->gio_bat_dau ?: '00:00:00';
+            $endTime = $schedule->gio_ket_thuc ?: '23:59:59';
+
+            try {
+                $start = Carbon::parse($schedule->ngay_hoc . ' ' . $startTime);
+            } catch (\Throwable $e) {
+                $start = Carbon::parse($schedule->ngay_hoc)->startOfDay();
+            }
+
+            try {
+                $end = Carbon::parse($schedule->ngay_hoc . ' ' . $endTime);
+            } catch (\Throwable $e) {
+                $end = Carbon::parse($schedule->ngay_hoc)->endOfDay();
+            }
+
+            if ($earliest === null || $start->lt($earliest)) {
+                $earliest = $start->clone();
+            }
+
+            if ($latest === null || $end->gt($latest)) {
+                $latest = $end->clone();
+            }
+        }
+
+        if (!$earliest || !$latest) {
+            return $this->scheduleBoundsCache = [null, null];
+        }
+
+        return $this->scheduleBoundsCache = [$earliest, $latest];
     }
 }

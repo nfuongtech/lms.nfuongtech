@@ -31,7 +31,8 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
 
                 Tables\Columns\TextColumn::make('ma_khoa_hoc')
                     ->label('Mã khóa')
-                    ->searchable(),
+                    ->searchable()
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('ten_khoa_hoc')
                     ->label('Tên khóa học')
@@ -50,18 +51,16 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
                             ->all();
                         return !empty($names) ? implode(', ', $names) : '—';
                     })
-                    ->wrap(),
+                    ->wrap()
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('tong_gio')
                     ->label('Tổng giờ')
-                    ->alignRight()
+                    ->alignCenter()
                     ->sortable()
                     ->formatStateUsing(function ($state) {
                         $value = (float) ($state ?? 0);
-                        if (abs($value - round($value)) < 0.01) {
-                            return (string) (int) round($value);
-                        }
-                        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+                        return number_format($value, 1, '.', '');
                     }),
 
                 Tables\Columns\TextColumn::make('ngay_gio_list')
@@ -92,7 +91,8 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
                     ->getStateUsing(fn (KhoaHoc $record) =>
                         $record->lichHocs()->pluck('tuan')->filter()->unique()->sortDesc()
                             ->map(fn ($w) => (string) $w)->implode(', ')
-                    ),
+                    )
+                    ->alignCenter(),
 
                 Tables\Columns\BadgeColumn::make('trang_thai')
                     ->label('Trạng thái')
@@ -104,7 +104,8 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
                         'Kết thúc'     => 'success',
                         'Tạm hoãn'     => 'danger',
                         default        => 'gray',
-                    }),
+                    })
+                    ->alignCenter(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('year')
