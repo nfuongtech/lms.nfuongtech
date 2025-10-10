@@ -56,7 +56,13 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
                     ->label('Tổng giờ')
                     ->alignRight()
                     ->sortable()
-                    ->formatStateUsing(fn ($state) => (string) (int) ($state ?? 0)),
+                    ->formatStateUsing(function ($state) {
+                        $value = (float) ($state ?? 0);
+                        if (abs($value - round($value)) < 0.01) {
+                            return (string) (int) round($value);
+                        }
+                        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+                    }),
 
                 Tables\Columns\TextColumn::make('ngay_gio_list')
                     ->label('Ngày, Giờ đào tạo')
@@ -90,32 +96,13 @@ class KeHoachDaoTaoTuanWidget extends BaseWidget
 
                 Tables\Columns\BadgeColumn::make('trang_thai')
                     ->label('Trạng thái')
-                    ->getStateUsing(function (KhoaHoc $record) {
-                        $qs = $record->lichHocs()->select('ngay_hoc','gio_bat_dau','gio_ket_thuc');
-                        if (!$qs->exists()) return 'Dự thảo';
-
-                        $all = $qs->get()->map(function ($lh) {
-                            $day = $lh->ngay_hoc instanceof \DateTimeInterface
-                                ? Carbon::instance($lh->ngay_hoc)->startOfDay()
-                                : Carbon::parse($lh->ngay_hoc)->startOfDay();
-                            $start = (clone $day)->setTimeFromTimeString($lh->gio_bat_dau ?: '00:00:00');
-                            $end   = (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc ?: '23:59:59');
-                            return compact('start','end');
-                        });
-
-                        $minStart = $all->min('start');
-                        $maxEnd   = $all->max('end');
-                        $now = now();
-
-                        if ($now->lt($minStart)) return 'Ban hành';
-                        if ($now->between($minStart, $maxEnd)) return 'Đang đào tạo';
-                        return 'Kết thúc';
-                    })
+                    ->getStateUsing(fn (KhoaHoc $record) => $record->trang_thai_hien_thi)
                     ->color(fn (string $state) => match ($state) {
                         'Dự thảo'      => 'gray',
                         'Ban hành'     => 'info',
                         'Đang đào tạo' => 'warning',
                         'Kết thúc'     => 'success',
+                        'Tạm hoãn'     => 'danger',
                         default        => 'gray',
                     }),
             ])

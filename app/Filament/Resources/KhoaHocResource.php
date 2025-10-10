@@ -15,6 +15,8 @@ use Filament\Forms\Set;
 use Filament\Forms\Components\Actions\Action as FormAction;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -87,7 +89,7 @@ class KhoaHocResource extends Resource
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\Radio::make('che_do_ma_khoa')
-                        ->label('Quy tc mã khóa')
+                        ->label('Quy tắc mã khóa')
                         ->options([
                             'auto'   => 'Chọn tự động (lấy Quy tắc từ trang Quy tắc mã khóa)',
                             'manual' => 'Chọn nhập thủ công',
@@ -172,7 +174,13 @@ class KhoaHocResource extends Resource
                     ->label('Tổng giờ')
                     ->alignRight()
                     ->sortable()
-                    ->formatStateUsing(fn ($state) => (string) (int) ($state ?? 0))
+                    ->formatStateUsing(function ($state) {
+                        $value = (float) ($state ?? 0);
+                        if (abs($value - round($value)) < 0.01) {
+                            return (string) (int) round($value);
+                        }
+                        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+                    })
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ngay_gio_list')
@@ -218,30 +226,127 @@ class KhoaHocResource extends Resource
                     ->toggleable(),
             ])
             ->filters([
-                // NĂM (mặc định: năm hiện hành)
-                Tables\Filters\SelectFilter::make('nam')
-                    ->label('Năm')
-                    ->options(fn () =>
-                        KhoaHoc::query()
-                            ->select('nam')->distinct()->orderBy('nam','desc')
-                            ->pluck('nam')->mapWithKeys(fn ($y) => [$y => (string) $y])->toArray()
-                    )
-                    ->default((int) now()->format('Y'))
+                Filter::make('thoi_gian')
+                    ->label('Năm / Tháng')
+                    ->form([
+                        Forms\Components\Grid::make(12)->schema([
+                            Forms\Components\Select::make('nam')
+                                ->label('Năm')
+                                ->options(fn () =>
+                                    KhoaHoc::query()
+                                        ->select('nam')->distinct()->orderBy('nam','desc')
+                                        ->pluck('nam')->mapWithKeys(fn ($y) => [$y => (string) $y])->toArray()
+                                )
+                                ->native(false)
+                                ->searchable()
+                                ->columnSpan(6),
+                            Forms\Components\Select::make('thang')
+                                ->label('Tháng')
+                                ->options(fn () => collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => (string) $m])->toArray())
+                                ->native(false)
+                                ->searchable()
+                                ->columnSpan(6),
+                        ]),
+                    ])
+                    ->default([
+                        'nam'   => (int) now()->format('Y'),
+                        'thang' => (int) now()->format('n'),
+                    ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $value = $data['value'] ?? null;
-                        return filled($value) ? $query->where('nam', (int) $value) : $query;
+                        $year  = $data['nam'] ?? null;
+                        $month = $data['thang'] ?? null;
+
+                        if (filled($year)) {
+                            $query->where('nam', (int) $year);
+                        }
+
+                        if (filled($month)) {
+                            $query->whereHas('lichHocs', fn ($r) => $r->where('thang', (int) $month));
+                        }
+
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if (filled($data['nam'] ?? null)) {
+                            $indicators[] = Indicator::make('Năm: '.(string) $data['nam']);
+                        }
+                        if (filled($data['thang'] ?? null)) {
+                            $indicators[] = Indicator::make('Tháng: '.(string) $data['thang']);
+                        }
+                        return $indicators;
                     }),
 
-                // THÁNG (mặc định: tháng hiện hành) - theo lịch học
-                Tables\Filters\SelectFilter::make('thang')
-                    ->label('Tháng')
-                    ->options(fn () => collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => (string) $m])->toArray())
-                    ->default((int) now()->format('n'))
+                Filter::make('ngay_thang')
+                    ->label('Ngày/tháng')
+                    ->form([
+                        Forms\Components\Grid::make(12)->schema([
+                            Forms\Components\DatePicker::make('tu_ngay')
+                                ->label('Từ ngày')
+                                ->displayFormat('d/m/Y')
+                                ->native(false)
+                                ->columnSpan(6),
+                            Forms\Components\DatePicker::make('den_ngay')
+                                ->label('Đến ngày')
+                                ->displayFormat('d/m/Y')
+                                ->native(false)
+                                ->columnSpan(6),
+                        ]),
+                    ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $value = $data['value'] ?? null;
-                        return filled($value)
-                            ? $query->whereHas('lichHocs', fn ($r) => $r->where('thang', (int) $value))
-                            : $query;
+                        $from = $data['tu_ngay'] ?? null;
+                        $to   = $data['den_ngay'] ?? null;
+
+                        if (filled($from)) {
+                            $query->whereHas('lichHocs', fn ($r) => $r->whereDate('ngay_hoc', '>=', $from));
+                        }
+
+                        if (filled($to)) {
+                            $query->whereHas('lichHocs', fn ($r) => $r->whereDate('ngay_hoc', '<=', $to));
+                        }
+
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $labels = [];
+                        if (filled($data['tu_ngay'] ?? null)) {
+                            $labels[] = Indicator::make('Từ: '.Carbon::parse($data['tu_ngay'])->format('d/m/Y'));
+                        }
+                        if (filled($data['den_ngay'] ?? null)) {
+                            $labels[] = Indicator::make('Đến: '.Carbon::parse($data['den_ngay'])->format('d/m/Y'));
+                        }
+                        return $labels;
+                    }),
+
+                Filter::make('trang_thai')
+                    ->label('Trạng thái')
+                    ->form([
+                        Forms\Components\Select::make('gia_tri')
+                            ->label('Trạng thái')
+                            ->multiple()
+                            ->options(KhoaHoc::trangThaiHienThiOptions())
+                            ->searchable()
+                            ->preload(),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $states = $data['gia_tri'] ?? [];
+                        if (empty($states)) {
+                            return $query;
+                        }
+
+                        return $query->whereTrangThaiHienThi((array) $states);
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $states = collect($data['gia_tri'] ?? [])
+                            ->map(fn ($s) => KhoaHoc::trangThaiHienThiOptions()[$s] ?? null)
+                            ->filter()
+                            ->values();
+
+                        if ($states->isEmpty()) {
+                            return [];
+                        }
+
+                        return [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
                     }),
 
                 // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
@@ -249,8 +354,8 @@ class KhoaHocResource extends Resource
                     ->label('Tuần')
                     ->options(function () {
                         $filters = request()->input('tableFilters', []);
-                        $year  = (int) ($filters['nam']['value']   ?? now()->year);
-                        $month = $filters['thang']['value'] ?? null;
+                        $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
+                        $month = data_get($filters, 'thoi_gian.data.thang');
 
                         $q = LichHoc::query()
                             ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));

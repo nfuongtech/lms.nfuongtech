@@ -11,6 +11,6 @@ class ViewKhoaHoc extends ViewRecord
 
     public function getTitle(): string
     {
-        return 'Xem kế hoạch';
+        return 'Xem Kế hoạch đào tạo';
     }
 }

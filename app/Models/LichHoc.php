@@ -4,110 +4,135 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Carbon;
+use Carbon\Carbon;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class LichHoc extends Model
 {
     use HasFactory;
 
     protected $table = 'lich_hocs';
-    protected $guarded = [];
+
+    protected $fillable = [
+        'khoa_hoc_id',
+        'chuyen_de_id',
+        'giang_vien_id',
+        'dia_diem_id',
+        'ngay_hoc',
+        'gio_bat_dau',
+        'gio_ket_thuc',
+        'so_bai_kiem_tra',
+        'so_gio_giang',
+        'tuan',
+        'thang',
+        'nam',
+    ];
+
+    protected $casts = [
+        'ngay_hoc' => 'date:Y-m-d',
+    ];
+
+    public function khoaHoc()   { return $this->belongsTo(KhoaHoc::class); }
+    public function chuyenDe()  { return $this->belongsTo(ChuyenDe::class, 'chuyen_de_id'); }
+    public function giangVien() { return $this->belongsTo(GiangVien::class, 'giang_vien_id'); }
+    public function diaDiem()   { return $this->belongsTo(DiaDiemDaoTao::class, 'dia_diem_id'); }
 
     protected static function booted(): void
     {
         static::saving(function (LichHoc $m) {
-            if (! $m->ngay_hoc || ! $m->gio_bat_dau || ! $m->gio_ket_thuc) return;
+            // Chuẩn hóa giờ 24h (không giây)
+            $start = self::parseTime24($m->gio_bat_dau);
+            $end   = self::parseTime24($m->gio_ket_thuc);
 
-            $start = strlen($m->gio_bat_dau) === 5
-                ? Carbon::createFromFormat('H:i', $m->gio_bat_dau)
-                : Carbon::createFromFormat('H:i:s', $m->gio_bat_dau);
-            $end   = strlen($m->gio_ket_thuc) === 5
-                ? Carbon::createFromFormat('H:i', $m->gio_ket_thuc)
-                : Carbon::createFromFormat('H:i:s', $m->gio_ket_thuc);
-
-            if ($end->lte($start)) {
-                throw ValidationException::withMessages([
-                    'gio_ket_thuc' => 'Giờ kết thúc phải sau giờ bắt đầu.',
-                ]);
+            if ($start && $end) {
+                if ($end->lessThanOrEqualTo($start)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'gio_ket_thuc' => 'Giờ kết thúc phải lớn hơn giờ bắt đầu (định dạng 24h H:i).',
+                    ]);
+                }
+                // Auto tính nếu để trống (nhưng vẫn cho nhập tay)
+                if ($m->so_gio_giang === null || $m->so_gio_giang === '') {
+                    $m->so_gio_giang = round($start->diffInMinutes($end) / 60, 2);
+                }
+                $m->gio_bat_dau  = $start->format('H:i:s');
+                $m->gio_ket_thuc = $end->format('H:i:s');
             }
 
-            // Tự tính số giờ nếu không nhập (hoặc <= 0). Là SỐ NGUYÊN theo 60 phút = 1 giờ.
-            if (!isset($m->so_gio_giang) || (int)$m->so_gio_giang <= 0) {
-                $minutes = $end->diffInMinutes($start);
-                $hours = max(1, (int) round($minutes / 60)); // làm tròn, tối thiểu 1
-                $m->so_gio_giang = $hours;
+            if ($m->so_gio_giang !== null && $m->so_gio_giang !== '') {
+                $m->so_gio_giang = round((float) str_replace(',', '.', (string) $m->so_gio_giang), 2);
             }
 
-            // Tự tính tuần/tháng/năm
-            $date = $m->ngay_hoc instanceof \DateTimeInterface ? Carbon::instance($m->ngay_hoc) : Carbon::parse($m->ngay_hoc);
-            $m->tuan  = $m->tuan  ?: (int) $date->isoWeek();
-            $m->thang = $m->thang ?: (int) $date->month;
-            $m->nam   = $m->nam   ?: (int) $date->year;
-
-            // Ghi tên phòng hiển thị từ dia_diem_id (nếu có)
-            if ($m->dia_diem_id) {
-                $m->dia_diem = optional($m->diaDiem)->ten_phong ?? $m->dia_diem;
+            // Tính tuần/tháng/năm ISO
+            if ($m->ngay_hoc) {
+                $d = Carbon::parse($m->ngay_hoc);
+                $m->tuan  = (int) $d->isoWeek();
+                $m->thang = (int) $d->month;
+                $m->nam   = (int) $d->year;
             }
 
-            // Kiểm tra trùng lịch chi tiết
-            $dateStr = $date->toDateString();
-            $startStr = $start->format('H:i:s');
-            $endStr   = $end->format('H:i:s');
+            // Cảnh báo xung đột phòng/GV
+            $override = false;
+            if (function_exists('request')) {
+                $request = request();
+                if ($request) {
+                    foreach (Arr::dot($request->all()) as $key => $value) {
+                        if (!Str::endsWith((string) $key, 'bo_qua_trung_lich')) {
+                            continue;
+                        }
 
-            $messages = [];
+                        $flag = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                        if ($flag === null) {
+                            $flag = in_array($value, ['1', 1, 'on', 'true'], true);
+                        }
 
-            // Trùng GIẢNG VIÊN + thời gian
-            if ($m->giang_vien_id) {
-                $conflictGV = static::query()
-                    ->where('id', '!=', $m->id ?? 0)
-                    ->whereDate('ngay_hoc', $dateStr)
-                    ->where('giang_vien_id', $m->giang_vien_id)
-                    ->where('gio_bat_dau', '<', $endStr)
-                    ->where('gio_ket_thuc', '>', $startStr)
-                    ->exists();
-                if ($conflictGV) {
-                    $messages['giang_vien_id'] = 'Lịch học trùng Giảng viên và Thời gian, vui lòng chọn lại.';
+                        if ($flag) {
+                            $override = true;
+                            break;
+                        }
+                    }
                 }
             }
 
-            // Trùng PHÒNG + thời gian (ưu tiên theo id; fallback theo tên phòng)
-            $conflictPhong = false;
-            if ($m->dia_diem_id) {
-                $conflictPhong = static::query()
-                    ->where('id', '!=', $m->id ?? 0)
-                    ->whereDate('ngay_hoc', $dateStr)
-                    ->where('dia_diem_id', $m->dia_diem_id)
-                    ->where('gio_bat_dau', '<', $endStr)
-                    ->where('gio_ket_thuc', '>', $startStr)
-                    ->exists();
-            } elseif (!empty($m->dia_diem)) {
-                $conflictPhong = static::query()
-                    ->where('id', '!=', $m->id ?? 0)
-                    ->whereDate('ngay_hoc', $dateStr)
-                    ->where('dia_diem', $m->dia_diem)
-                    ->where('gio_bat_dau', '<', $endStr)
-                    ->where('gio_ket_thuc', '>', $startStr)
-                    ->exists();
+            $course = $m->relationLoaded('khoaHoc') ? $m->khoaHoc : $m->khoaHoc()->first();
+            $skipForCurrentCourse = false;
+            if ($course) {
+                $statusSlug  = Str::slug((string) ($course->trang_thai ?? ''));
+                $displaySlug = Str::slug((string) ($course->trang_thai_hien_thi ?? ''));
+                $skipForCurrentCourse = ($course->tam_hoan ?? false)
+                    || $statusSlug === 'tam-hoan'
+                    || $displaySlug === 'tam-hoan';
             }
 
-            if ($conflictPhong) {
-                $messages['dia_diem_id'] = 'Lịch học trùng Thời gian và Phòng học, vui lòng chọn lại.';
-            }
-
-            if (!empty($messages)) {
-                // Gắn thêm thông báo vào khung thời gian để user dễ thấy
-                $messages['gio_bat_dau'] = $messages['gio_bat_dau'] ?? 'Vui lòng kiểm tra trùng giờ/giảng viên/phòng.';
-                throw ValidationException::withMessages($messages);
+            $conflicts = \App\Observers\ScheduleConflictService::detect(
+                $m->ngay_hoc,
+                $start ? $start->format('H:i:s') : null,
+                $end ? $end->format('H:i:s') : null,
+                $m->khoa_hoc_id,
+                $m->dia_diem_id,
+                $m->giang_vien_id,
+                $m->getKey(),
+                $skipForCurrentCourse,
+                $override
+            );
+            if (!empty($conflicts)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'ngay_hoc' => implode("\n", $conflicts) . "\nChọn \"Ghi đè lịch trùng\" để bỏ qua kiểm tra khi cần.",
+                ]);
             }
         });
-
-        static::saved(function (LichHoc $m) { optional($m->khoaHoc)->syncTrangThai(); });
-        static::deleted(function (LichHoc $m) { optional($m->khoaHoc)->syncTrangThai(); });
     }
 
-    public function khoaHoc()   { return $this->belongsTo(KhoaHoc::class, 'khoa_hoc_id'); }
-    public function chuyenDe()  { return $this->belongsTo(ChuyenDe::class, 'chuyen_de_id'); }
-    public function giangVien() { return $this->belongsTo(GiangVien::class, 'giang_vien_id'); }
-    public function diaDiem()   { return $this->belongsTo(DiaDiemDaoTao::class, 'dia_diem_id'); }
+    public static function parseTime24($value): ?Carbon
+    {
+        if (!$value) return null;
+        $v = preg_replace('/[^0-9:]/', '', trim((string) $value));
+        try {
+            if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $v)) return Carbon::createFromFormat('H:i:s', $v);
+            if (preg_match('/^\d{2}:\d{2}$/', $v))    return Carbon::createFromFormat('H:i', $v);
+            return Carbon::parse($v);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
 }

@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\Enums\TrangThaiKhoaHoc;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class KhoaHoc extends Model
 {
@@ -71,5 +73,97 @@ class KhoaHoc extends Model
             TrangThaiKhoaHoc::KE_HOACH->value, 'Kế hoạch', 'Soạn thảo', null, '' => 'Dự thảo',
             default => is_string($rawStatus) && trim($rawStatus) !== '' ? $rawStatus : 'Dự thảo',
         };
+    }
+
+    public static function trangThaiHienThiOptions(): array
+    {
+        return [
+            'du-thao'       => 'Dự thảo',
+            'ban-hanh'      => 'Ban hành',
+            'dang-dao-tao'  => 'Đang đào tạo',
+            'ket-thuc'      => 'Kết thúc',
+            'tam-hoan'      => 'Tạm hoãn',
+        ];
+    }
+
+    public function scopeWhereTrangThaiHienThi(Builder $query, array $states): Builder
+    {
+        $normalized = collect($states)
+            ->flatten()
+            ->map(fn ($value) => Str::slug((string) $value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalized->isEmpty()) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $builder) use ($normalized) {
+            if ($normalized->contains('tam-hoan')) {
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->where('tam_hoan', true)
+                            ->orWhere('tam_hoan', 1)
+                            ->orWhere('tam_hoan', '1');
+                    })->orWhereIn('trang_thai', ['tam_hoan', 'Tạm hoãn', 'tam hoan']);
+                });
+            }
+
+            if ($normalized->contains('ban-hanh')) {
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereIn('trang_thai', ['ban_hanh', 'Ban hành']);
+                });
+            }
+
+            if ($normalized->contains('dang-dao-tao')) {
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereIn('trang_thai', ['dang_dao_tao', 'Đang đào tạo']);
+                });
+            }
+
+            if ($normalized->contains('ket-thuc')) {
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereIn('trang_thai', ['ket_thuc', 'Kết thúc']);
+                });
+            }
+
+            if ($normalized->contains('du-thao')) {
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->where(function (Builder $inner) {
+                        $inner->whereNull('trang_thai')
+                            ->orWhere('trang_thai', '')
+                            ->orWhereIn('trang_thai', [
+                                TrangThaiKhoaHoc::KE_HOACH->value,
+                                'Kế hoạch',
+                                TrangThaiKhoaHoc::CHINH_SUA_KE_HOACH->value,
+                                'Chỉnh sửa kế hoạch',
+                                'Dự thảo',
+                                'Soạn thảo',
+                            ]);
+                    });
+                });
+            }
+        });
     }
 }
