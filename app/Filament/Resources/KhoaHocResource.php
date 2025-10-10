@@ -87,7 +87,7 @@ class KhoaHocResource extends Resource
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
 
                     Forms\Components\Radio::make('che_do_ma_khoa')
-                        ->label('Quy tắc mã khóa')
+                        ->label('Quy tc mã khóa')
                         ->options([
                             'auto'   => 'Chọn tự động (lấy Quy tắc từ trang Quy tắc mã khóa)',
                             'manual' => 'Chọn nhập thủ công',
@@ -204,34 +204,15 @@ class KhoaHocResource extends Resource
                     )
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('trang_thai')
+                Tables\Columns\BadgeColumn::make('trang_thai_hien_thi')
                     ->label('Trạng thái')
-                    ->getStateUsing(function (KhoaHoc $record) {
-                        $qs = $record->lichHocs()->select('ngay_hoc','gio_bat_dau','gio_ket_thuc');
-                        if (!$qs->exists()) return 'Dự thảo';
-
-                        $all = $qs->get()->map(function ($lh) {
-                            $day = $lh->ngay_hoc instanceof \DateTimeInterface
-                                ? Carbon::instance($lh->ngay_hoc)->startOfDay()
-                                : Carbon::parse($lh->ngay_hoc)->startOfDay();
-                            $start = (clone $day)->setTimeFromTimeString($lh->gio_bat_dau ?: '00:00:00');
-                            $end   = (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc ?: '23:59:59');
-                            return compact('start','end');
-                        });
-
-                        $minStart = $all->min('start');
-                        $maxEnd   = $all->max('end');
-                        $now = now();
-
-                        if ($now->lt($minStart)) return 'Ban hành';
-                        if ($now->between($minStart, $maxEnd)) return 'Đang đào tạo';
-                        return 'Kết thúc';
-                    })
+                    ->getStateUsing(fn (KhoaHoc $record) => $record->trang_thai_hien_thi)
                     ->color(fn (string $state) => match ($state) {
                         'Dự thảo'      => 'gray',
                         'Ban hành'     => 'info',
                         'Đang đào tạo' => 'warning',
                         'Kết thúc'     => 'success',
+                        'Tạm hoãn'     => 'danger',
                         default        => 'gray',
                     })
                     ->toggleable(),
