@@ -9,7 +9,6 @@ use App\Models\KhoaHoc;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
-use Filament\Tables\Actions\CreateAction\CreateAnotherAction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -207,11 +206,7 @@ class LichHocsRelationManager extends RelationManager
                 Tables\Actions\CreateAction::make()
                     ->label('Thêm giờ học')
                     ->modalHeading('Tạo lịch học')
-                    ->modalSubmitActionLabel('Tạo')
-                    ->createAnotherAction(fn (CreateAnotherAction $action) => $action
-                        ->label('Tạo thêm lịch')
-                        ->modalSubmitActionLabel('Tạo thêm lịch')
-                    ),
+                    ->modalSubmitActionLabel('Tạo'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()->label('Sửa')->modalHeading('Sửa lịch học')->modalSubmitActionLabel('Lưu thay đổi'),

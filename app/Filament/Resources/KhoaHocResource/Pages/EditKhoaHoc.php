@@ -5,6 +5,7 @@ namespace App\Filament\Resources\KhoaHocResource\Pages;
 use App\Filament\Resources\KhoaHocResource;
 use App\Models\ChuongTrinh;
 use App\Models\QuyTacMaKhoa;
+use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
 class EditKhoaHoc extends EditRecord
@@ -14,6 +15,23 @@ class EditKhoaHoc extends EditRecord
     public function getTitle(): string
     {
         return 'Sửa Kế hoạch đào tạo';
+    }
+
+    protected function getSaveButtonLabel(): string
+    {
+        return 'Lưu thay đổi';
+    }
+
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getSaveFormAction()->label('Lưu thay đổi'),
+            Actions\DeleteAction::make()
+                ->label('Xóa')
+                ->modalHeading('Xóa Kế hoạch đào tạo')
+                ->modalSubmitActionLabel('Xóa'),
+            $this->getCancelFormAction(),
+        ];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array

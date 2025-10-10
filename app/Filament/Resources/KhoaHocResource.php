@@ -20,6 +20,7 @@ use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class KhoaHocResource extends Resource
 {
@@ -212,9 +213,16 @@ class KhoaHocResource extends Resource
                     )
                     ->toggleable(),
 
-                Tables\Columns\BadgeColumn::make('trang_thai_hien_thi')
+                Tables\Columns\TextColumn::make('trang_thai_hien_thi')
                     ->label('Trạng thái')
+                    ->badge()
                     ->getStateUsing(fn (KhoaHoc $record) => $record->trang_thai_hien_thi)
+                    ->description(
+                        fn (KhoaHoc $record) => $record->trang_thai_hien_thi === 'Tạm hoãn' && filled($record->ly_do_tam_hoan ?? null)
+                            ? Str::limit(strip_tags((string) $record->ly_do_tam_hoan), 120)
+                            : null,
+                        'below'
+                    )
                     ->color(fn (string $state) => match ($state) {
                         'Dự thảo'      => 'gray',
                         'Ban hành'     => 'info',
@@ -239,12 +247,14 @@ class KhoaHocResource extends Resource
                                 )
                                 ->native(false)
                                 ->searchable()
+                                ->placeholder('')
                                 ->columnSpan(6),
                             Forms\Components\Select::make('thang')
                                 ->label('Tháng')
                                 ->options(fn () => collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => (string) $m])->toArray())
                                 ->native(false)
                                 ->searchable()
+                                ->placeholder('')
                                 ->columnSpan(6),
                         ]),
                     ])
@@ -318,6 +328,32 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
+                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
+                Tables\Filters\SelectFilter::make('tuan')
+                    ->label('Tuần')
+                    ->options(function () {
+                        $filters = request()->input('tableFilters', []);
+                        $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
+                        $month = data_get($filters, 'thoi_gian.data.thang');
+
+                        $q = LichHoc::query()
+                            ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));
+
+                        if ($month) {
+                            $q->where('thang', (int) $month);
+                        }
+
+                        return $q->select('tuan')->distinct()->orderBy('tuan','desc')->pluck('tuan')
+                            ->filter()->unique()->values()
+                            ->mapWithKeys(fn ($w) => [$w => (string) $w])->toArray();
+                    })
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+                        return filled($value)
+                            ? $query->whereHas('lichHocs', fn ($r) => $r->where('tuan', (int) $value))
+                            : $query;
+                    }),
+
                 Filter::make('trang_thai')
                     ->label('Trạng thái')
                     ->form([
@@ -347,32 +383,6 @@ class KhoaHocResource extends Resource
                         }
 
                         return [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
-                    }),
-
-                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
-                Tables\Filters\SelectFilter::make('tuan')
-                    ->label('Tuần')
-                    ->options(function () {
-                        $filters = request()->input('tableFilters', []);
-                        $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
-                        $month = data_get($filters, 'thoi_gian.data.thang');
-
-                        $q = LichHoc::query()
-                            ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));
-
-                        if ($month) {
-                            $q->where('thang', (int) $month);
-                        }
-
-                        return $q->select('tuan')->distinct()->orderBy('tuan','desc')->pluck('tuan')
-                            ->filter()->unique()->values()
-                            ->mapWithKeys(fn ($w) => [$w => (string) $w])->toArray();
-                    })
-                    ->query(function (Builder $query, array $data): Builder {
-                        $value = $data['value'] ?? null;
-                        return filled($value)
-                            ? $query->whereHas('lichHocs', fn ($r) => $r->where('tuan', (int) $value))
-                            : $query;
                     }),
             ])
             ->actions([
