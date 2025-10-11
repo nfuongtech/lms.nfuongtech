@@ -22,7 +22,8 @@ class ListKhoaHocs extends ListRecords
                 ->label('Xuất Excel')
                 ->icon('heroicon-m-arrow-down-tray')
                 ->extraAttributes([
-                    'style' => 'background-color:#CCFFD8;color:#065f46;border:1px solid #9ae6b4;',
+                    'style' => 'background-color:#CCFFD8;color:#111827;border:1px solid #9ae6b4;',
+                    'class' => 'text-gray-900',
                 ])
                 ->action(fn () => $this->exportPlan()),
             Actions\CreateAction::make()->label('Tạo kế hoạch'),
@@ -42,7 +43,7 @@ class ListKhoaHocs extends ListRecords
             $sheet = $spreadsheet->getActiveSheet();
 
             // Header
-            $headers = ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái'];
+            $headers = ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái','Lý do tạm hoãn'];
             $sheet->fromArray($headers, null, 'A1');
 
             $row = 2; $tt = 1;
@@ -75,6 +76,7 @@ class ListKhoaHocs extends ListRecords
 
                 // Trạng thái: cùng logic như List
                 $trangThai = $kh->trang_thai_hien_thi;
+                $lyDoTamHoan = $trangThai === 'Tạm hoãn' ? (string) ($kh->ly_do_tam_hoan ?? '') : '';
 
                 $sheet->fromArray([
                     $tt,
@@ -85,18 +87,20 @@ class ListKhoaHocs extends ListRecords
                     $ngayGio,
                     $weeks,
                     $trangThai,
+                    $lyDoTamHoan,
                 ], null, 'A'.$row);
 
                 $row++; $tt++;
             }
 
-            // Style: wrap text cột Giảng viên (D) & Ngày, Giờ đào tạo (F)
+            // Style: wrap text cột Giảng viên (D), Ngày/Giờ (F) và lý do tạm hoãn (I)
             $sheet->getStyle('D1:D'.($row-1))->getAlignment()->setWrapText(true);
             $sheet->getStyle('F1:F'.($row-1))->getAlignment()->setWrapText(true);
-            $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+            $sheet->getStyle('I1:I'.($row-1))->getAlignment()->setWrapText(true);
+            $sheet->getStyle('A1:I1')->getFont()->setBold(true);
 
             // Auto width
-            foreach (range('A','H') as $col) {
+            foreach (range('A','I') as $col) {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
 
@@ -117,7 +121,7 @@ class ListKhoaHocs extends ListRecords
             $out = fopen('php://output', 'w');
             // BOM UTF-8
             fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($out, ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái']);
+            fputcsv($out, ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái','Lý do tạm hoãn']);
 
             $tt = 1;
             foreach ($records as $kh) {
@@ -142,6 +146,7 @@ class ListKhoaHocs extends ListRecords
                 $weeks = $lich->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
 
                 $trangThai = $kh->trang_thai_hien_thi;
+                $lyDoTamHoan = $trangThai === 'Tạm hoãn' ? (string) ($kh->ly_do_tam_hoan ?? '') : '';
 
                 fputcsv($out, [
                     $tt,
@@ -152,6 +157,7 @@ class ListKhoaHocs extends ListRecords
                     $ngayGio,
                     $weeks,
                     $trangThai,
+                    $lyDoTamHoan,
                 ]);
 
                 $tt++;

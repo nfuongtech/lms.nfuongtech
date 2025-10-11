@@ -125,7 +125,7 @@ class KhoaHoc extends Model
             return $query;
         }
 
-        $now = now();
+        $now = now()->format('Y-m-d H:i:s');
 
         return $query->where(function (Builder $builder) use ($normalized, $now) {
             if ($normalized->contains('tam-hoan')) {

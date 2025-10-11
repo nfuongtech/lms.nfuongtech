@@ -34,6 +34,8 @@ class KhoaHocResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
+        // ❗ BỎ where('nam', năm hiện tại) để filters có thể thay đổi năm.
+        // Mặc định vẫn sắp xếp theo tuần mới nhất và tính tổng giờ.
         return parent::getEloquentQuery()
             ->withMax('lichHocs as max_tuan', 'tuan')
             ->withSum('lichHocs as tong_gio', 'so_gio_giang')
@@ -258,31 +260,35 @@ class KhoaHocResource extends Resource
                         ]),
                     ])
                     ->default([
-                        'nam'   => (int) now()->format('Y'),
+                        'nam' => (int) now()->format('Y'),
                         'thang' => (int) now()->format('n'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $currentYear  = (int) now()->format('Y');
-                        $currentMonth = (int) now()->format('n');
+                        $year  = $data['nam'] ?? null;
+                        $month = $data['thang'] ?? null;
 
-                        $year  = filled($data['nam'] ?? null) ? (int) $data['nam'] : $currentYear;
-                        $month = filled($data['thang'] ?? null) ? (int) $data['thang'] : $currentMonth;
+                        if (filled($year)) {
+                            $query->where('nam', (int) $year);
+                        }
 
-                        $query->where('nam', $year);
+                        if (filled($month)) {
+                            $query->where(function (Builder $sub) use ($month) {
+                                $sub->whereDoesntHave('lichHocs')
+                                    ->orWhereHas('lichHocs', fn ($r) => $r->where('thang', (int) $month));
+                            });
+                        }
 
-                        return $query->where(function (Builder $sub) use ($month) {
-                            $sub->whereDoesntHave('lichHocs')
-                                ->orWhereHas('lichHocs', fn ($r) => $r->where('thang', $month));
-                        });
+                        return $query;
                     })
                     ->indicateUsing(function (array $data): array {
-                        $year  = filled($data['nam'] ?? null) ? (int) $data['nam'] : (int) now()->format('Y');
-                        $month = filled($data['thang'] ?? null) ? (int) $data['thang'] : (int) now()->format('n');
-
-                        return [
-                            Indicator::make('Năm: '.(string) $year),
-                            Indicator::make('Tháng: '.(string) $month),
-                        ];
+                        $labels = [];
+                        if (filled($data['nam'] ?? null)) {
+                            $labels[] = Indicator::make('Năm: '.(string) $data['nam']);
+                        }
+                        if (filled($data['thang'] ?? null)) {
+                            $labels[] = Indicator::make('Tháng: '.(string) $data['thang']);
+                        }
+                        return $labels;
                     }),
 
                 Filter::make('ngay_thang')
@@ -326,12 +332,21 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
+                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
                         $filters = request()->input('tableFilters', []);
-                        $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
-                        $month = data_get($filters, 'thoi_gian.data.thang') ?: now()->format('n');
+                        $year  = data_get($filters, 'thoi_gian.data.nam');
+                        $month = data_get($filters, 'thoi_gian.data.thang');
+
+                        if (!filled($year)) {
+                            $year = now()->year;
+                        }
+
+                        if (!filled($month)) {
+                            $month = now()->format('n');
+                        }
 
                         $q = LichHoc::query()
                             ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));
@@ -363,9 +378,11 @@ class KhoaHocResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         $states = $data['gia_tri'] ?? [];
-                        return empty($states)
-                            ? $query
-                            : $query->whereTrangThaiHienThi((array) $states);
+                        if (empty($states)) {
+                            return $query;
+                        }
+
+                        return $query->whereTrangThaiHienThi((array) $states);
                     })
                     ->indicateUsing(function (array $data): array {
                         $states = collect($data['gia_tri'] ?? [])
@@ -373,9 +390,11 @@ class KhoaHocResource extends Resource
                             ->filter()
                             ->values();
 
-                        return $states->isEmpty()
-                            ? []
-                            : [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
+                        if ($states->isEmpty()) {
+                            return [];
+                        }
+
+                        return [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
                     }),
             ])
             ->actions([
@@ -389,7 +408,7 @@ class KhoaHocResource extends Resource
 
     public static function getRelations(): array
     {
-        return [LichHocsRelationManager::class];
+        return [ LichHocsRelationManager::class ];
     }
 
     public static function getPages(): array
