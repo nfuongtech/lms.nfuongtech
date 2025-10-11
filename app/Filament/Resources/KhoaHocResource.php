@@ -132,7 +132,7 @@ class KhoaHocResource extends Resource
                     Forms\Components\TextInput::make('yeu_cau_diem_tb')
                         ->label('Yêu cầu điểm trung bình (>=)')
                         ->rule('regex:/^\d+([.,]\d)?$/')
-                        ->default('5,0')->required()
+                        ->default('5.0')->required()
                         ->disabled(fn (Get $get) => request()->routeIs('*.edit') && !$get('edit_mode')),
                 ])
                 ->columns(2),
@@ -332,6 +332,7 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
+                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
@@ -412,4 +413,3 @@ class KhoaHocResource extends Resource
         ];
     }
 }
-

@@ -19,9 +19,11 @@ class ListKhoaHocs extends ListRecords
     {
         return [
             Actions\Action::make('export_all')
-                ->label('Xuất kế hoạch')
+                ->label('Xuất Excel')
                 ->icon('heroicon-m-arrow-down-tray')
-                ->color('success')
+                ->extraAttributes([
+                    'class' => '!bg-white !text-gray-900 border border-gray-300 hover:!bg-gray-50 focus:!bg-gray-50',
+                ])
                 ->action(fn () => $this->exportPlan()),
             Actions\CreateAction::make()->label('Tạo kế hoạch'),
         ];

@@ -23,7 +23,8 @@ class EditKhoaHoc extends EditRecord
     {
         return [
             $this->getSaveFormAction()
-                ->label('Lưu thay đổi'),
+                ->label('Lưu thay đổi')
+                ->color('success'),
             Actions\Action::make('togglePause')
                 ->label(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
                 ->color(fn () => ($this->record->tam_hoan ?? false) ? 'info' : 'primary')
@@ -41,7 +42,7 @@ class EditKhoaHoc extends EditRecord
                     ];
                 })
                 ->modalHeading(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn khóa học' : 'Tạm hoãn khóa học')
-                ->modalSubmitActionLabel(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
+                ->modalSubmitActionLabel(fn () => ($this->record->tam_hoan ?? false) ? 'Xác nhận' : 'Tạm hoãn')
                 ->requiresConfirmation(fn () => (bool) ($this->record->tam_hoan ?? false))
                 ->action(function (array $data) {
                     $record = $this->record;
@@ -58,7 +59,7 @@ class EditKhoaHoc extends EditRecord
                         : null;
                     $record->trang_thai = $isPausing
                         ? 'Tạm hoãn'
-                        : $record->computeTimelineStatus();
+                        : $record->calculateScheduleStatus();
                     $record->save();
 
                     $message = $record->tam_hoan
@@ -79,7 +80,11 @@ class EditKhoaHoc extends EditRecord
                 ->modalSubmitActionLabel('Xóa')
                 ->requiresConfirmation()
                 ->action(function () {
-                    $this->delete();
+                    $record = $this->record;
+
+                    if ($record) {
+                        $record->delete();
+                    }
 
                     Notification::make()
                         ->title('Đã xóa Kế hoạch đào tạo.')
