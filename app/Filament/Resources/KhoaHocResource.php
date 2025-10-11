@@ -34,6 +34,8 @@ class KhoaHocResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
+        // ❗ BỎ where('nam', năm hiện tại) để filters có thể thay đổi năm.
+        // Mặc định vẫn sắp xếp theo tuần mới nhất và tính tổng giờ.
         return parent::getEloquentQuery()
             ->withMax('lichHocs as max_tuan', 'tuan')
             ->withSum('lichHocs as tong_gio', 'so_gio_giang')
@@ -53,9 +55,6 @@ class KhoaHocResource extends Resource
                     FormAction::make('sua')
                         ->label('Sửa')
                         ->visible(fn () => request()->routeIs('*.edit'))
-                        ->extraAttributes([
-                            'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
-                        ])
                         ->action(fn (Set $set) => $set('edit_mode', true)),
                 ])
                 ->schema([
@@ -336,6 +335,7 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
+                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
@@ -403,10 +403,7 @@ class KhoaHocResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Xem'),
                 Tables\Actions\EditAction::make()
-                    ->label('Sửa')
-                    ->extraAttributes([
-                        'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
-                    ]),
+                    ->label('Sửa'),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make()->label('Xóa mục lựa chọn'),
@@ -428,4 +425,3 @@ class KhoaHocResource extends Resource
         ];
     }
 }
-
