@@ -5,6 +5,7 @@ namespace App\Filament\Resources\KhoaHocResource\Pages;
 use App\Filament\Resources\KhoaHocResource;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Actions;
+use Illuminate\Support\Carbon;
 
 class ListKhoaHocs extends ListRecords
 {
@@ -156,5 +157,21 @@ class ListKhoaHocs extends ListRecords
 
             fclose($out);
         }, null, $headers);
+    }
+
+    protected function getDefaultTableFilters(): array
+    {
+        $defaults = parent::getDefaultTableFilters();
+        $now = Carbon::now();
+
+        $defaults['thoi_gian'] = array_merge([
+            'isEnabled' => true,
+            'data' => [],
+        ], $defaults['thoi_gian'] ?? []);
+
+        $defaults['thoi_gian']['data']['nam'] ??= (int) $now->format('Y');
+        $defaults['thoi_gian']['data']['thang'] ??= (int) $now->format('n');
+
+        return $defaults;
     }
 }
