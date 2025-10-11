@@ -11,17 +11,12 @@ class KetQuaKhoaHocObserver
 {
     public function saved(KetQuaKhoaHoc $kq): void
     {
-        // Chỉ xử lý khi ket_qua vừa đổi & có giá trị
-        if (!$kq->wasChanged('ket_qua') || is_null($kq->ket_qua)) {
+        if (is_null($kq->ket_qua)) {
             return;
         }
 
-        // Chỉ cho phép khi thao tác đến từ trang Cập nhật kết quả (trạm trung chuyển)
-        if (!app()->runningInConsole()) {
-            $path = request()?->path();
-            if (!is_string($path) || !str_contains($path, 'admin/cap-nhat-ket-qua')) {
-                return;
-            }
+        if (!$kq->da_chuyen_duyet) {
+            return;
         }
 
         $dk = $kq->dangKy()->first();
@@ -33,9 +28,10 @@ class KetQuaKhoaHocObserver
                 HocVienHoanThanh::updateOrCreate(
                     ['ket_qua_khoa_hoc_id' => $kq->id],
                     [
-                        'hoc_vien_id' => $dk->hoc_vien_id,
-                        'khoa_hoc_id' => $dk->khoa_hoc_id,
-                        'ghi_chu'     => $kq->ly_do_vang,
+                        'hoc_vien_id'      => $dk->hoc_vien_id,
+                        'khoa_hoc_id'      => $dk->khoa_hoc_id,
+                        'ngay_hoan_thanh'  => $kq->updated_at,
+                        'ghi_chu'          => $kq->danh_gia_ren_luyen,
                     ],
                 );
             });
@@ -47,7 +43,7 @@ class KetQuaKhoaHocObserver
                     [
                         'hoc_vien_id'            => $dk->hoc_vien_id,
                         'khoa_hoc_id'            => $dk->khoa_hoc_id,
-                        'ly_do_khong_hoan_thanh' => $kq->ly_do_vang,
+                        'ly_do_khong_hoan_thanh' => $kq->danh_gia_ren_luyen,
                     ],
                 );
             });

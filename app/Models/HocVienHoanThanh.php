@@ -12,6 +12,9 @@ class HocVienHoanThanh extends Model
         'khoa_hoc_id',
         'ket_qua_khoa_hoc_id',
         'ngay_hoan_thanh',
+        'chi_phi_dao_tao',
+        'chung_chi_link',
+        'chung_chi_file_path',
         'chung_chi_da_cap',
         'ghi_chu',
     ];

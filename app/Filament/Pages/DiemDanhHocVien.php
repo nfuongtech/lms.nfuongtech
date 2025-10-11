@@ -2,58 +2,66 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\KhoaHoc;
 use App\Models\DangKy;
 use App\Models\DiemDanh;
-use App\Models\LichHoc;
-use App\Models\KetQuaKhoaHoc;
-// Email & cấu hình
-use App\Models\EmailTemplate;
 use App\Models\EmailAccount;
 use App\Models\EmailLog;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Mail;
-
-use Filament\Pages\Page;
+use App\Models\EmailTemplate;
+use App\Models\HocVienHoanThanh;
+use App\Models\HocVienKhongHoanThanh;
+use App\Models\KetQuaKhoaHoc;
+use App\Models\KhoaHoc;
+use App\Models\LichHoc;
 use Filament\Notifications\Notification;
+use Filament\Pages\Page;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 
 class DiemDanhHocVien extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationGroup = 'Đào tạo';
-    protected static ?string $navigationLabel = 'Điểm danh học viên';
-    protected static ?string $title = 'Điểm danh học viên';
+    protected static ?string $navigationLabel = 'Ghi danh & Đánh giá học viên';
+    protected static ?string $title = 'Ghi danh & Đánh giá học viên';
     protected static string $view = 'filament.pages.diem-danh-hoc-vien';
 
-    // --- Chọn Khóa học, Buổi học ---
     public $namHienTai;
     public $availableNams = [];
     public $selectedNam = null;
     public $availableWeeks = [];
     public $selectedTuan = null;
     public $availableKhoaHocs = [];
-    public $availableLichHocs = [];
     public $selectedKhoaHoc = null;
-    public $selectedLichHoc = null;
 
-    // --- Danh sách học viên & dữ liệu điểm danh ---
-    public $hocViensDaDangKy = [];
-    public $diemDanhData = [];
-    public $isEditing = []; // đóng/mở theo từng học viên
-
-    // --- Bảng liệt kê Khóa học theo Năm (kèm khả năng bấm mở buổi học) ---
-    // mỗi phần tử: [
-    //   'khoa_hoc_id','ma_khoa_hoc','ten_khoa_hoc','trang_thai','so_buoi','tuan','max_tuan',
-    //   'ngay_dao_tao','giang_vien','so_luong_hv','lichs' => [ {id,tuan,ngay_hoc,gio_bat_dau,gio_ket_thuc,ten_chuyen_de,dia_diem}, ... ]
-    // ]
     public $khoaHocYearRows = [];
+    public $khoaHocLichHocs = [];
+    public $khoaHocRequirements = [
+        'yeu_cau_gio' => null,
+        'yeu_cau_diem' => null,
+        'tong_gio_ke_hoach' => 0,
+    ];
 
-    // --- Biến cho gửi email (khôi phục để khớp Blade) ---
+    public $hocViensDaDangKy = [];
+    public $hocVienRows = [];
+    public $diemDanhData = [];
+    public $tongKetData = [];
+    public $isEditing = [];
+
+    public $daChuyenKetQua = false;
+    public $coTheChinhSua = false;
+
     public $showGuiEmailModal = false;
     public $selectedEmailTemplateId = null;
     public $selectedEmailAccountId = null;
-    public $loaiEmail = 'hoc_vien'; // 'hoc_vien' | 'giang_vien'
+    public $loaiEmail = 'hoc_vien';
+
+    public $showConfirmModal = false;
 
     public function mount(): void
     {
@@ -73,12 +81,7 @@ class DiemDanhHocVien extends Page
         }
 
         $this->availableWeeks = $this->getAvailableWeeksProperty()->toArray();
-        $this->availableKhoaHocs = collect();
-        $this->availableLichHocs = collect();
-
         $this->refreshAvailableKhoaHocs();
-        $this->refreshAvailableLichHocs();
-        $this->refreshHocViens();
         $this->refreshKhoaHocYearRows();
     }
 
@@ -86,40 +89,633 @@ class DiemDanhHocVien extends Page
     {
         $this->selectedTuan = null;
         $this->selectedKhoaHoc = null;
-        $this->selectedLichHoc = null;
         $this->availableWeeks = $this->getAvailableWeeksProperty()->toArray();
-        $this->availableKhoaHocs = collect();
-        $this->availableLichHocs = collect();
-
         $this->refreshAvailableKhoaHocs();
-        $this->refreshAvailableLichHocs();
-        $this->refreshHocViens();
+        $this->resetCourseContext();
         $this->refreshKhoaHocYearRows();
     }
 
     public function updatedSelectedTuan(): void
     {
         $this->selectedKhoaHoc = null;
-        $this->selectedLichHoc = null;
-
         $this->refreshAvailableKhoaHocs();
-        $this->availableLichHocs = collect();
-        $this->refreshHocViens();
+        $this->resetCourseContext();
     }
 
     public function updatedSelectedKhoaHoc(): void
     {
-        $this->selectedLichHoc = null;
-        $this->refreshAvailableLichHocs();
-        $this->refreshHocViens();
+        $this->refreshCourseContext();
     }
 
-    public function updatedSelectedLichHoc(): void
+    public function updatedDiemDanhData($value, $key): void
     {
-        $this->refreshHocViens();
+        $parts = explode('.', (string) $key);
+        if (count($parts) !== 3) {
+            return;
+        }
+
+        [$dangKyId, $lichHocId, $field] = $parts;
+        $dangKyId = (int) $dangKyId;
+        $lichHocId = (int) $lichHocId;
+
+        if (!$dangKyId || !$lichHocId) {
+            return;
+        }
+
+        $this->ensureCellDefaults($dangKyId, $lichHocId);
+
+        if ($field === 'trang_thai') {
+            $status = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.trang_thai", 'co_mat');
+            if ($status === 'co_mat') {
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.ly_do_vang", '');
+            }
+        }
+
+        if ($field === 'so_gio_hoc') {
+            $hours = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc");
+            if (($hours === '' || $hours === null) && isset($this->khoaHocLichHocs[$lichHocId])) {
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", $this->khoaHocLichHocs[$lichHocId]['so_gio']);
+            }
+        }
+
+        $this->recalculateTongKet($dangKyId);
     }
 
-    public function getAvailableWeeksProperty()
+    public function updatedTongKetData($value, $key): void
+    {
+        $parts = explode('.', (string) $key);
+        if (count($parts) !== 2) {
+            return;
+        }
+
+        [$dangKyId, $field] = $parts;
+        $dangKyId = (int) $dangKyId;
+
+        if ($field === 'ket_qua') {
+            $normalized = $this->normalizeKetQua(Arr::get($this->tongKetData, "$dangKyId.ket_qua"));
+            Arr::set($this->tongKetData, "$dangKyId.ket_qua", $normalized);
+        }
+    }
+
+    public function dongDiemDanh(int $dangKyId): void
+    {
+        if (!isset($this->isEditing[$dangKyId])) {
+            return;
+        }
+
+        $this->isEditing[$dangKyId] = false;
+    }
+
+    public function moSuaDiemDanh(int $dangKyId): void
+    {
+        if ($this->daChuyenKetQua || !$this->coTheChinhSua) {
+            return;
+        }
+
+        if (!isset($this->isEditing[$dangKyId])) {
+            return;
+        }
+
+        $this->isEditing[$dangKyId] = true;
+    }
+
+    public function chuanBiChuyenKetQua(): void
+    {
+        if ($this->daChuyenKetQua) {
+            Notification::make()
+                ->title('Khóa học đã được chuyển kết quả để duyệt')
+                ->warning()
+                ->send();
+            return;
+        }
+
+        if (!$this->coTheChinhSua) {
+            Notification::make()
+                ->title('Bạn không có quyền chuyển kết quả')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        if (empty($this->hocVienRows)) {
+            Notification::make()->title('Không có học viên để chuyển kết quả')->warning()->send();
+            return;
+        }
+
+        $this->showConfirmModal = true;
+    }
+
+    public function xacNhanChuyenKetQua(): void
+    {
+        if ($this->daChuyenKetQua || !$this->coTheChinhSua) {
+            $this->showConfirmModal = false;
+            return;
+        }
+
+        try {
+            $this->validateBeforeSubmit();
+        } catch (ValidationException $exception) {
+            $this->showConfirmModal = false;
+            Notification::make()
+                ->title('Không thể chuyển kết quả')
+                ->body(collect($exception->errors())->flatten()->implode("\n"))
+                ->danger()
+                ->send();
+            return;
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $khoaHoc = KhoaHoc::with('lichHocs')->find($this->selectedKhoaHoc);
+            if (!$khoaHoc) {
+                throw new \RuntimeException('Không tìm thấy khóa học.');
+            }
+
+            $lichHocIds = array_keys($this->khoaHocLichHocs);
+
+            foreach ($this->hocVienRows as $row) {
+                $dangKyId = $row['dang_ky_id'];
+                if (!$dangKyId) {
+                    continue;
+                }
+
+                foreach ($lichHocIds as $lichHocId) {
+                    $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
+                    $status = $cell['trang_thai'] ?? 'co_mat';
+                    $lyDo = $status === 'co_mat' ? null : ($cell['ly_do_vang'] ?? null);
+                    $soGio = $cell['so_gio_hoc'] ?? ($this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null);
+                    $diem = $cell['diem'] ?? null;
+
+                    if ($status !== 'co_mat') {
+                        $soGio = 0;
+                    }
+
+                    DiemDanh::updateOrCreate(
+                        [
+                            'dang_ky_id' => $dangKyId,
+                            'lich_hoc_id' => $lichHocId,
+                        ],
+                        [
+                            'trang_thai' => $status,
+                            'ly_do_vang' => $lyDo,
+                            'so_gio_hoc' => $soGio === '' ? null : $soGio,
+                            'diem_buoi_hoc' => $diem === '' ? null : $diem,
+                            'danh_gia_ky_luat' => null,
+                        ]
+                    );
+                }
+
+                $tongKet = $this->tongKetData[$dangKyId] ?? [];
+                $ketQua = $this->normalizeKetQua($tongKet['ket_qua'] ?? null);
+                $goiY = $this->normalizeKetQua($tongKet['ket_qua_goi_y'] ?? null);
+                $hocVienId = $row['hoc_vien']->id;
+
+                $ketQuaModel = KetQuaKhoaHoc::updateOrCreate(
+                    ['dang_ky_id' => $dangKyId],
+                    [
+                        'tong_so_gio_ke_hoach' => $this->khoaHocRequirements['tong_gio_ke_hoach'],
+                        'tong_so_gio_thuc_te' => $tongKet['tong_so_gio_thuc_te'] ?? null,
+                        'diem_trung_binh' => $tongKet['diem_trung_binh'] ?? null,
+                        'ket_qua_goi_y' => $goiY,
+                        'ket_qua' => $ketQua,
+                        'danh_gia_ren_luyen' => $tongKet['danh_gia_ren_luyen'] ?? null,
+                        'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
+                        'nguoi_nhap' => Auth::user()?->name,
+                        'ngay_nhap' => now(),
+                        'needs_review' => false,
+                    ]
+                );
+
+                HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
+                HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
+
+                if ($ketQua === 'hoan_thanh') {
+                    HocVienHoanThanh::updateOrCreate(
+                        [
+                            'hoc_vien_id' => $hocVienId,
+                            'khoa_hoc_id' => $khoaHoc->id,
+                            'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
+                        ],
+                        []
+                    );
+                } elseif ($ketQua === 'khong_hoan_thanh') {
+                    HocVienKhongHoanThanh::updateOrCreate(
+                        [
+                            'hoc_vien_id' => $hocVienId,
+                            'khoa_hoc_id' => $khoaHoc->id,
+                            'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
+                        ],
+                        []
+                    );
+                }
+            }
+
+            $khoaHoc->update([
+                'da_chuyen_ket_qua' => true,
+                'thoi_gian_chuyen_ket_qua' => now(),
+                'nguoi_chuyen_ket_qua' => Auth::user()?->name,
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $exception) {
+            DB::rollBack();
+            Log::error('Không thể chuyển kết quả: ' . $exception->getMessage(), ['trace' => $exception->getTraceAsString()]);
+
+            Notification::make()
+                ->title('Không thể chuyển kết quả')
+                ->body($exception->getMessage())
+                ->danger()
+                ->send();
+
+            $this->showConfirmModal = false;
+            return;
+        }
+
+        $this->showConfirmModal = false;
+        $this->daChuyenKetQua = true;
+        $this->coTheChinhSua = false;
+        foreach (array_keys($this->isEditing) as $dangKyId) {
+            $this->isEditing[$dangKyId] = false;
+        }
+
+        Notification::make()
+            ->title('Đã chuyển kết quả để duyệt')
+            ->success()
+            ->send();
+    }
+
+    public function moModalGuiEmail(): void
+    {
+        if (!$this->selectedKhoaHoc) {
+            Notification::make()->title('Vui lòng chọn Khóa học trước khi gửi email')->danger()->send();
+            return;
+        }
+
+        if (empty($this->hocVienRows)) {
+            Notification::make()->title('Không có học viên nào để gửi email')->warning()->send();
+            return;
+        }
+
+        $this->showGuiEmailModal = true;
+    }
+
+    public function guiEmailHangLoat(): void
+    {
+        $this->validate([
+            'selectedEmailTemplateId' => 'required|exists:email_templates,id',
+            'selectedEmailAccountId' => 'required|exists:email_accounts,id',
+            'loaiEmail' => 'required|in:hoc_vien,giang_vien',
+        ], [
+            'selectedEmailTemplateId.required' => 'Vui lòng chọn mẫu email.',
+            'selectedEmailTemplateId.exists' => 'Mẫu email không tồn tại.',
+            'selectedEmailAccountId.required' => 'Vui lòng chọn tài khoản gửi email.',
+            'selectedEmailAccountId.exists' => 'Tài khoản gửi email không tồn tại.',
+            'loaiEmail.required' => 'Vui lòng chọn loại email.',
+            'loaiEmail.in' => 'Loại email không hợp lệ.',
+        ]);
+
+        $template = EmailTemplate::find($this->selectedEmailTemplateId);
+        $emailAcct = EmailAccount::find($this->selectedEmailAccountId);
+        $khoaHoc = KhoaHoc::with('chuongTrinh')->find($this->selectedKhoaHoc);
+
+        if (!$template || !$emailAcct || !$khoaHoc) {
+            Notification::make()->title('Thiếu dữ liệu gửi email')->danger()->send();
+            $this->showGuiEmailModal = false;
+            return;
+        }
+
+        Config::set('mail.mailers.dynamic', [
+            'transport' => 'smtp',
+            'host' => $emailAcct->host,
+            'port' => $emailAcct->port,
+            'encryption' => $emailAcct->encryption_tls ? 'tls' : null,
+            'username' => $emailAcct->username,
+            'password' => $emailAcct->password,
+        ]);
+        Config::set('mail.from', [
+            'address' => $emailAcct->email,
+            'name' => $emailAcct->name,
+        ]);
+
+        $ok = 0;
+        $fail = 0;
+
+        if ($this->loaiEmail === 'hoc_vien') {
+            foreach ($this->hocVienRows as $row) {
+                $hocVien = $row['hoc_vien'];
+                $recipientEmail = $hocVien->email ?? null;
+                if (!$recipientEmail) {
+                    $fail++;
+                    EmailLog::create([
+                        'email_account_id' => $emailAcct->id,
+                        'recipient_email' => 'N/A',
+                        'subject' => 'Không gửi (thiếu email học viên)',
+                        'content' => '',
+                        'status' => 'failed',
+                        'error_message' => 'Học viên không có email.',
+                    ]);
+                    continue;
+                }
+
+                $dangKyId = $row['dang_ky_id'];
+                $placeholders = [
+                    '{ten_hoc_vien}' => $hocVien->ho_ten ?? 'N/A',
+                    '{msnv}' => $hocVien->msnv ?? 'N/A',
+                    '{ma_khoa_hoc}' => $khoaHoc->ma_khoa_hoc ?? 'N/A',
+                    '{ten_chuong_trinh}' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? 'N/A',
+                    '{chuc_vu}' => $hocVien->chuc_vu ?? '',
+                    '{don_vi}' => optional($hocVien->donVi)->ten_hien_thi ?? '',
+                    '{diem_tb}' => Arr::get($this->tongKetData, "$dangKyId.diem_trung_binh", ''),
+                    '{ket_qua}' => $this->mapKetQuaLabel(Arr::get($this->tongKetData, "$dangKyId.ket_qua", 'hoan_thanh')),
+                ];
+
+                $subject = strtr($template->tieu_de, $placeholders);
+                $body = strtr($template->noi_dung, $placeholders);
+
+                try {
+                    Mail::mailer('dynamic')
+                        ->to($recipientEmail)
+                        ->send(new \App\Mail\PlanNotificationMail($subject, $body));
+                    $ok++;
+                    $status = 'success';
+                    $err = null;
+                } catch (\Throwable $e) {
+                    $fail++;
+                    $status = 'failed';
+                    $err = $e->getMessage();
+                    Log::error("Lỗi gửi email tới {$recipientEmail}: " . $e->getMessage());
+                }
+
+                EmailLog::create([
+                    'email_account_id' => $emailAcct->id,
+                    'recipient_email' => $recipientEmail,
+                    'subject' => $subject,
+                    'content' => $body,
+                    'status' => $status,
+                    'error_message' => $err,
+                ]);
+            }
+        } else {
+            $giangViens = $this->getDanhSachGiangVien();
+            foreach ($giangViens as $gv) {
+                $recipientEmail = $gv->email ?? null;
+                if (!$recipientEmail) {
+                    $fail++;
+                    EmailLog::create([
+                        'email_account_id' => $emailAcct->id,
+                        'recipient_email' => 'N/A',
+                        'subject' => 'Không gửi (thiếu email giảng viên)',
+                        'content' => '',
+                        'status' => 'failed',
+                        'error_message' => 'Giảng viên không có email.',
+                    ]);
+                    continue;
+                }
+
+                $placeholders = [
+                    '{ten_giang_vien}' => $gv->ho_ten ?? 'N/A',
+                    '{ma_khoa_hoc}' => $khoaHoc->ma_khoa_hoc ?? 'N/A',
+                    '{ten_chuong_trinh}' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? 'N/A',
+                ];
+
+                $subject = strtr($template->tieu_de, $placeholders);
+                $body = strtr($template->noi_dung, $placeholders);
+
+                try {
+                    Mail::mailer('dynamic')
+                        ->to($recipientEmail)
+                        ->send(new \App\Mail\PlanNotificationMail($subject, $body));
+                    $ok++;
+                    $status = 'success';
+                    $err = null;
+                } catch (\Throwable $e) {
+                    $fail++;
+                    $status = 'failed';
+                    $err = $e->getMessage();
+                    Log::error("Lỗi gửi email tới GV {$recipientEmail}: " . $e->getMessage());
+                }
+
+                EmailLog::create([
+                    'email_account_id' => $emailAcct->id,
+                    'recipient_email' => $recipientEmail,
+                    'subject' => $subject,
+                    'content' => $body,
+                    'status' => $status,
+                    'error_message' => $err,
+                ]);
+            }
+        }
+
+        $this->showGuiEmailModal = false;
+        $this->selectedEmailTemplateId = null;
+        $this->selectedEmailAccountId = null;
+        $this->loaiEmail = 'hoc_vien';
+
+        Notification::make()
+            ->title('Gửi email hoàn tất!')
+            ->body("Thành công: {$ok}. Thất bại: {$fail}.")
+            ->success()
+            ->send();
+    }
+
+    public static function getSlug(): string
+    {
+        return 'diem-danh-hoc-vien';
+    }
+
+    private function refreshCourseContext(): void
+    {
+        $this->hocViensDaDangKy = [];
+        $this->hocVienRows = [];
+        $this->diemDanhData = [];
+        $this->tongKetData = [];
+        $this->isEditing = [];
+        $this->khoaHocLichHocs = [];
+        $this->coTheChinhSua = false;
+        $this->daChuyenKetQua = false;
+
+        if (!$this->selectedKhoaHoc) {
+            return;
+        }
+
+        $khoaHoc = KhoaHoc::with(['lichHocs' => function ($query) {
+            $query->orderBy('ngay_hoc')->orderBy('gio_bat_dau');
+        }])->find($this->selectedKhoaHoc);
+
+        if (!$khoaHoc) {
+            return;
+        }
+
+        $lichHocs = $khoaHoc->lichHocs;
+        if ($this->selectedNam) {
+            $lichHocs = $lichHocs->where('nam', $this->selectedNam);
+        }
+        if ($this->selectedTuan) {
+            $lichHocs = $lichHocs->where('tuan', $this->selectedTuan);
+        }
+
+        $lichHocArray = [];
+        $tongGioKeHoach = 0;
+        foreach ($lichHocs as $lichHoc) {
+            $tongGioKeHoach += (float) ($lichHoc->so_gio_giang ?? 0);
+            $ngay = $lichHoc->ngay_hoc;
+            if ($ngay instanceof \DateTimeInterface) {
+                $nhan = $ngay->format('d/m');
+                $ngayMoTa = $ngay->format('d/m/Y');
+            } elseif ($ngay) {
+                $timestamp = strtotime((string) $ngay);
+                $nhan = $timestamp ? date('d/m', $timestamp) : 'Buổi';
+                $ngayMoTa = $timestamp ? date('d/m/Y', $timestamp) : '—';
+            } else {
+                $nhan = 'Buổi';
+                $ngayMoTa = '—';
+            }
+
+            $gioBatDau = $lichHoc->gio_bat_dau ? substr($lichHoc->gio_bat_dau, 0, 5) : '';
+            $gioKetThuc = $lichHoc->gio_ket_thuc ? substr($lichHoc->gio_ket_thuc, 0, 5) : '';
+            $moTaGio = $gioBatDau && $gioKetThuc ? " · {$gioBatDau}-{$gioKetThuc}" : '';
+            $moTaDiaDiem = $lichHoc->dia_diem ? ' · ' . $lichHoc->dia_diem : '';
+
+            $lichHocArray[$lichHoc->id] = [
+                'nhan' => $nhan,
+                'mo_ta' => $ngayMoTa . $moTaGio . $moTaDiaDiem,
+                'so_gio' => (float) ($lichHoc->so_gio_giang ?? 0),
+                'giang_vien_id' => $lichHoc->giang_vien_id,
+            ];
+        }
+
+        $this->khoaHocLichHocs = $lichHocArray;
+        $this->khoaHocRequirements = [
+            'yeu_cau_gio' => $khoaHoc->yeu_cau_phan_tram_gio,
+            'yeu_cau_diem' => $khoaHoc->yeu_cau_diem_tb,
+            'tong_gio_ke_hoach' => round($tongGioKeHoach, 2),
+        ];
+        $this->daChuyenKetQua = (bool) $khoaHoc->da_chuyen_ket_qua;
+
+        $this->evaluateEditPermission($khoaHoc);
+        $this->refreshHocVienData($khoaHoc);
+    }
+
+    private function refreshHocVienData(KhoaHoc $khoaHoc): void
+    {
+        $lichHocIds = array_keys($this->khoaHocLichHocs);
+        if (empty($lichHocIds)) {
+            return;
+        }
+
+        $dangKies = DangKy::with([
+            'hocVien.donVi',
+            'diemDanhs' => fn ($query) => $query->whereIn('lich_hoc_id', $lichHocIds),
+            'diemDanhs.lichHoc',
+        ])->where('khoa_hoc_id', $khoaHoc->id)->get();
+
+        foreach ($dangKies as $dangKy) {
+            $hocVien = $dangKy->hocVien;
+            if (!$hocVien) {
+                continue;
+            }
+
+            $this->hocViensDaDangKy[] = $hocVien;
+            $this->hocVienRows[] = [
+                'hoc_vien' => $hocVien,
+                'dang_ky_id' => $dangKy->id,
+            ];
+
+            foreach ($lichHocIds as $lichHocId) {
+                $record = $dangKy->diemDanhs->firstWhere('lich_hoc_id', $lichHocId);
+                $this->diemDanhData[$dangKy->id][$lichHocId] = [
+                    'trang_thai' => $record->trang_thai ?? 'co_mat',
+                    'ly_do_vang' => $record->ly_do_vang ?? '',
+                    'so_gio_hoc' => $record->so_gio_hoc ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'],
+                    'diem' => $record->diem_buoi_hoc,
+                ];
+            }
+
+            $ketQua = KetQuaKhoaHoc::firstOrNew(['dang_ky_id' => $dangKy->id]);
+            $this->tongKetData[$dangKy->id] = [
+                'diem_trung_binh' => $ketQua->diem_trung_binh,
+                'ket_qua_goi_y' => $ketQua->ket_qua_goi_y,
+                'ket_qua' => $ketQua->ket_qua ?? $ketQua->ket_qua_goi_y,
+                'danh_gia_ren_luyen' => $ketQua->danh_gia_ren_luyen,
+                'tong_so_gio_thuc_te' => $ketQua->tong_so_gio_thuc_te,
+            ];
+
+            if (!$this->tongKetData[$dangKy->id]['ket_qua']) {
+                $this->tongKetData[$dangKy->id]['ket_qua'] = 'hoan_thanh';
+            }
+
+            $this->isEditing[$dangKy->id] = $this->coTheChinhSua && !$this->daChuyenKetQua;
+            $this->recalculateTongKet($dangKy->id, false);
+        }
+    }
+
+    private function recalculateTongKet(int $dangKyId, bool $preserveSelection = true): void
+    {
+        if (!isset($this->tongKetData[$dangKyId])) {
+            return;
+        }
+
+        $lichHocIds = array_keys($this->khoaHocLichHocs);
+        $tongKeHoach = $this->khoaHocRequirements['tong_gio_ke_hoach'] ?? 0;
+        $tongThucTe = 0;
+        $tongDiem = 0;
+        $countDiem = 0;
+
+        foreach ($lichHocIds as $lichHocId) {
+            $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
+            $status = $cell['trang_thai'] ?? 'co_mat';
+            $hours = $cell['so_gio_hoc'] ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'];
+
+            if ($status !== 'co_mat') {
+                $hours = 0;
+            }
+
+            $tongThucTe += max(0, (float) $hours);
+
+            if ($cell['diem'] !== null && $cell['diem'] !== '') {
+                $tongDiem += (float) $cell['diem'];
+                $countDiem++;
+            }
+        }
+
+        $diemTrungBinh = $countDiem > 0 ? round($tongDiem / $countDiem, 2) : null;
+        $this->tongKetData[$dangKyId]['diem_trung_binh'] = $diemTrungBinh;
+        $this->tongKetData[$dangKyId]['tong_so_gio_thuc_te'] = round($tongThucTe, 2);
+
+        $phanTram = $tongKeHoach > 0 ? ($tongThucTe / $tongKeHoach) * 100 : 0;
+        $datGio = $this->khoaHocRequirements['yeu_cau_gio'] === null
+            || $phanTram >= $this->khoaHocRequirements['yeu_cau_gio'];
+        $datDiem = $this->khoaHocRequirements['yeu_cau_diem'] === null
+            || ($diemTrungBinh !== null && $diemTrungBinh >= $this->khoaHocRequirements['yeu_cau_diem']);
+
+        $goiY = ($datGio && $datDiem) ? 'hoan_thanh' : 'khong_hoan_thanh';
+        $this->tongKetData[$dangKyId]['ket_qua_goi_y'] = $goiY;
+
+        if ($preserveSelection === false || empty($this->tongKetData[$dangKyId]['ket_qua'])) {
+            $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
+        }
+    }
+
+    private function resetCourseContext(): void
+    {
+        $this->selectedKhoaHoc = null;
+        $this->khoaHocLichHocs = [];
+        $this->khoaHocRequirements = [
+            'yeu_cau_gio' => null,
+            'yeu_cau_diem' => null,
+            'tong_gio_ke_hoach' => 0,
+        ];
+        $this->hocViensDaDangKy = [];
+        $this->hocVienRows = [];
+        $this->diemDanhData = [];
+        $this->tongKetData = [];
+        $this->isEditing = [];
+        $this->daChuyenKetQua = false;
+        $this->coTheChinhSua = false;
+    }
+
+    private function getAvailableWeeksProperty(): Collection
     {
         if (!$this->selectedNam) {
             return collect();
@@ -140,523 +736,209 @@ class DiemDanhHocVien extends Page
             return;
         }
 
-        $lichHocIds = LichHoc::query()
+        $khoaHocIds = LichHoc::query()
             ->where('nam', $this->selectedNam)
             ->where('tuan', $this->selectedTuan)
             ->pluck('khoa_hoc_id')
             ->unique();
 
         $this->availableKhoaHocs = KhoaHoc::with('chuongTrinh')
-            ->whereIn('id', $lichHocIds)
+            ->whereIn('id', $khoaHocIds)
             ->orderBy('ma_khoa_hoc')
             ->get();
-
-        if ($this->selectedKhoaHoc && !$this->availableKhoaHocs->contains('id', $this->selectedKhoaHoc)) {
-            $this->selectedKhoaHoc = null;
-            $this->selectedLichHoc = null;
-            $this->availableLichHocs = collect();
-        }
-    }
-
-    private function refreshAvailableLichHocs(): void
-    {
-        if (!$this->selectedKhoaHoc || !$this->selectedNam || !$this->selectedTuan) {
-            $this->availableLichHocs = collect();
-            return;
-        }
-
-        $this->availableLichHocs = LichHoc::query()
-            ->where('khoa_hoc_id', $this->selectedKhoaHoc)
-            ->where('nam', $this->selectedNam)
-            ->where('tuan', $this->selectedTuan)
-            ->orderBy('ngay_hoc')
-            ->get();
-
-        if ($this->selectedLichHoc && !$this->availableLichHocs->contains('id', $this->selectedLichHoc)) {
-            $this->selectedLichHoc = null;
-        }
-    }
-
-    private function refreshHocViens(): void
-    {
-        $this->hocViensDaDangKy = [];
-        $this->diemDanhData = [];
-        $this->isEditing = [];
-
-        if (
-            !$this->selectedNam ||
-            !$this->selectedTuan ||
-            !$this->selectedKhoaHoc ||
-            !$this->selectedLichHoc
-        ) {
-            return;
-        }
-
-        $availableKhoaHocCollection = $this->availableKhoaHocs instanceof Collection
-            ? $this->availableKhoaHocs
-            : collect($this->availableKhoaHocs);
-
-        $availableKhoaHocIds = $availableKhoaHocCollection->pluck('id');
-
-        if (!$availableKhoaHocIds->contains($this->selectedKhoaHoc)) {
-            return;
-        }
-
-        $dangKies = DangKy::with(['hocVien', 'hocVien.dangKies'])
-            ->whereIn('khoa_hoc_id', $availableKhoaHocIds)
-            ->where('khoa_hoc_id', $this->selectedKhoaHoc)
-            ->get();
-
-        foreach ($dangKies as $dk) {
-            $diemDanh = DiemDanh::where('dang_ky_id', $dk->id)
-                ->where('lich_hoc_id', $this->selectedLichHoc)
-                ->first();
-
-            $this->hocViensDaDangKy[] = $dk->hocVien;
-
-            $this->diemDanhData[$dk->id] = [
-                'trang_thai'       => $diemDanh->trang_thai ?? 'co_mat', // 'co_mat' | 'vang_phep' | 'vang_khong_phep'
-                'ly_do_vang'       => $diemDanh->ly_do_vang ?? '',
-                'diem_buoi_hoc'    => $diemDanh->diem_buoi_hoc ?? null,
-                'danh_gia_ky_luat' => $diemDanh->danh_gia_ky_luat ?? '',
-            ];
-
-            // MẶC ĐỊNH "ĐÓNG" nếu đã có bản ghi điểm danh cho buổi này (đảm bảo load lại trang vẫn đóng)
-            $this->isEditing[$dk->id] = $diemDanh ? false : true;
-        }
     }
 
     private function refreshKhoaHocYearRows(): void
     {
         $this->khoaHocYearRows = [];
-        if (!$this->selectedNam) return;
+        if (!$this->selectedNam) {
+            return;
+        }
 
-        // Lấy tất cả Khoa học có lịch trong năm
         $khoaHocIds = LichHoc::query()
             ->where('nam', $this->selectedNam)
             ->pluck('khoa_hoc_id')
             ->unique();
 
-        if ($khoaHocIds->isEmpty()) return;
+        if ($khoaHocIds->isEmpty()) {
+            return;
+        }
 
         $khoaHocs = KhoaHoc::with([
             'chuongTrinh',
-            'lichHocs' => function ($q) {
-                $q->orderBy('ngay_hoc');
-            },
+            'lichHocs' => fn ($q) => $q->orderBy('ngay_hoc'),
             'lichHocs.chuyenDe',
             'lichHocs.giangVien',
-        ])
-        ->whereIn('id', $khoaHocIds)
-        ->orderBy('ma_khoa_hoc')
-        ->get();
+        ])->whereIn('id', $khoaHocIds)->orderBy('ma_khoa_hoc')->get();
 
         $rows = [];
-
-        foreach ($khoaHocs as $kh) {
-            $lichTrongNam = $kh->lichHocs->where('nam', $this->selectedNam);
-
+        foreach ($khoaHocs as $khoaHoc) {
+            $lichTrongNam = $khoaHoc->lichHocs->where('nam', $this->selectedNam);
             $soBuoi = $lichTrongNam->count();
             $tuanSet = $lichTrongNam->pluck('tuan')->unique()->values();
             $tuanCsv = $tuanSet->implode(', ');
-            $maxTuan = $tuanSet->count() ? (int) $tuanSet->max() : 0;
-
             $ngayMin = $lichTrongNam->min('ngay_hoc');
             $ngayMax = $lichTrongNam->max('ngay_hoc');
-            if ($ngayMin && $ngayMax) {
-                $ngayDaoTao = date('d/m/Y', strtotime($ngayMin)) . ' - ' . date('d/m/Y', strtotime($ngayMax));
-            } elseif ($ngayMin) {
-                $ngayDaoTao = date('d/m/Y', strtotime($ngayMin));
-            } else {
-                $ngayDaoTao = '';
-            }
 
-            // Gộp giảng viên
+            $ngayDaoTao = $this->formatKhoangNgay($ngayMin, $ngayMax);
+
             $giangVienNames = [];
-            foreach ($lichTrongNam as $lh) {
-                $gv = $lh->giangVien ?? null;
-                if ($gv && !empty($gv->ho_ten)) {
+            foreach ($lichTrongNam as $lich) {
+                $gv = $lich->giangVien;
+                if ($gv && $gv->ho_ten) {
                     $giangVienNames[$gv->ho_ten] = true;
                 }
             }
-            $giangVienCsv = implode(', ', array_keys($giangVienNames));
-
-            // Số lượng HV đã đăng ký
-            $soLuongHv = DangKy::where('khoa_hoc_id', $kh->id)->count();
-
-            // Trạng thái hiển thị
-            $trangThai = $kh->trang_thai ?? ($soBuoi > 0 ? 'Hoạt động' : '');
-
-            // Lắp danh sách buổi học chi tiết (để click chọn)
-            $lichs = [];
-            foreach ($lichTrongNam as $lh) {
-                $lichs[] = [
-                    'id'            => $lh->id,
-                    'tuan'          => $lh->tuan,
-                    'ngay_hoc'      => $lh->ngay_hoc,
-                    'gio_bat_dau'   => $lh->gio_bat_dau,
-                    'gio_ket_thuc'  => $lh->gio_ket_thuc,
-                    'ten_chuyen_de' => optional($lh->chuyenDe)->ten_chuyen_de,
-                    'dia_diem'      => $lh->dia_diem,
-                ];
-            }
 
             $rows[] = [
-                'khoa_hoc_id'  => $kh->id,
-                'ma_khoa_hoc'  => $kh->ma_khoa_hoc ?? '',
-                'ten_khoa_hoc' => optional($kh->chuongTrinh)->ten_chuong_trinh ?? ($kh->ten_khoa_hoc ?? ''),
-                'trang_thai'   => $trangThai,
-                'so_buoi'      => $soBuoi,
-                'tuan'         => $tuanCsv,
-                'max_tuan'     => $maxTuan,
+                'khoa_hoc_id' => $khoaHoc->id,
+                'ma_khoa_hoc' => $khoaHoc->ma_khoa_hoc ?? '',
+                'ten_khoa_hoc' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? ($khoaHoc->ten_khoa_hoc ?? ''),
+                'trang_thai' => $khoaHoc->trang_thai_hien_thi,
+                'so_buoi' => $soBuoi,
+                'tuan' => $tuanCsv,
                 'ngay_dao_tao' => $ngayDaoTao,
-                'giang_vien'   => $giangVienCsv,
-                'so_luong_hv'  => $soLuongHv,
-                'lichs'        => $lichs,
+                'giang_vien' => implode(', ', array_keys($giangVienNames)),
+                'so_luong_hv' => DangKy::where('khoa_hoc_id', $khoaHoc->id)->count(),
             ];
         }
-
-        // SẮP XẾP THEO TUẦN MỚI NHẤT (max_tuan DESC), phụ theo mã khóa
-        usort($rows, function ($a, $b) {
-            return ($b['max_tuan'] <=> $a['max_tuan'])
-                ?: strcmp($a['ma_khoa_hoc'], $b['ma_khoa_hoc']);
-        });
 
         $this->khoaHocYearRows = $rows;
     }
 
-    /**
-     * Chọn buổi học từ bảng "Danh sách Khóa học trong năm"
-     * LƯU Ý: không dùng type-hint tham số để Livewire bind ổn định.
-     */
-    public function chonBuoiTuBangNam($khoaHocId, $tuan, $lichHocId): void
+    private function formatKhoangNgay($ngayMin, $ngayMax): string
     {
-        // Chuẩn hóa kiểu
-        $khoaHocId = (int) $khoaHocId;
-        $tuan      = (int) $tuan;
-        $lichHocId = (int) $lichHocId;
+        $format = function ($value) {
+            if ($value instanceof \DateTimeInterface) {
+                return $value->format('d/m/Y');
+            }
 
-        // B1: đặt tuần trước (để load availableKhoaHocs theo tuần đó)
-        $this->selectedTuan = $tuan;
-        $this->refreshAvailableKhoaHocs();
+            if ($value) {
+                $timestamp = strtotime((string) $value);
+                return $timestamp ? date('d/m/Y', $timestamp) : '';
+            }
 
-        // B2: đặt khóa học -> nạp buổi
-        $this->selectedKhoaHoc = $khoaHocId;
-        $this->refreshAvailableLichHocs();
+            return '';
+        };
 
-        // B3: đặt buổi học nếu tồn tại trong danh sách được nạp
-        if ($this->availableLichHocs->contains('id', $lichHocId)) {
-            $this->selectedLichHoc = $lichHocId;
-        } else {
-            $this->selectedLichHoc = $this->availableLichHocs->first()->id ?? null;
+        $minFormatted = $format($ngayMin);
+        $maxFormatted = $format($ngayMax);
+
+        if ($minFormatted && $maxFormatted) {
+            if ($minFormatted === $maxFormatted) {
+                return $minFormatted;
+            }
+
+            return $minFormatted . ' - ' . $maxFormatted;
         }
 
-        // B4: nạp học viên + dữ liệu điểm danh
-        $this->refreshHocViens();
+        if ($minFormatted) {
+            return $minFormatted;
+        }
+
+        return '';
     }
 
-    public function dongDiemDanh(int $dangKyId): void
+    private function ensureCellDefaults(int $dangKyId, int $lichHocId): void
     {
-        $this->isEditing[$dangKyId] = false;
+        if (!isset($this->diemDanhData[$dangKyId][$lichHocId])) {
+            $this->diemDanhData[$dangKyId][$lichHocId] = [
+                'trang_thai' => 'co_mat',
+                'ly_do_vang' => '',
+                'so_gio_hoc' => $this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null,
+                'diem' => null,
+            ];
+        }
     }
 
-    public function moSuaDiemDanh(int $dangKyId): void
+    private function validateBeforeSubmit(): void
     {
-        $this->isEditing[$dangKyId] = true;
+        $errors = [];
+        foreach ($this->hocVienRows as $row) {
+            $dangKyId = $row['dang_ky_id'];
+            foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
+                $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? null;
+                if (!$cell) {
+                    continue;
+                }
+                $status = $cell['trang_thai'] ?? 'co_mat';
+                if (in_array($status, ['vang_phep', 'vang_khong_phep'], true)) {
+                    if (!isset($cell['ly_do_vang']) || trim((string) $cell['ly_do_vang']) === '') {
+                        $errors[] = sprintf(
+                            'Vui lòng nhập lý do vắng cho %s (buổi %s).',
+                            $row['hoc_vien']->ho_ten,
+                            $lichHoc['nhan']
+                        );
+                    }
+                }
+            }
+        }
+
+        if (!empty($errors)) {
+            throw ValidationException::withMessages(['ly_do_vang' => $errors]);
+        }
     }
 
-    public function luuDiemDanh(): void
+    private function normalizeKetQua(?string $value): string
     {
-        if (!$this->selectedKhoaHoc || !$this->selectedLichHoc) {
-            Notification::make()->title('Vui lòng chọn Khóa học và Buổi học trước khi điểm danh')->danger()->send();
+        $normalized = strtolower(trim((string) $value));
+        return match ($normalized) {
+            'khong hoan thanh', 'không hoàn thành', 'khong_hoan_thanh' => 'khong_hoan_thanh',
+            default => 'hoan_thanh',
+        };
+    }
+
+    private function evaluateEditPermission(?KhoaHoc $khoaHoc): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            $this->coTheChinhSua = false;
             return;
         }
 
-        $ok = 0; $fail = 0;
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['Super Admin', 'Admin', 'Quản lý đào tạo'])) {
+            $this->coTheChinhSua = true;
+            return;
+        }
 
-        foreach ($this->diemDanhData as $dangKyId => $data) {
-            // Ràng buộc nghiệp vụ
-            $trangThai = $data['trang_thai'] ?? 'co_mat';
-            $lyDo = $data['ly_do_vang'] ?? null;
+        if (method_exists($user, 'can') && $user->can('manage-training-results')) {
+            $this->coTheChinhSua = true;
+            return;
+        }
 
-            if ($trangThai === 'co_mat') {
-                $data['ly_do_vang'] = null;
-            } elseif ($trangThai === 'vang_phep') {
-                if (!$lyDo || trim($lyDo) === '') {
-                    $fail++;
-                    \Log::warning("Điểm danh bỏ qua (thiếu lý do vắng phép) cho dang_ky_id $dangKyId");
-                    continue;
-                }
-            }
+        $giangVienId = optional($user->giangVien)->id;
+        if (!$giangVienId || !$khoaHoc) {
+            $this->coTheChinhSua = false;
+            return;
+        }
 
-            // Chuẩn hóa điểm
-            if (array_key_exists('diem_buoi_hoc', $data) && $data['diem_buoi_hoc'] !== null && $data['diem_buoi_hoc'] !== '') {
-                $diem = (float) $data['diem_buoi_hoc'];
-                if ($diem < 0) $diem = 0;
-                if ($diem > 10) $diem = 10;
-                $data['diem_buoi_hoc'] = $diem;
-            } else {
-                $data['diem_buoi_hoc'] = null;
-            }
-
-            try {
-                DiemDanh::updateOrCreate(
-                    ['dang_ky_id' => $dangKyId, 'lich_hoc_id' => $this->selectedLichHoc],
-                    $data
-                );
-                $ok++;
-                $this->isEditing[$dangKyId] = false; // đóng tuyệt đối
-            } catch (\Throwable $e) {
-                $fail++;
-                \Log::error("Lỗi lưu điểm danh cho dang_ky_id $dangKyId: " . $e->getMessage());
+        foreach ($this->khoaHocLichHocs as $lichHoc) {
+            if ((int) ($lichHoc['giang_vien_id'] ?? 0) === (int) $giangVienId) {
+                $this->coTheChinhSua = true;
+                return;
             }
         }
 
-        $this->tinhToanKetQuaKhoaHoc();
-
-        Notification::make()
-            ->title('Lưu điểm danh thành công!')
-            ->body("Thành công: $ok. Thất bại / bỏ qua: $fail.")
-            ->success()
-            ->send();
+        $this->coTheChinhSua = false;
     }
 
-    private function tinhToanKetQuaKhoaHoc(): void
-    {
-        $dangKies = DangKy::where('khoa_hoc_id', $this->selectedKhoaHoc)->get();
-
-        foreach ($dangKies as $dk) {
-            $diemDanhs = DiemDanh::where('dang_ky_id', $dk->id)->get();
-
-            $tongDiem = 0;
-            $soBuoiCoDiem = 0;
-            $soBuoiVang = 0;
-            $tongSoBuoi = $diemDanhs->count();
-
-            foreach ($diemDanhs as $dd) {
-                if ($dd->diem_buoi_hoc !== null) {
-                    $tongDiem += (float) $dd->diem_buoi_hoc;
-                    $soBuoiCoDiem++;
-                }
-                if (in_array($dd->trang_thai, ['vang_phep', 'vang_khong_phep'])) {
-                    $soBuoiVang++;
-                }
-            }
-
-            $diemTongKhoa = $soBuoiCoDiem > 0 ? round($tongDiem / $soBuoiCoDiem, 2) : null;
-            $tyLeVang = $tongSoBuoi > 0 ? ($soBuoiVang / $tongSoBuoi) * 100 : 0;
-
-            // Chỉ 2 trạng thái: Hoàn thành / Không hoàn thành
-            $ketQua = ($tyLeVang <= 20 && ($diemTongKhoa === null || $diemTongKhoa >= 5))
-                ? 'hoan_thanh'
-                : 'khong_hoan_thanh';
-
-            KetQuaKhoaHoc::updateOrCreate(
-                ['dang_ky_id' => $dk->id],
-                [
-                    'diem_tong_khoa' => $diemTongKhoa,
-                    'ket_qua'        => $ketQua,
-                    'can_hoc_lai'    => $ketQua === 'khong_hoan_thanh' ? 1 : 0,
-                ]
-            );
-        }
-    }
-
-    // ================== KHỐI EMAIL ==================
-    public function moModalGuiEmail(): void
+    private function getDanhSachGiangVien(): Collection
     {
         if (!$this->selectedKhoaHoc) {
-            Notification::make()->title('Vui lòng chọn Khóa học trước khi gửi email')->danger()->send();
-            return;
-        }
-        if (empty($this->hocViensDaDangKy)) {
-            Notification::make()->title('Không có học viên nào để gửi email')->warning()->send();
-            return;
-        }
-        $this->showGuiEmailModal = true;
-    }
-
-    public function guiEmailHangLoat(): void
-    {
-        $this->validate([
-            'selectedEmailTemplateId' => 'required|exists:email_templates,id',
-            'selectedEmailAccountId'  => 'required|exists:email_accounts,id',
-            'loaiEmail'               => 'required|in:hoc_vien,giang_vien',
-        ], [
-            'selectedEmailTemplateId.required' => 'Vui lòng chọn mẫu email.',
-            'selectedEmailTemplateId.exists'   => 'Mẫu email không tồn tại.',
-            'selectedEmailAccountId.required'  => 'Vui lòng chọn tài khoản gửi email.',
-            'selectedEmailAccountId.exists'    => 'Tài khoản gửi email không tồn tại.',
-            'loaiEmail.required'               => 'Vui lòng chọn loại email.',
-            'loaiEmail.in'                     => 'Loại email không hợp lệ.',
-        ]);
-
-        $template  = EmailTemplate::find($this->selectedEmailTemplateId);
-        $emailAcct = EmailAccount::find($this->selectedEmailAccountId);
-        $khoaHoc   = KhoaHoc::with('chuongTrinh')->find($this->selectedKhoaHoc);
-
-        if (!$template || !$emailAcct || !$khoaHoc) {
-            Notification::make()->title('Thiếu dữ liệu gửi email')->danger()->send();
-            $this->showGuiEmailModal = false;
-            return;
+            return collect();
         }
 
-        // Cấu hình mailer động
-        Config::set('mail.mailers.dynamic', [
-            'transport'  => 'smtp',
-            'host'       => $emailAcct->host,
-            'port'       => $emailAcct->port,
-            'encryption' => $emailAcct->encryption_tls ? 'tls' : null,
-            'username'   => $emailAcct->username,
-            'password'   => $emailAcct->password,
-        ]);
-        Config::set('mail.from', [
-            'address' => $emailAcct->email,
-            'name'    => $emailAcct->name,
-        ]);
-
-        $ok = 0; $fail = 0;
-
-        if ($this->loaiEmail === 'hoc_vien') {
-            foreach ($this->hocViensDaDangKy as $hocVien) {
-                $recipientEmail = $hocVien->email ?? null;
-                if (!$recipientEmail) {
-                    $fail++;
-                    EmailLog::create([
-                        'email_account_id' => $emailAcct->id,
-                        'recipient_email'  => 'N/A',
-                        'subject'          => 'Không gửi (thiếu email học viên)',
-                        'content'          => '',
-                        'status'           => 'failed',
-                        'error_message'    => 'Học viên không có email.',
-                    ]);
-                    continue;
-                }
-
-                // Thay placeholder mở rộng
-                $dangKy = $hocVien->dangKies()->where('khoa_hoc_id', $this->selectedKhoaHoc)->first();
-                $dd = null;
-                if ($dangKy) {
-                    $dd = DiemDanh::where('dang_ky_id', $dangKy->id)
-                        ->where('lich_hoc_id', $this->selectedLichHoc)
-                        ->first();
-                }
-                $ttMap = [
-                    'co_mat' => 'Có mặt',
-                    'vang_phep' => 'Vắng phép',
-                    'vang_khong_phep' => 'Vắng không phép',
-                ];
-                $placeholders = [
-                    '{ten_hoc_vien}'     => $hocVien->ho_ten ?? 'N/A',
-                    '{msnv}'             => $hocVien->msnv ?? 'N/A',
-                    '{ma_khoa_hoc}'      => $khoaHoc->ma_khoa_hoc ?? 'N/A',
-                    '{ten_chuong_trinh}' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? 'N/A',
-                    '{chuc_vu}'          => $hocVien->chuc_vu ?? '',
-                    '{don_vi}'           => optional($hocVien->donVi)->ten_hien_thi ?? '',
-                    '{tinh_trang}'       => $ttMap[$dd->trang_thai ?? 'co_mat'] ?? 'Có mặt',
-                    '{ly_do_vang}'       => $dd->ly_do_vang ?? '',
-                    '{diem_buoi_hoc}'    => ($dd && $dd->diem_buoi_hoc !== null) ? (string)$dd->diem_buoi_hoc : '',
-                    '{danh_gia_ky_luat}' => $dd->danh_gia_ky_luat ?? '',
-                ];
-
-                $tieuDe  = strtr($template->tieu_de,  $placeholders);
-                $noiDung = strtr($template->noi_dung, $placeholders);
-
-                try {
-                    Mail::mailer('dynamic')
-                        ->to($recipientEmail)
-                        ->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
-                    $ok++;
-                    $status = 'success'; $err = null;
-                } catch (\Throwable $e) {
-                    $fail++; $status = 'failed'; $err = $e->getMessage();
-                    \Log::error("Lỗi gửi email tới {$recipientEmail}: " . $e->getMessage());
-                }
-
-                EmailLog::create([
-                    'email_account_id' => $emailAcct->id,
-                    'recipient_email'  => $recipientEmail,
-                    'subject'          => $tieuDe,
-                    'content'          => $noiDung,
-                    'status'           => $status,
-                    'error_message'    => $err,
-                ]);
-            }
-        } else {
-            // Gửi cho giảng viên theo lịch học của khóa
-            $giangViens = $this->getDanhSachGiangVien();
-            foreach ($giangViens as $gv) {
-                $recipientEmail = $gv->email ?? null;
-                if (!$recipientEmail) {
-                    $fail++;
-                    EmailLog::create([
-                        'email_account_id' => $emailAcct->id,
-                        'recipient_email'  => 'N/A',
-                        'subject'          => 'Không gửi (thiếu email giảng viên)',
-                        'content'          => '',
-                        'status'           => 'failed',
-                        'error_message'    => 'Giảng viên không có email.',
-                    ]);
-                    continue;
-                }
-
-                $placeholders = [
-                    '{ten_giang_vien}'   => $gv->ho_ten ?? 'N/A',
-                    '{ma_khoa_hoc}'      => $khoaHoc->ma_khoa_hoc ?? 'N/A',
-                    '{ten_chuong_trinh}' => optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? 'N/A',
-                ];
-
-                $tieuDe  = strtr($template->tieu_de,  $placeholders);
-                $noiDung = strtr($template->noi_dung, $placeholders);
-
-                try {
-                    Mail::mailer('dynamic')
-                        ->to($recipientEmail)
-                        ->send(new \App\Mail\PlanNotificationMail($tieuDe, $noiDung));
-                    $ok++;
-                    $status = 'success'; $err = null;
-                } catch (\Throwable $e) {
-                    $fail++; $status = 'failed'; $err = $e->getMessage();
-                    \Log::error("Lỗi gửi email tới GV {$recipientEmail}: " . $e->getMessage());
-                }
-
-                EmailLog::create([
-                    'email_account_id' => $emailAcct->id,
-                    'recipient_email'  => $recipientEmail,
-                    'subject'          => $tieuDe,
-                    'content'          => $noiDung,
-                    'status'           => $status,
-                    'error_message'    => $err,
-                ]);
-            }
-        }
-
-        $this->showGuiEmailModal = false;
-        $this->selectedEmailTemplateId = null;
-        $this->selectedEmailAccountId = null;
-        $this->loaiEmail = 'hoc_vien';
-
-        Notification::make()
-            ->title("Gửi email hoàn tất!")
-            ->body("Thành công: $ok. Thất bại: $fail.")
-            ->success()
-            ->send();
-    }
-    // ================== HẾT KHỐI EMAIL ==================
-
-    private function getDanhSachGiangVien()
-    {
-        if (!$this->selectedKhoaHoc) return collect();
-
-        // Lấy qua relation từ KhoaHoc -> lichHocs -> giangVien (tùy model định nghĩa)
         $khoaHoc = KhoaHoc::with('lichHocs.giangVien')->find($this->selectedKhoaHoc);
-        if (!$khoaHoc) return collect();
+        if (!$khoaHoc) {
+            return collect();
+        }
 
         return $khoaHoc->lichHocs->pluck('giangVien')->filter();
     }
 
-    public static function getSlug(): string
+    private function mapKetQuaLabel(?string $value): string
     {
-        return 'diem-danh-hoc-vien';
+        $value = $this->normalizeKetQua($value);
+        return $value === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành';
     }
 }
