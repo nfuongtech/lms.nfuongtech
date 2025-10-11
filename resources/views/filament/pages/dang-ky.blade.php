@@ -1,12 +1,22 @@
 <x-filament::page>
-    <div class="space-y-6 font-sans text-base">
+    <div class="space-y-6 font-sans text-sm">
 
-        {{-- Bộ lọc Khóa học: Tuần, Trạng thái và Chọn Khóa học trên cùng 1 dòng --}}
-        <div class="flex flex-wrap items-end gap-4">
+        {{-- Bộ lọc Khóa học: Năm, Tuần, Trạng thái và Chọn Khóa học trên cùng 1 dòng --}}
+        <div class="flex flex-wrap items-end gap-4 text-sm">
+            {{-- Chọn Năm --}}
+            <div class="w-24 min-w-[100px]">
+                <label class="block font-medium text-gray-700">Năm</label>
+                <select wire:model.live="selectedNam" class="fi-input w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                    @foreach($this->danhSachNam as $value => $label)
+                        <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             {{-- Chọn Tuần --}}
-            <div class="w-1/12 min-w-[80px]">
-                <label class="block text-xs font-medium text-gray-700">Tuần</label>
-                <select wire:model.live="selectedTuan" class="fi-input w-full text-xs rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+            <div class="w-32 min-w-[120px]">
+                <label class="block font-medium text-gray-700">Tuần - Năm</label>
+                <select wire:model.live="selectedTuan" class="fi-input w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">Tất cả</option>
                     @foreach($this->danhSachTuan as $key => $label)
                         <option value="{{ $key }}">{{ $label }}</option>
@@ -14,26 +24,27 @@
                 </select>
             </div>
 
-            {{-- Trạng thái kế hoạch (theo yêu cầu: Dự thảo, Ban hành, Đang đào tạo, Kết thúc) --}}
-            <div class="w-2/12 min-w-[160px]">
-                <label class="block text-xs font-medium text-gray-700">Trạng thái Kế hoạch</label>
-                <select wire:model.live="selectedTrangThaiKeHoach" class="fi-input w-full text-xs rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+            {{-- Trạng thái kế hoạch --}}
+            <div class="w-52 min-w-[220px]">
+                <label class="block font-medium text-gray-700">Trạng thái Kế hoạch đào tạo</label>
+                <select wire:model.live="selectedTrangThaiKeHoach" class="fi-input w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
                     <option value="">-- Tất cả --</option>
                     <option value="Dự thảo">Dự thảo</option>
                     <option value="Ban hành">Ban hành</option>
                     <option value="Đang đào tạo">Đang đào tạo</option>
                     <option value="Kết thúc">Kết thúc</option>
+                    <option value="Tạm hoãn">Tạm hoãn</option>
                 </select>
             </div>
 
             {{-- Chọn Khóa học --}}
             <div class="flex-1 min-w-[250px]">
-                <label class="block text-xs font-medium text-gray-700">Khóa học</label>
+                <label class="block font-medium text-gray-700">Khóa học</label>
                 <div class="relative">
                     <select
                         wire:model.live="selectedKhoaHoc"
-                        class="fi-input w-full text-xs rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 appearance-none bg-white"
-                        style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 20 20\"><path stroke=\"%236b7280\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\" d=\"M6 8l4 4 4-4\"/></svg>'); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2rem;"
+                        class="fi-input w-full text-sm rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 appearance-none bg-white"
+                        style="background-image: url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; fill=&quot;none&quot; viewBox=&quot;0 0 20 20&quot;><path stroke=&quot;%236b7280&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; stroke-width=&quot;1.5&quot; d=&quot;M6 8l4 4 4-4&quot;/></svg>'); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2rem;"
                     >
                         <option value="">-- Chọn Khóa học --</option>
                         @foreach($this->danhSachKhoaHocLoc as $kh)
@@ -47,13 +58,17 @@
         {{-- Ô nhập MSNV --}}
         <div class="bg-white shadow rounded-xl p-5 border border-gray-200">
             <label class="block text-sm font-semibold text-gray-800">Nhập MSNV (phân tách bằng dấu phẩy)</label>
-            <div class="flex flex-col sm:flex-row gap-3 mt-2">
-                <input type="text" wire:model.live.debounce.500ms="msnvInput" class="fi-input flex-1 rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                       placeholder="VD: HV01, HV02, HV03">
+            <div class="flex flex-col sm:flex-row sm:items-end gap-3 mt-2">
+                <div class="flex-1">
+                    <input type="text" wire:model.live.debounce.500ms="msnvInput" class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 text-sm"
+                           placeholder="VD: HV01, HV02, HV03">
+                </div>
                 <button wire:click="store"
-                        class="fi-btn fi-btn-primary rounded-lg px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
-                    <span wire:loading.remove>Ghi danh</span>
-                    <span wire:loading>Đang xử lý...</span>
+                        class="fi-btn rounded-lg px-4 py-2 font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 sm:self-end sm:ml-auto mt-2 sm:mt-0"
+                        style="background-color: #FFFCD5; color: #00529C; border: 1px solid #00529C;"
+                        >
+                    <span wire:loading.remove class="text-sm">Ghi danh</span>
+                    <span wire:loading class="text-sm">Đang xử lý...</span>
                 </button>
             </div>
 
@@ -91,45 +106,47 @@
             @php
                 $kh = \App\Models\KhoaHoc::with('chuongTrinh', 'lichHocs.giangVien')->find($selectedKhoaHoc);
 
-                // Tổng giờ chương trình áp dụng (lấy theo chuongTrinh liên kết nếu có)
-                $tongThoiLuongChuongTrinh = 0;
+                // Tổng giờ khóa học (theo chương trình áp dụng)
+                $tongGioKhoaHoc = 0;
                 if ($kh && $kh->chuongTrinh) {
-                    // Cố gắng lấy cột 'so_gio' hoặc 'thoi_luong' hoặc 'gio'
                     if (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'so_gio')) {
-                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                        $tongGioKhoaHoc = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
                             ->where('tinh_trang', 'Đang áp dụng')->sum('so_gio');
                     } elseif (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'thoi_luong')) {
-                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                        $tongGioKhoaHoc = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
                             ->where('tinh_trang', 'Đang áp dụng')->sum('thoi_luong');
                     } elseif (\Illuminate\Support\Facades\Schema::hasColumn('chuong_trinhs', 'gio')) {
-                        $tongThoiLuongChuongTrinh = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
+                        $tongGioKhoaHoc = \App\Models\ChuongTrinh::where('id', $kh->chuong_trinh_id)
                             ->where('tinh_trang', 'Đang áp dụng')->sum('gio');
                     } else {
-                        // fallback: tổng theo lichHocs thoi_luong
-                        $tongThoiLuongChuongTrinh = $kh->lichHocs->sum('thoi_luong');
+                        $tongGioKhoaHoc = $kh->lichHocs->sum(function ($lich) {
+                            return isset($lich->so_gio_giang) ? max((float) $lich->so_gio_giang, 0) : max((float) ($lich->thoi_luong ?? 0), 0);
+                        });
                     }
                 }
 
-                // Tổng giờ lịch học thực tế (tính theo thời gian bắt đầu - kết thúc trên lichHocs)
-                $tongThoiLuongThucTe = $kh->lichHocs->reduce(function($carry, $lich) {
-                    if (!empty($lich->gio_bat_dau) && !empty($lich->gio_ket_thuc)) {
+                // Tổng giờ theo kế hoạch (tính theo từng chuyên đề đã sắp lịch)
+                $tongGioTheoKeHoach = $kh->lichHocs->reduce(function ($carry, $lich) {
+                    if (isset($lich->so_gio_giang) && $lich->so_gio_giang !== null) {
+                        $carry += max((float) $lich->so_gio_giang, 0);
+                    } elseif (isset($lich->thoi_luong)) {
+                        $carry += max((float) $lich->thoi_luong, 0);
+                    } elseif (!empty($lich->gio_bat_dau) && !empty($lich->gio_ket_thuc)) {
                         try {
                             $start = \Carbon\Carbon::parse($lich->gio_bat_dau);
                             $end = \Carbon\Carbon::parse($lich->gio_ket_thuc);
-                            $carry += $end->diffInMinutes($start) / 60;
+                            $carry += max($end->diffInMinutes($start) / 60, 0);
                         } catch (\Throwable $e) {
-                            // ignore faulty format
+                            // Bỏ qua khi định dạng thời gian không hợp lệ
                         }
-                    } elseif (isset($lich->thoi_luong)) {
-                        $carry += $lich->thoi_luong;
                     }
                     return $carry;
-                }, 0);
+                }, 0.0);
             @endphp
             <div class="bg-white shadow rounded-xl p-5 border border-gray-200">
                 <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
-                    <h3 class="text-lg font-bold text-gray-800">Thông tin Khóa học</h3>
-                    <div class="flex flex-wrap gap-2">
+                    <h3 class="text-lg font-bold text-gray-800">Thông tin khóa học</h3>
+                    <div class="flex flex-wrap gap-2 text-sm">
                         @if($hocViensDaDangKy->count() > 0 || $kh->lichHocs->pluck('giangVien')->filter()->count() > 0)
                             <button wire:click="moModalGuiEmail"
                                     class="fi-btn fi-btn-secondary rounded-lg px-3 py-1.5 text-sm bg-gray-100 text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center">
@@ -152,13 +169,13 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm text-left text-gray-700 border-collapse">
+                    <table class="min-w-full text-left text-gray-700 border-collapse text-sm min-w-[900px]">
                         <thead class="bg-gray-50 text-gray-900">
                             <tr>
                                 <th class="px-4 py-2 border-b">Mã Khóa/Lớp</th>
-                                <th class="px-4 py-2 border-b">Tên chương trình</th>
-                                <th class="px-4 py-2 border-b">Tổng giờ CT áp dụng</th>
-                                <th class="px-4 py-2 border-b">Tổng giờ lịch học thực tế</th>
+                                <th class="px-4 py-2 border-b">Tên khóa học</th>
+                                <th class="px-4 py-2 border-b">Tổng giờ khóa học</th>
+                                <th class="px-4 py-2 border-b">Tổng giờ theo kế hoạch</th>
                                 <th class="px-4 py-2 border-b">Giảng viên</th>
                                 <th class="px-4 py-2 border-b">Thời gian đào tạo</th>
                                 <th class="px-4 py-2 border-b">Trạng thái</th>
@@ -168,14 +185,14 @@
                         <tbody>
                             <tr class="bg-white border-b hover:bg-gray-50">
                                 <td class="px-4 py-3 font-medium text-gray-900">{{ $kh->ma_khoa_hoc }}</td>
-                                <td class="px-4 py-3">{{ $kh->chuongTrinh->ten_chuong_trinh ?? '' }}</td>
-                                <td class="px-4 py-3">{{ $tongThoiLuongChuongTrinh }}</td>
+                                <td class="px-4 py-3">{{ $kh->ten_khoa_hoc }}</td>
+                                <td class="px-4 py-3">{{ number_format((float) $tongGioKhoaHoc, 1) }}</td>
                                 <td class="px-4 py-3">
                                     @php
-                                        $colorClass = ($tongThoiLuongThucTe < $tongThoiLuongChuongTrinh) ? 'text-red-600 font-semibold' : 'text-gray-700';
-                                        $displayThucTe = number_format($tongThoiLuongThucTe, 2);
+                                        $colorClass = ($tongGioTheoKeHoach + 0.0001 < $tongGioKhoaHoc) ? 'text-red-600 font-semibold' : 'text-gray-700';
+                                        $displayKeHoach = number_format(max($tongGioTheoKeHoach, 0), 1);
                                     @endphp
-                                    <span class="{{ $colorClass }}">{{ $displayThucTe }}</span>
+                                    <span class="{{ $colorClass }}">{{ $displayKeHoach }}</span>
                                 </td>
                                 <td class="px-4 py-3">
                                     {{ $kh->lichHocs->pluck('giangVien.ho_ten')->filter()->join(', ') }}
@@ -194,8 +211,19 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                        {{ $kh->trang_thai }}
+                                    @php
+                                        $trangThai = $kh->trang_thai_hien_thi ?? $kh->trang_thai;
+                                        $statusStyles = [
+                                            'Dự thảo' => 'bg-gray-100 text-gray-800',
+                                            'Ban hành' => 'bg-blue-100 text-blue-800',
+                                            'Đang đào tạo' => 'bg-yellow-100 text-yellow-800',
+                                            'Kết thúc' => 'bg-green-100 text-green-800',
+                                            'Tạm hoãn' => 'bg-red-100 text-red-800',
+                                        ];
+                                        $badgeClass = $statusStyles[$trangThai] ?? 'bg-gray-100 text-gray-800';
+                                    @endphp
+                                    <span class="px-2 py-1 text-sm font-semibold rounded-full {{ $badgeClass }}">
+                                        {{ $trangThai }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 font-semibold">{{ $hocViensDaDangKy->count() }}</td>
@@ -210,7 +238,7 @@
         <div class="bg-white shadow rounded-xl p-5 border border-gray-200">
             <h3 class="text-lg font-bold text-gray-800 mb-4">Danh sách học viên đã ghi danh ({{ $hocViensDaDangKy->count() }})</h3>
             <div class="overflow-x-auto">
-                <table class="min-w-full text-sm text-left text-gray-700 border-collapse">
+                <table class="min-w-full text-left text-gray-700 border-collapse text-sm min-w-[900px]">
                     <thead class="bg-gray-50 text-gray-900">
                         <tr>
                             <th class="px-4 py-2 border-b">MSNV</th>

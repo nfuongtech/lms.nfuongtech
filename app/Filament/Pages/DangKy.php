@@ -32,8 +32,9 @@ class DangKy extends Page
     protected static string $view = 'filament.pages.dang-ky';
 
     // --- Các biến cho lọc và chọn khóa học ---
-    public $selectedTuan = null;
-    public $selectedTrangThaiKeHoach = null;
+    public $selectedNam = '';
+    public $selectedTuan = '';
+    public $selectedTrangThaiKeHoach = '';
     public $selectedKhoaHoc = null; // ID của khóa học được chọn
     // --- Hết các biến cho lọc và chọn ---
 
@@ -64,7 +65,15 @@ class DangKy extends Page
 
     public function mount(): void
     {
+        $this->selectedNam = (string) now()->year;
         $this->refreshHocViens();
+    }
+
+    public function updatedSelectedNam(): void
+    {
+        $this->selectedTuan = '';
+        $this->selectedKhoaHoc = null;
+        $this->hocViensDaDangKy = collect();
     }
 
     // --- Cập nhật danh sách khóa học khi thay đổi tuần hoặc trạng thái ---
@@ -130,14 +139,14 @@ class DangKy extends Page
                 $this->thoiLuong = $khoaHoc->lichHocs->sum(function($lich) {
                     // cố gắng dùng trực tiếp trường 'thoi_luong' của lichHoc nếu có
                     if (isset($lich->thoi_luong)) {
-                        return $lich->thoi_luong;
+                        return max((float) $lich->thoi_luong, 0);
                     }
                     // nếu không, cố gắng tính từ gio_bat_dau/gio_ket_thuc (minutes -> hours)
                     if ($lich->gio_bat_dau && $lich->gio_ket_thuc) {
                         try {
                             $start = \Carbon\Carbon::parse($lich->gio_bat_dau);
                             $end = \Carbon\Carbon::parse($lich->gio_ket_thuc);
-                            return $end->diffInMinutes($start) / 60;
+                            return max($end->diffInMinutes($start) / 60, 0);
                         } catch (\Throwable $e) {
                             return 0;
                         }
@@ -301,7 +310,7 @@ class DangKy extends Page
         $this->showGuiEmailModal = true;
     }
 
-    private function getDanhSachGiangVien(): Collection
+    public function getDanhSachGiangVien(): Collection
     {
         if (!$this->selectedKhoaHoc) {
             return collect();
@@ -521,18 +530,33 @@ class DangKy extends Page
         // Tìm tài khoản email mặc định
         $emailAccount = EmailAccount::where('is_default', 1)->where('active', 1)->first();
         if (!$emailAccount) {
+            $emailAccount = EmailAccount::where('active', 1)
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->first();
+        }
+
+        if (!$emailAccount) {
             Notification::make()
-                ->title('Không tìm thấy tài khoản email mặc định để gửi lại.')
+                ->title('Không tìm thấy tài khoản email khả dụng để gửi lại.')
                 ->danger()
                 ->send();
             return;
         }
 
-        // Tìm mẫu email mặc định cho loại 'them_hoc_vien' (hoặc bạn có thể chọn mẫu khác)
-        $template = EmailTemplate::where('loai_thong_bao', 'them_hoc_vien')->first();
+        // Tìm mẫu email ưu tiên theo loại đã định nghĩa, fallback về mẫu đầu tiên khả dụng
+        $template = EmailTemplate::query()
+            ->whereIn('loai_thong_bao', ['them_hoc_vien', 'hoc_vien', 'dang_ky_hoc_vien'])
+            ->orderByRaw("FIELD(loai_thong_bao, 'them_hoc_vien', 'hoc_vien', 'dang_ky_hoc_vien')")
+            ->first();
+
+        if (!$template) {
+            $template = EmailTemplate::first();
+        }
+
         if (!$template) {
             Notification::make()
-                ->title('Không tìm thấy mẫu email để gửi lại.')
+                ->title('Không tìm thấy mẫu email khả dụng để gửi lại.')
                 ->danger()
                 ->send();
             return;
@@ -643,6 +667,41 @@ class DangKy extends Page
         }
     }
 
+    public function getDanhSachNamProperty(): array
+    {
+        $yearsFromCourses = KhoaHoc::query()
+            ->select('nam')
+            ->distinct()
+            ->pluck('nam')
+            ->filter()
+            ->map(fn ($year) => (int) $year);
+
+        $yearsFromSchedules = LichHoc::query()
+            ->selectRaw('DISTINCT YEAR(ngay_hoc) as year')
+            ->pluck('year')
+            ->filter()
+            ->map(fn ($year) => (int) $year);
+
+        $years = $yearsFromCourses->merge($yearsFromSchedules)
+            ->filter()
+            ->unique()
+            ->sortDesc()
+            ->values();
+
+        $options = ['' => 'Tất cả'];
+
+        foreach ($years as $year) {
+            $options[(string) $year] = (string) $year;
+        }
+
+        if (count($options) === 1) {
+            $currentYear = (int) now()->year;
+            $options[(string) $currentYear] = (string) $currentYear;
+        }
+
+        return $options;
+    }
+
     // --- Hàm lấy danh sách tuần duy nhất từ các khóa học đã lọc ---
     public function getDanhSachTuanProperty(): array
     {
@@ -650,6 +709,16 @@ class DangKy extends Page
 
         if ($this->selectedTrangThaiKeHoach) {
             $query->where('trang_thai', $this->selectedTrangThaiKeHoach);
+        }
+
+        if (filled($this->selectedNam)) {
+            $year = (int) $this->selectedNam;
+            $query->where(function ($q) use ($year) {
+                $q->where('nam', $year)
+                    ->orWhereHas('lichHocs', function ($sub) use ($year) {
+                        $sub->whereYear('ngay_hoc', $year);
+                    });
+            });
         }
 
         // Lấy các khóa học đã lọc
@@ -662,8 +731,12 @@ class DangKy extends Page
                 if ($lich->ngay_hoc) {
                     $tuan = date('W', strtotime($lich->ngay_hoc));
                     $nam = date('Y', strtotime($lich->ngay_hoc));
-                    $key = "$nam-W$tuan";
-                    $tuanList[$key] = "Tuần $tuan, Năm $nam";
+                    if (filled($this->selectedNam) && (int) $nam !== (int) $this->selectedNam) {
+                        continue;
+                    }
+                    $formattedWeek = str_pad((string) $tuan, 2, '0', STR_PAD_LEFT);
+                    $key = "$nam-W$formattedWeek";
+                    $tuanList[$key] = "Tuần $formattedWeek - $nam";
                 }
             }
         }
@@ -681,6 +754,16 @@ class DangKy extends Page
 
         if ($this->selectedTrangThaiKeHoach) {
             $query->where('trang_thai', $this->selectedTrangThaiKeHoach);
+        }
+
+        if (filled($this->selectedNam)) {
+            $year = (int) $this->selectedNam;
+            $query->where(function ($q) use ($year) {
+                $q->where('nam', $year)
+                    ->orWhereHas('lichHocs', function ($sub) use ($year) {
+                        $sub->whereYear('ngay_hoc', $year);
+                    });
+            });
         }
 
         // Nếu đã chọn tuần, lọc thêm theo tuần
