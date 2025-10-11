@@ -22,7 +22,7 @@ class ListKhoaHocs extends ListRecords
                 ->label('Xuất Excel')
                 ->icon('heroicon-m-arrow-down-tray')
                 ->extraAttributes([
-                    'class' => '!bg-white !text-gray-900 border border-gray-300 hover:!bg-gray-50 focus:!bg-gray-50',
+                    'style' => 'background-color:#CCFFD8;color:#065f46;border:1px solid #9ae6b4;',
                 ])
                 ->action(fn () => $this->exportPlan()),
             Actions\CreateAction::make()->label('Tạo kế hoạch'),

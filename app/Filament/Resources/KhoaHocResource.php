@@ -267,28 +267,28 @@ class KhoaHocResource extends Resource
                         'thang' => (int) now()->format('n'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        $year  = $data['nam'] ?? null;
-                        $month = $data['thang'] ?? null;
+                        $currentYear  = (int) now()->format('Y');
+                        $currentMonth = (int) now()->format('n');
 
-                        if (filled($year)) {
-                            $query->where('nam', (int) $year);
-                        }
+                        $year  = filled($data['nam'] ?? null) ? (int) $data['nam'] : $currentYear;
+                        $month = filled($data['thang'] ?? null) ? (int) $data['thang'] : $currentMonth;
 
-                        if (filled($month)) {
-                            $query->whereHas('lichHocs', fn ($r) => $r->where('thang', (int) $month));
-                        }
+                        $query->where('nam', $year);
+                        $query->where(function (Builder $sub) use ($month) {
+                            $sub->whereDoesntHave('lichHocs')
+                                ->orWhereHas('lichHocs', fn ($r) => $r->where('thang', $month));
+                        });
 
                         return $query;
                     })
                     ->indicateUsing(function (array $data): array {
-                        $indicators = [];
-                        if (filled($data['nam'] ?? null)) {
-                            $indicators[] = Indicator::make('Năm: '.(string) $data['nam']);
-                        }
-                        if (filled($data['thang'] ?? null)) {
-                            $indicators[] = Indicator::make('Tháng: '.(string) $data['thang']);
-                        }
-                        return $indicators;
+                        $year  = filled($data['nam'] ?? null) ? (int) $data['nam'] : (int) now()->format('Y');
+                        $month = filled($data['thang'] ?? null) ? (int) $data['thang'] : (int) now()->format('n');
+
+                        return [
+                            Indicator::make('Năm: '.(string) $year),
+                            Indicator::make('Tháng: '.(string) $month),
+                        ];
                     }),
 
                 Filter::make('ngay_thang')
@@ -332,13 +332,15 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
-                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
                         $filters = request()->input('tableFilters', []);
                         $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
                         $month = data_get($filters, 'thoi_gian.data.thang');
+                        if (!filled($month)) {
+                            $month = now()->format('n');
+                        }
 
                         $q = LichHoc::query()
                             ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));
@@ -388,6 +390,12 @@ class KhoaHocResource extends Resource
 
                         return [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
                     }),
+            ])
+            ->defaultFilters([
+                'thoi_gian' => [
+                    'nam'   => (int) now()->format('Y'),
+                    'thang' => (int) now()->format('n'),
+                ],
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Xem'),

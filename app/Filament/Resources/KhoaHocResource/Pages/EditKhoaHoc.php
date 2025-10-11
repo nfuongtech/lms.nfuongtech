@@ -9,6 +9,7 @@ use Filament\Actions;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Alignment;
 
 class EditKhoaHoc extends EditRecord
 {
@@ -19,15 +20,21 @@ class EditKhoaHoc extends EditRecord
         return 'Sửa Kế hoạch đào tạo';
     }
 
+    public function getFormActionsAlignment(): Alignment
+    {
+        return Alignment::End;
+    }
+
     protected function getFormActions(): array
     {
         return [
             $this->getSaveFormAction()
-                ->label('Lưu thay đổi')
-                ->color('success'),
+                ->label('Lưu thay đổi'),
             Actions\Action::make('togglePause')
                 ->label(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
-                ->color(fn () => ($this->record->tam_hoan ?? false) ? 'info' : 'primary')
+                ->extraAttributes([
+                    'style' => 'background-color:#CCFFD8;color:#065f46;border:1px solid #9ae6b4;',
+                ])
                 ->form(function () {
                     if ($this->record->tam_hoan ?? false) {
                         return [];
@@ -59,7 +66,9 @@ class EditKhoaHoc extends EditRecord
                         : null;
                     $record->trang_thai = $isPausing
                         ? 'Tạm hoãn'
-                        : $record->calculateScheduleStatus();
+                        : (method_exists($record, 'calculateScheduleStatus')
+                            ? $record->calculateScheduleStatus()
+                            : (string) ($record->trang_thai_hien_thi ?? 'Dự thảo'));
                     $record->save();
 
                     $message = $record->tam_hoan
