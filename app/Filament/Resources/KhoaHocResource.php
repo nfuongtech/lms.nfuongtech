@@ -34,8 +34,6 @@ class KhoaHocResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // ❗ BỎ where('nam', năm hiện tại) để filters có thể thay đổi năm.
-        // Mặc định vẫn sắp xếp theo tuần mới nhất và tính tổng giờ.
         return parent::getEloquentQuery()
             ->withMax('lichHocs as max_tuan', 'tuan')
             ->withSum('lichHocs as tong_gio', 'so_gio_giang')
@@ -180,10 +178,7 @@ class KhoaHocResource extends Resource
                     ->label('Tổng giờ')
                     ->alignCenter()
                     ->sortable()
-                    ->formatStateUsing(function ($state) {
-                        $value = (float) ($state ?? 0);
-                        return number_format($value, 1, '.', '');
-                    })
+                    ->formatStateUsing(fn ($state) => number_format((float) ($state ?? 0), 1, '.', ''))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ngay_gio_list')
@@ -193,16 +188,16 @@ class KhoaHocResource extends Resource
                             ->orderBy('ngay_hoc')->orderBy('gio_bat_dau')
                             ->get(['ngay_hoc','gio_bat_dau','gio_ket_thuc']);
 
-                        if ($lich->isEmpty()) return '—';
+                        if ($lich->isEmpty()) {
+                            return '—';
+                        }
 
-                        $lines = $lich->map(function ($lh) {
+                        return $lich->map(function ($lh) {
                             $d = Carbon::parse($lh->ngay_hoc)->format('d/m/Y');
                             $s = $lh->gio_bat_dau ? substr($lh->gio_bat_dau, 0, 5) : '';
                             $e = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
                             return "{$d}, {$s}-{$e}";
-                        })->all();
-
-                        return implode("\n", $lines);
+                        })->implode("\n");
                     })
                     ->wrap()
                     ->toggleable(),
@@ -274,12 +269,11 @@ class KhoaHocResource extends Resource
                         $month = filled($data['thang'] ?? null) ? (int) $data['thang'] : $currentMonth;
 
                         $query->where('nam', $year);
-                        $query->where(function (Builder $sub) use ($month) {
+
+                        return $query->where(function (Builder $sub) use ($month) {
                             $sub->whereDoesntHave('lichHocs')
                                 ->orWhereHas('lichHocs', fn ($r) => $r->where('thang', $month));
                         });
-
-                        return $query;
                     })
                     ->indicateUsing(function (array $data): array {
                         $year  = filled($data['nam'] ?? null) ? (int) $data['nam'] : (int) now()->format('Y');
@@ -337,10 +331,7 @@ class KhoaHocResource extends Resource
                     ->options(function () {
                         $filters = request()->input('tableFilters', []);
                         $year  = (int) (data_get($filters, 'thoi_gian.data.nam')   ?? now()->year);
-                        $month = data_get($filters, 'thoi_gian.data.thang');
-                        if (!filled($month)) {
-                            $month = now()->format('n');
-                        }
+                        $month = data_get($filters, 'thoi_gian.data.thang') ?: now()->format('n');
 
                         $q = LichHoc::query()
                             ->whereHas('khoaHoc', fn ($kh) => $kh->where('nam', $year));
@@ -372,11 +363,9 @@ class KhoaHocResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         $states = $data['gia_tri'] ?? [];
-                        if (empty($states)) {
-                            return $query;
-                        }
-
-                        return $query->whereTrangThaiHienThi((array) $states);
+                        return empty($states)
+                            ? $query
+                            : $query->whereTrangThaiHienThi((array) $states);
                     })
                     ->indicateUsing(function (array $data): array {
                         $states = collect($data['gia_tri'] ?? [])
@@ -384,18 +373,10 @@ class KhoaHocResource extends Resource
                             ->filter()
                             ->values();
 
-                        if ($states->isEmpty()) {
-                            return [];
-                        }
-
-                        return [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
+                        return $states->isEmpty()
+                            ? []
+                            : [Indicator::make('Trạng thái: '.implode(', ', $states->all()))];
                     }),
-            ])
-            ->defaultFilters([
-                'thoi_gian' => [
-                    'nam'   => (int) now()->format('Y'),
-                    'thang' => (int) now()->format('n'),
-                ],
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Xem'),
@@ -408,7 +389,7 @@ class KhoaHocResource extends Resource
 
     public static function getRelations(): array
     {
-        return [ LichHocsRelationManager::class ];
+        return [LichHocsRelationManager::class];
     }
 
     public static function getPages(): array
