@@ -628,7 +628,7 @@ class DiemDanhHocVien extends Page
                     'trang_thai' => $record->trang_thai ?? 'co_mat',
                     'ly_do_vang' => $record->ly_do_vang ?? '',
                     'so_gio_hoc' => $record->so_gio_hoc ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'],
-                    'diem' => $record->diem_buoi_hoc,
+                    'diem' => $record?->diem_buoi_hoc,
                 ];
             }
 
@@ -742,6 +742,22 @@ class DiemDanhHocVien extends Page
             ->pluck('khoa_hoc_id')
             ->unique();
 
+        if ($khoaHocIds->isEmpty()) {
+            $this->availableKhoaHocs = collect();
+            return;
+        }
+
+        $khoaHocIds = DangKy::query()
+            ->whereIn('khoa_hoc_id', $khoaHocIds)
+            ->select('khoa_hoc_id')
+            ->groupBy('khoa_hoc_id')
+            ->pluck('khoa_hoc_id');
+
+        if ($khoaHocIds->isEmpty()) {
+            $this->availableKhoaHocs = collect();
+            return;
+        }
+
         $this->availableKhoaHocs = KhoaHoc::with('chuongTrinh')
             ->whereIn('id', $khoaHocIds)
             ->orderBy('ma_khoa_hoc')
@@ -790,6 +806,11 @@ class DiemDanhHocVien extends Page
                 }
             }
 
+            $soLuongHv = DangKy::where('khoa_hoc_id', $khoaHoc->id)->count();
+            if ($soLuongHv === 0) {
+                continue;
+            }
+
             $rows[] = [
                 'khoa_hoc_id' => $khoaHoc->id,
                 'ma_khoa_hoc' => $khoaHoc->ma_khoa_hoc ?? '',
@@ -799,7 +820,7 @@ class DiemDanhHocVien extends Page
                 'tuan' => $tuanCsv,
                 'ngay_dao_tao' => $ngayDaoTao,
                 'giang_vien' => implode(', ', array_keys($giangVienNames)),
-                'so_luong_hv' => DangKy::where('khoa_hoc_id', $khoaHoc->id)->count(),
+                'so_luong_hv' => $soLuongHv,
             ];
         }
 
@@ -896,12 +917,31 @@ class DiemDanhHocVien extends Page
             return;
         }
 
-        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['Super Admin', 'Admin', 'Quản lý đào tạo'])) {
+        $privilegedRoles = [
+            'Super Admin',
+            'super_admin',
+            'Admin',
+            'admin',
+            'Quản lý đào tạo',
+            'quan-ly-dao-tao',
+            'quan_ly_dao_tao',
+        ];
+
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole($privilegedRoles)) {
             $this->coTheChinhSua = true;
             return;
         }
 
-        if (method_exists($user, 'can') && $user->can('manage-training-results')) {
+        if (method_exists($user, 'hasRole')) {
+            foreach ($privilegedRoles as $role) {
+                if ($user->hasRole($role)) {
+                    $this->coTheChinhSua = true;
+                    return;
+                }
+            }
+        }
+
+        if (method_exists($user, 'can') && ($user->can('manage-training-results') || $user->can('manage-specialized-modules'))) {
             $this->coTheChinhSua = true;
             return;
         }
