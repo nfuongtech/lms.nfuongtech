@@ -20,36 +20,35 @@ class ListKhoaHocs extends ListRecords
         return [
             Actions\Action::make('export_all')
                 ->label('Xuất Excel')
-                ->icon('heroicon-m-arrow-down-tray')
                 ->extraAttributes([
                     'style' => 'background-color:#CCFFD8;color:#111827;border:1px solid #9ae6b4;',
                     'class' => 'text-gray-900',
                 ])
                 ->action(fn () => $this->exportPlan()),
-            Actions\CreateAction::make()->label('Tạo kế hoạch'),
+            Actions\CreateAction::make()
+                ->label('Tạo kế hoạch')
+                ->extraAttributes([
+                    'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
+                ]),
         ];
     }
 
     public function exportPlan()
     {
-        // Tôn trọng bộ lọc hiện hành
         $records = $this->getFilteredTableQuery()
             ->with(['lichHocs.giangVien' => fn ($q) => $q->select(['id','ho_ten'])])
             ->get();
 
-        // ===== Preferred: Excel (PhpSpreadsheet) =====
         if (class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
             $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
-            // Header
             $headers = ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái','Lý do tạm hoãn'];
             $sheet->fromArray($headers, null, 'A1');
 
             $row = 2; $tt = 1;
 
             foreach ($records as $kh) {
-                // Giảng viên: chỉ tên, unique, nối bằng dấu phẩy
                 $names = $kh->lichHocs
                     ->map(fn ($lh) => $lh->giangVien?->ho_ten)
                     ->filter()
@@ -58,10 +57,8 @@ class ListKhoaHocs extends ListRecords
                     ->all();
                 $gv = !empty($names) ? implode(', ', $names) : '';
 
-                // Tổng giờ
                 $tong = number_format((float) $kh->lichHocs->sum('so_gio_giang'), 1, '.', '');
 
-                // Ngày, Giờ đào tạo: tất cả lịch, mỗi lịch 1 dòng
                 $lich = $kh->lichHocs->sortBy([['ngay_hoc','asc'],['gio_bat_dau','asc']])->values();
                 $ngayGioLines = $lich->map(function ($lh) {
                     $date  = \Carbon\Carbon::parse($lh->ngay_hoc)->format('d/m/Y');
@@ -71,10 +68,8 @@ class ListKhoaHocs extends ListRecords
                 })->all();
                 $ngayGio = implode("\n", $ngayGioLines);
 
-                // Tuần: unique desc
                 $weeks = $lich->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
 
-                // Trạng thái: cùng logic như List
                 $trangThai = $kh->trang_thai_hien_thi;
                 $lyDoTamHoan = $trangThai === 'Tạm hoãn' ? (string) ($kh->ly_do_tam_hoan ?? '') : '';
 
@@ -93,13 +88,11 @@ class ListKhoaHocs extends ListRecords
                 $row++; $tt++;
             }
 
-            // Style: wrap text cột Giảng viên (D), Ngày/Giờ (F) và lý do tạm hoãn (I)
             $sheet->getStyle('D1:D'.($row-1))->getAlignment()->setWrapText(true);
             $sheet->getStyle('F1:F'.($row-1))->getAlignment()->setWrapText(true);
             $sheet->getStyle('I1:I'.($row-1))->getAlignment()->setWrapText(true);
             $sheet->getStyle('A1:I1')->getFont()->setBold(true);
 
-            // Auto width
             foreach (range('A','I') as $col) {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
@@ -111,7 +104,6 @@ class ListKhoaHocs extends ListRecords
             return response()->download($temp)->deleteFileAfterSend(true);
         }
 
-        // ===== Fallback: CSV =====
         $headers = [
             'Content-Type'        => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="ke_hoach_dao_tao_'.now()->format('Ymd_His').'.csv"',
@@ -119,7 +111,6 @@ class ListKhoaHocs extends ListRecords
 
         return response()->streamDownload(function () use ($records) {
             $out = fopen('php://output', 'w');
-            // BOM UTF-8
             fwrite($out, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($out, ['TT','Mã khóa','Tên khóa học','Giảng viên','Tổng giờ','Ngày, Giờ đào tạo','Tuần','Trạng thái','Lý do tạm hoãn']);
 
@@ -141,7 +132,7 @@ class ListKhoaHocs extends ListRecords
                     $start = $lh->gio_bat_dau ? substr($lh->gio_bat_dau, 0, 5) : '';
                     $end   = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
                     return "{$date}, {$start}-{$end}";
-                })->implode(' | '); // CSV không xuống dòng trong ô
+                })->implode(' | ');
 
                 $weeks = $lich->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
 

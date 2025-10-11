@@ -29,7 +29,10 @@ class EditKhoaHoc extends EditRecord
     {
         return [
             $this->getSaveFormAction()
-                ->label('Lưu thay đổi'),
+                ->label('Lưu thay đổi')
+                ->extraAttributes([
+                    'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
+                ]),
             Actions\Action::make('togglePause')
                 ->label(fn () => ($this->record->tam_hoan ?? false) ? 'Hủy tạm hoãn' : 'Tạm hoãn')
                 ->extraAttributes([

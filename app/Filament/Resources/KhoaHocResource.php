@@ -34,8 +34,6 @@ class KhoaHocResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // ❗ BỎ where('nam', năm hiện tại) để filters có thể thay đổi năm.
-        // Mặc định vẫn sắp xếp theo tuần mới nhất và tính tổng giờ.
         return parent::getEloquentQuery()
             ->withMax('lichHocs as max_tuan', 'tuan')
             ->withSum('lichHocs as tong_gio', 'so_gio_giang')
@@ -55,6 +53,9 @@ class KhoaHocResource extends Resource
                     FormAction::make('sua')
                         ->label('Sửa')
                         ->visible(fn () => request()->routeIs('*.edit'))
+                        ->extraAttributes([
+                            'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
+                        ])
                         ->action(fn (Set $set) => $set('edit_mode', true)),
                 ])
                 ->schema([
@@ -180,7 +181,10 @@ class KhoaHocResource extends Resource
                     ->label('Tổng giờ')
                     ->alignCenter()
                     ->sortable()
-                    ->formatStateUsing(fn ($state) => number_format((float) ($state ?? 0), 1, '.', ''))
+                    ->formatStateUsing(function ($state) {
+                        $value = (float) ($state ?? 0);
+                        return number_format($value, 1, '.', '');
+                    })
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('ngay_gio_list')
@@ -190,16 +194,16 @@ class KhoaHocResource extends Resource
                             ->orderBy('ngay_hoc')->orderBy('gio_bat_dau')
                             ->get(['ngay_hoc','gio_bat_dau','gio_ket_thuc']);
 
-                        if ($lich->isEmpty()) {
-                            return '—';
-                        }
+                        if ($lich->isEmpty()) return '—';
 
-                        return $lich->map(function ($lh) {
+                        $lines = $lich->map(function ($lh) {
                             $d = Carbon::parse($lh->ngay_hoc)->format('d/m/Y');
                             $s = $lh->gio_bat_dau ? substr($lh->gio_bat_dau, 0, 5) : '';
                             $e = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
                             return "{$d}, {$s}-{$e}";
-                        })->implode("\n");
+                        })->all();
+
+                        return implode("\n", $lines);
                     })
                     ->wrap()
                     ->toggleable(),
@@ -332,7 +336,6 @@ class KhoaHocResource extends Resource
                         return $labels;
                     }),
 
-                // TUẦN (theo dữ liệu đã tạo; tự động đọc theo Năm/Tháng đang chọn nếu có)
                 Tables\Filters\SelectFilter::make('tuan')
                     ->label('Tuần')
                     ->options(function () {
@@ -399,7 +402,11 @@ class KhoaHocResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Xem'),
-                Tables\Actions\EditAction::make()->label('Sửa'),
+                Tables\Actions\EditAction::make()
+                    ->label('Sửa')
+                    ->extraAttributes([
+                        'style' => 'background-color:#FFFCD5;color:#00529C;border:1px solid #e5d89f;',
+                    ]),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make()->label('Xóa mục lựa chọn'),
@@ -421,3 +428,4 @@ class KhoaHocResource extends Resource
         ];
     }
 }
+

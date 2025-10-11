@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class KhoaHoc extends Model
@@ -125,7 +124,7 @@ class KhoaHoc extends Model
             return $query;
         }
 
-        $now = now()->format('Y-m-d H:i:s');
+        $now = now();
 
         return $query->where(function (Builder $builder) use ($normalized, $now) {
             if ($normalized->contains('tam-hoan')) {
@@ -149,20 +148,27 @@ class KhoaHoc extends Model
                         })
                         ->whereRaw('LOWER(COALESCE(trang_thai, "")) NOT IN (?, ?, ?)', ['tam_hoan', 'tạm hoãn', 'tam hoan']);
                 });
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereRaw('LOWER(COALESCE(trang_thai, "")) IN (?, ?, ?, ?, ?)', [
+                        'du_thao',
+                        'dự thảo',
+                        'ke hoach',
+                        'kế hoạch',
+                        'soan thao',
+                    ]);
+                });
             }
 
             if ($normalized->contains('ban-hanh')) {
                 $builder->orWhere(function (Builder $sub) use ($now) {
-                    $sub->whereExists(function ($exists) {
-                        $exists->select(DB::raw(1))
-                            ->from('lich_hocs')
-                            ->whereColumn('lich_hocs.khoa_hoc_id', 'khoa_hocs.id');
-                    })
-                        ->whereRaw('(
-                            SELECT MIN(TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")))
-                            FROM lich_hocs
-                            WHERE lich_hocs.khoa_hoc_id = khoa_hocs.id
-                        ) > ?', [$now])
+                    $sub->whereHas('lichHocs')
+                        ->whereDoesntHave('lichHocs', fn ($q) => $q
+                            ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")) <= ?', [$now]))
                         ->where(function (Builder $inner) {
                             $inner->whereNull('tam_hoan')
                                 ->orWhere('tam_hoan', false)
@@ -170,18 +176,26 @@ class KhoaHoc extends Model
                                 ->orWhere('tam_hoan', '0');
                         })
                         ->whereRaw('LOWER(COALESCE(trang_thai, "")) NOT IN (?, ?, ?)', ['tam_hoan', 'tạm hoãn', 'tam hoan']);
+                });
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereRaw('LOWER(COALESCE(trang_thai, "")) IN (?, ?, ?)', [
+                        'ban_hanh',
+                        'ban hanh',
+                        'ban hành',
+                    ]);
                 });
             }
 
             if ($normalized->contains('dang-dao-tao')) {
                 $builder->orWhere(function (Builder $sub) use ($now) {
-                    $sub->whereExists(function ($exists) use ($now) {
-                        $exists->select(DB::raw(1))
-                            ->from('lich_hocs')
-                            ->whereColumn('lich_hocs.khoa_hoc_id', 'khoa_hocs.id')
-                            ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")) <= ?', [$now])
-                            ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")) >= ?', [$now]);
-                    })
+                    $sub->whereHas('lichHocs', fn ($q) => $q
+                        ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_bat_dau, "00:00:00")) <= ?', [$now])
+                        ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")) >= ?', [$now]))
                         ->where(function (Builder $inner) {
                             $inner->whereNull('tam_hoan')
                                 ->orWhere('tam_hoan', false)
@@ -190,20 +204,25 @@ class KhoaHoc extends Model
                         })
                         ->whereRaw('LOWER(COALESCE(trang_thai, "")) NOT IN (?, ?, ?)', ['tam_hoan', 'tạm hoãn', 'tam hoan']);
                 });
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereRaw('LOWER(COALESCE(trang_thai, "")) IN (?, ?, ?)', [
+                        'dang_dao_tao',
+                        'dang dao tao',
+                        'đang đào tạo',
+                    ]);
+                });
             }
 
             if ($normalized->contains('ket-thuc')) {
                 $builder->orWhere(function (Builder $sub) use ($now) {
-                    $sub->whereExists(function ($exists) {
-                        $exists->select(DB::raw(1))
-                            ->from('lich_hocs')
-                            ->whereColumn('lich_hocs.khoa_hoc_id', 'khoa_hocs.id');
-                    })
-                        ->whereRaw('(
-                            SELECT MAX(TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")))
-                            FROM lich_hocs
-                            WHERE lich_hocs.khoa_hoc_id = khoa_hocs.id
-                        ) < ?', [$now])
+                    $sub->whereHas('lichHocs')
+                        ->whereDoesntHave('lichHocs', fn ($q) => $q
+                            ->whereRaw('TIMESTAMP(ngay_hoc, COALESCE(gio_ket_thuc, "23:59:59")) >= ?', [$now]))
                         ->where(function (Builder $inner) {
                             $inner->whereNull('tam_hoan')
                                 ->orWhere('tam_hoan', false)
@@ -211,6 +230,18 @@ class KhoaHoc extends Model
                                 ->orWhere('tam_hoan', '0');
                         })
                         ->whereRaw('LOWER(COALESCE(trang_thai, "")) NOT IN (?, ?, ?)', ['tam_hoan', 'tạm hoãn', 'tam hoan']);
+                });
+                $builder->orWhere(function (Builder $sub) {
+                    $sub->where(function (Builder $inner) {
+                        $inner->whereNull('tam_hoan')
+                            ->orWhere('tam_hoan', false)
+                            ->orWhere('tam_hoan', 0)
+                            ->orWhere('tam_hoan', '0');
+                    })->whereRaw('LOWER(COALESCE(trang_thai, "")) IN (?, ?, ?)', [
+                        'ket_thuc',
+                        'ket thuc',
+                        'kết thúc',
+                    ]);
                 });
             }
         });
