@@ -14,6 +14,7 @@ use App\Models\KhoaHoc;
 use App\Models\LichHoc;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -161,6 +162,12 @@ class DiemDanhHocVien extends Page
         if ($field === 'ket_qua') {
             $normalized = $this->normalizeKetQua(Arr::get($this->tongKetData, "$dangKyId.ket_qua"));
             Arr::set($this->tongKetData, "$dangKyId.ket_qua", $normalized);
+            $suggestion = $this->normalizeKetQua(Arr::get($this->tongKetData, "$dangKyId.ket_qua_goi_y", $normalized));
+            Arr::set(
+                $this->tongKetData,
+                "$dangKyId.ket_qua_is_manual",
+                $normalized !== $suggestion
+            );
             return;
         }
 
@@ -256,9 +263,6 @@ class DiemDanhHocVien extends Page
             }
 
             $lichHocIds = array_keys($this->khoaHocLichHocs);
-            $hasHoanThanhTable = Schema::hasTable('hoc_vien_hoan_thanh') || Schema::hasTable('hoc_vien_hoan_thanhs');
-            $hasKhongHoanThanhTable = Schema::hasTable('hoc_vien_khong_hoan_thanh') || Schema::hasTable('hoc_vien_khong_hoan_thanhs');
-
             foreach ($this->hocVienRows as $row) {
                 $dangKyId = $row['dang_ky_id'];
                 if (!$dangKyId) {
@@ -332,32 +336,27 @@ class DiemDanhHocVien extends Page
                     $payload
                 );
 
-                if ($hasHoanThanhTable) {
-                    HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
-                }
+                $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
+                $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
 
-                if ($hasKhongHoanThanhTable) {
-                    HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
-                }
-
-                if ($ketQua === 'hoan_thanh' && $hasHoanThanhTable) {
-                    HocVienHoanThanh::updateOrCreate(
+                if ($ketQua === 'hoan_thanh') {
+                    $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::updateOrCreate(
                         [
                             'hoc_vien_id' => $hocVienId,
                             'khoa_hoc_id' => $khoaHoc->id,
                             'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
                         ],
                         []
-                    );
-                } elseif ($ketQua === 'khong_hoan_thanh' && $hasKhongHoanThanhTable) {
-                    HocVienKhongHoanThanh::updateOrCreate(
+                    ));
+                } elseif ($ketQua === 'khong_hoan_thanh') {
+                    $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::updateOrCreate(
                         [
                             'hoc_vien_id' => $hocVienId,
                             'khoa_hoc_id' => $khoaHoc->id,
                             'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
                         ],
                         []
-                    );
+                    ));
                 }
             }
 
@@ -686,6 +685,7 @@ class DiemDanhHocVien extends Page
             $ketQuaGoiY = $ketQua->ket_qua_goi_y ? $this->normalizeKetQua($ketQua->ket_qua_goi_y) : null;
             $ketQuaThucTe = $ketQua->ket_qua ? $this->normalizeKetQua($ketQua->ket_qua) : null;
             $hasDanhGia = trim((string) ($ketQua->danh_gia_ren_luyen ?? '')) !== '';
+            $isManual = $ketQuaThucTe !== null && $ketQuaGoiY !== null && $ketQuaThucTe !== $ketQuaGoiY;
 
             $this->tongKetData[$dangKy->id] = [
                 'diem_trung_binh' => $ketQua->diem_trung_binh,
@@ -694,14 +694,19 @@ class DiemDanhHocVien extends Page
                 'danh_gia_ren_luyen' => $ketQua->danh_gia_ren_luyen,
                 'tong_so_gio_thuc_te' => $ketQua->tong_so_gio_thuc_te,
                 'has_danh_gia' => $hasDanhGia,
+                'ket_qua_is_manual' => $isManual,
             ];
 
+            if (! $hasDanhGia) {
+                $this->tongKetData[$dangKy->id]['danh_gia_ren_luyen'] = null;
+            }
+
             $this->isEditing[$dangKy->id] = false;
-            $this->recalculateTongKet($dangKy->id, false);
+            $this->recalculateTongKet($dangKy->id, !$isManual);
         }
     }
 
-    private function recalculateTongKet(int $dangKyId, bool $forceSuggestion = false): void
+    private function recalculateTongKet(int $dangKyId, bool $resetManual = false): void
     {
         if (!isset($this->tongKetData[$dangKyId])) {
             return;
@@ -741,19 +746,18 @@ class DiemDanhHocVien extends Page
             || ($diemTrungBinh !== null && $diemTrungBinh >= $this->khoaHocRequirements['yeu_cau_diem']);
 
         $goiY = ($datGio && $datDiem) ? 'hoan_thanh' : 'khong_hoan_thanh';
-        $previousSuggestion = $this->tongKetData[$dangKyId]['ket_qua_goi_y'] ?? null;
         $this->tongKetData[$dangKyId]['ket_qua_goi_y'] = $goiY;
 
-        $current = $this->tongKetData[$dangKyId]['ket_qua'] ?? null;
+        $isManual = (bool) ($this->tongKetData[$dangKyId]['ket_qua_is_manual'] ?? false);
+        if ($resetManual) {
+            $isManual = false;
+        }
 
-        if (
-            $forceSuggestion
-            || $current === null
-            || $current === ''
-            || $current === $previousSuggestion
-        ) {
+        if (! $isManual) {
             $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
         }
+
+        $this->tongKetData[$dangKyId]['ket_qua_is_manual'] = $isManual;
     }
 
     private function resetCourseContext(): void
@@ -966,6 +970,38 @@ class DiemDanhHocVien extends Page
             'khong hoan thanh', 'không hoàn thành', 'khong_hoan_thanh' => 'khong_hoan_thanh',
             default => 'hoan_thanh',
         };
+    }
+
+    /**
+     * @template TReturn
+     * @param  callable():TReturn  $callback
+     * @return TReturn|null
+     */
+    private function runIgnoringMissingTable(callable $callback)
+    {
+        try {
+            return $callback();
+        } catch (QueryException $exception) {
+            if ($this->isMissingTableError($exception)) {
+                Log::warning('Bỏ qua đồng bộ vì thiếu bảng kết quả', [
+                    'message' => $exception->getMessage(),
+                ]);
+
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function isMissingTableError(QueryException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'base table or view not found')
+            || str_contains($message, 'no such table')
+            || str_contains($message, 'does not exist')
+            || str_contains($message, "doesn't exist");
     }
 
     private function evaluateEditPermission(?KhoaHoc $khoaHoc): void
