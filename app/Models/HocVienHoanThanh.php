@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class HocVienHoanThanh extends Model
 {
+<<<<<<< HEAD
+=======
+    protected static ?string $resolvedTable = null;
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 
     protected $fillable = [
         'hoc_vien_id',
@@ -38,5 +43,31 @@ class HocVienHoanThanh extends Model
     public function ketQua()
     {
         return $this->belongsTo(KetQuaKhoaHoc::class, 'ket_qua_khoa_hoc_id');
+    }
+
+    public function getTable()
+    {
+        if (static::$resolvedTable) {
+            if (Schema::hasTable(static::$resolvedTable)) {
+                return static::$resolvedTable;
+            }
+
+            static::$resolvedTable = null;
+        }
+
+        $defaultTable = parent::getTable();
+        $candidates = [$defaultTable];
+
+        if (! in_array('hoc_vien_hoan_thanh', $candidates, true)) {
+            $candidates[] = 'hoc_vien_hoan_thanh';
+        }
+
+        foreach ($candidates as $candidate) {
+            if (Schema::hasTable($candidate)) {
+                return static::$resolvedTable = $candidate;
+            }
+        }
+
+        return $defaultTable;
     }
 }

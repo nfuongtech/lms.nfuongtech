@@ -145,7 +145,10 @@ class DiemDanhHocVien extends Page
             }
         }
 
+<<<<<<< HEAD
         Arr::set($this->tongKetData, "$dangKyId.manual_override", false);
+=======
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
         $this->recalculateTongKet($dangKyId);
     }
 
@@ -162,6 +165,7 @@ class DiemDanhHocVien extends Page
         if ($field === 'ket_qua') {
             $normalized = $this->normalizeKetQua(Arr::get($this->tongKetData, "$dangKyId.ket_qua"));
             Arr::set($this->tongKetData, "$dangKyId.ket_qua", $normalized);
+<<<<<<< HEAD
             Arr::set($this->tongKetData, "$dangKyId.manual_override", $normalized !== ($this->tongKetData[$dangKyId]['ket_qua_goi_y'] ?? null));
             return;
         }
@@ -169,6 +173,21 @@ class DiemDanhHocVien extends Page
         if ($field === 'co_danh_gia') {
             $enabled = filter_var((string) $value, FILTER_VALIDATE_BOOLEAN) || $value === true || $value === 1;
             Arr::set($this->tongKetData, "$dangKyId.co_danh_gia", $enabled);
+=======
+            return;
+        }
+
+        if ($field === 'has_danh_gia') {
+            $raw = Arr::get($this->tongKetData, "$dangKyId.has_danh_gia");
+            $enabled = filter_var($raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($enabled === null) {
+                $enabled = in_array($raw, ['1', 1, 'on', true], true);
+            }
+
+            Arr::set($this->tongKetData, "$dangKyId.has_danh_gia", (bool) $enabled);
+
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
             if (!$enabled) {
                 Arr::set($this->tongKetData, "$dangKyId.danh_gia_ren_luyen", null);
             }
@@ -252,6 +271,17 @@ class DiemDanhHocVien extends Page
 
             $lichHocIds = array_keys($this->khoaHocLichHocs);
 
+<<<<<<< HEAD
+=======
+            $hoanThanhModel = new HocVienHoanThanh();
+            $hoanThanhTable = $hoanThanhModel->getTable();
+            $hasHoanThanhTable = Schema::hasTable($hoanThanhTable);
+
+            $khongHoanThanhModel = new HocVienKhongHoanThanh();
+            $khongHoanThanhTable = $khongHoanThanhModel->getTable();
+            $hasKhongHoanThanhTable = Schema::hasTable($khongHoanThanhTable);
+
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
             foreach ($this->hocVienRows as $row) {
                 $dangKyId = $row['dang_ky_id'];
                 if (!$dangKyId) {
@@ -289,13 +319,29 @@ class DiemDanhHocVien extends Page
                 $goiY = $this->normalizeKetQua($tongKet['ket_qua_goi_y'] ?? null);
                 $hocVienId = $row['hoc_vien']->id;
 
+<<<<<<< HEAD
                 $coDanhGia = (bool) ($tongKet['co_danh_gia'] ?? false);
                 $danhGiaText = $coDanhGia ? trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) : '';
+=======
+                $hasDanhGia = filter_var($tongKet['has_danh_gia'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($hasDanhGia === null) {
+                    $hasDanhGia = in_array($tongKet['has_danh_gia'] ?? false, ['1', 1, 'on', true], true);
+                }
+
+                $danhGia = $hasDanhGia ? trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) : '';
+                if ($danhGia === '') {
+                    $danhGia = null;
+                }
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 
                 $payload = [
                     'ket_qua_goi_y' => $goiY,
                     'ket_qua' => $ketQua,
+<<<<<<< HEAD
                     'danh_gia_ren_luyen' => $coDanhGia && $danhGiaText !== '' ? $danhGiaText : null,
+=======
+                    'danh_gia_ren_luyen' => $danhGia,
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                     'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
                 ];
 
@@ -318,10 +364,22 @@ class DiemDanhHocVien extends Page
                     $payload
                 );
 
+<<<<<<< HEAD
                 HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
                 HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
 
                 if ($ketQua === 'hoan_thanh') {
+=======
+                if ($hasHoanThanhTable) {
+                    HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
+                }
+
+                if ($hasKhongHoanThanhTable) {
+                    HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
+                }
+
+                if ($ketQua === 'hoan_thanh' && $hasHoanThanhTable) {
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                     HocVienHoanThanh::updateOrCreate(
                         [
                             'hoc_vien_id' => $hocVienId,
@@ -330,7 +388,11 @@ class DiemDanhHocVien extends Page
                         ],
                         []
                     );
+<<<<<<< HEAD
                 } elseif ($ketQua === 'khong_hoan_thanh') {
+=======
+                } elseif ($ketQua === 'khong_hoan_thanh' && $hasKhongHoanThanhTable) {
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                     HocVienKhongHoanThanh::updateOrCreate(
                         [
                             'hoc_vien_id' => $hocVienId,
@@ -664,6 +726,7 @@ class DiemDanhHocVien extends Page
             }
 
             $ketQua = KetQuaKhoaHoc::firstOrNew(['dang_ky_id' => $dangKy->id]);
+<<<<<<< HEAD
             $this->tongKetData[$dangKy->id] = [
                 'diem_trung_binh' => $ketQua->diem_trung_binh,
                 'ket_qua_goi_y' => $ketQua->ket_qua_goi_y,
@@ -678,12 +741,31 @@ class DiemDanhHocVien extends Page
                 $this->tongKetData[$dangKy->id]['ket_qua'] = 'hoan_thanh';
             }
 
+=======
+            $ketQuaGoiY = $ketQua->ket_qua_goi_y ? $this->normalizeKetQua($ketQua->ket_qua_goi_y) : null;
+            $ketQuaThucTe = $ketQua->ket_qua ? $this->normalizeKetQua($ketQua->ket_qua) : null;
+            $hasDanhGia = trim((string) ($ketQua->danh_gia_ren_luyen ?? '')) !== '';
+
+            $this->tongKetData[$dangKy->id] = [
+                'diem_trung_binh' => $ketQua->diem_trung_binh,
+                'ket_qua_goi_y' => $ketQuaGoiY,
+                'ket_qua' => $ketQuaThucTe ?? $ketQuaGoiY ?? 'hoan_thanh',
+                'danh_gia_ren_luyen' => $ketQua->danh_gia_ren_luyen,
+                'tong_so_gio_thuc_te' => $ketQua->tong_so_gio_thuc_te,
+                'has_danh_gia' => $hasDanhGia,
+            ];
+
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
             $this->isEditing[$dangKy->id] = false;
             $this->recalculateTongKet($dangKy->id, false);
         }
     }
 
+<<<<<<< HEAD
     private function recalculateTongKet(int $dangKyId, bool $preserveSelection = true): void
+=======
+    private function recalculateTongKet(int $dangKyId, bool $forceSuggestion = false): void
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
     {
         if (!isset($this->tongKetData[$dangKyId])) {
             return;
@@ -723,6 +805,7 @@ class DiemDanhHocVien extends Page
             || ($diemTrungBinh !== null && $diemTrungBinh >= $this->khoaHocRequirements['yeu_cau_diem']);
 
         $goiY = ($datGio && $datDiem) ? 'hoan_thanh' : 'khong_hoan_thanh';
+<<<<<<< HEAD
         $this->tongKetData[$dangKyId]['ket_qua_goi_y'] = $goiY;
 
         $manualOverride = $this->tongKetData[$dangKyId]['manual_override'] ?? false;
@@ -730,6 +813,20 @@ class DiemDanhHocVien extends Page
         if ($preserveSelection === false || empty($this->tongKetData[$dangKyId]['ket_qua']) || !$manualOverride) {
             $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
             $this->tongKetData[$dangKyId]['manual_override'] = false;
+=======
+        $previousSuggestion = $this->tongKetData[$dangKyId]['ket_qua_goi_y'] ?? null;
+        $this->tongKetData[$dangKyId]['ket_qua_goi_y'] = $goiY;
+
+        $current = $this->tongKetData[$dangKyId]['ket_qua'] ?? null;
+
+        if (
+            $forceSuggestion
+            || $current === null
+            || $current === ''
+            || $current === $previousSuggestion
+        ) {
+            $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
         }
     }
 

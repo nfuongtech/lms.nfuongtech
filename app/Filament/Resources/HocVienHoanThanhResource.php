@@ -8,9 +8,16 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+<<<<<<< HEAD
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Actions\Action;
+=======
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Columns\BadgeColumn;
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class HocVienHoanThanhResource extends Resource
 {
@@ -42,8 +49,38 @@ class HocVienHoanThanhResource extends Resource
                     ])
                     ->formatStateUsing(fn (?string $state) => $state === 'khong_hoan_thanh' ? 'Không hoàn thành' : 'Hoàn thành'),
                 Tables\Columns\TextColumn::make('chi_phi_dao_tao')->label('Chi phí đào tạo')->money('VND', true)->toggleable(),
+<<<<<<< HEAD
                 Tables\Columns\TextColumn::make('chung_chi_link')->label('Link chứng chỉ')->url()->limit(30)->toggleable(),
                 Tables\Columns\TextColumn::make('chung_chi_tap_tin')->label('File chứng chỉ')->url()->limit(30)->toggleable(),
+=======
+                Tables\Columns\TextColumn::make('chung_chi_link')
+                    ->label('Link chứng chỉ')
+                    ->url(function (HocVienHoanThanh $record): ?string {
+                        $link = trim((string) ($record->chung_chi_link ?? ''));
+                        return $link !== '' ? $link : null;
+                    }, shouldOpenInNewTab: true)
+                    ->limit(30)
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('chung_chi_tap_tin')
+                    ->label('File chứng chỉ')
+                    ->url(function (HocVienHoanThanh $record): ?string {
+                        if (!$record->chung_chi_tap_tin) {
+                            return null;
+                        }
+
+                        if (Str::startsWith($record->chung_chi_tap_tin, ['http://', 'https://'])) {
+                            return $record->chung_chi_tap_tin;
+                        }
+
+                        try {
+                            return Storage::disk('public')->url($record->chung_chi_tap_tin);
+                        } catch (\Throwable $exception) {
+                            return null;
+                        }
+                    }, shouldOpenInNewTab: true)
+                    ->limit(30)
+                    ->toggleable(),
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                 Tables\Columns\TextColumn::make('ngay_hoan_thanh')->label('Ngày hoàn thành')->date()->sortable(),
                 Tables\Columns\TextColumn::make('ghi_chu')->label('Ghi chú')->wrap()->toggleable(),
             ])

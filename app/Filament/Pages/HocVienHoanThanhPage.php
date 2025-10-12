@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+<<<<<<< HEAD
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
@@ -68,12 +69,26 @@ class HocVienHoanThanhPage extends Page
         $this->loadSelectableOptions();
         $this->refreshData();
     }
+=======
+use Filament\Pages\Page;
+use Illuminate\Support\Facades\Route;
+
+class HocVienHoanThanhPage extends Page
+{
+    protected static ?string $navigationIcon = 'heroicon-o-check-badge';
+    protected static ?string $navigationLabel = 'Học viên hoàn thành';
+    protected static ?string $navigationGroup = 'Đào tạo';
+    protected static ?string $title = 'Học viên hoàn thành';
+    protected static string $view = 'filament.pages.simple-redirect';
+    protected static bool $shouldRegisterNavigation = false;
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 
     public static function getSlug(): string
     {
         return 'hoc-vien-hoan-thanhs';
     }
 
+<<<<<<< HEAD
     public function updatedSelectedNam(): void
     {
         $this->selectedTuan = null;
@@ -612,5 +627,12 @@ class HocVienHoanThanhPage extends Page
         }
 
         return isset($this->ketQuaColumnCache['__columns'][$column]);
+=======
+    public function mount(): void
+    {
+        if (Route::has('filament.admin.resources.hoc-vien-hoan-thanhs.index')) {
+            $this->redirectRoute('filament.admin.resources.hoc-vien-hoan-thanhs.index');
+        }
+>>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
     }
 }
