@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class HocVienHoanThanh extends Model
 {
-    // table mặc định: hoc_vien_hoan_thanhs
+    protected $table = 'hoc_vien_hoan_thanh';
+
     protected $fillable = [
         'hoc_vien_id',
         'khoa_hoc_id',
@@ -14,9 +15,22 @@ class HocVienHoanThanh extends Model
         'ngay_hoan_thanh',
         'chi_phi_dao_tao',
         'chung_chi_link',
-        'chung_chi_file_path',
+        'chung_chi_tap_tin',
         'chung_chi_da_cap',
         'ghi_chu',
+        'da_duyet',
+        'ngay_duyet',
+        'so_chung_nhan',
+        'chung_chi_het_han',
+    ];
+
+    protected $casts = [
+        'ngay_hoan_thanh' => 'date',
+        'chung_chi_da_cap' => 'boolean',
+        'chi_phi_dao_tao' => 'decimal:2',
+        'da_duyet' => 'boolean',
+        'ngay_duyet' => 'datetime',
+        'chung_chi_het_han' => 'date',
     ];
 
     public function hocVien()

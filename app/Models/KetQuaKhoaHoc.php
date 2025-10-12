@@ -13,13 +13,26 @@ class KetQuaKhoaHoc extends Model
 
     protected $fillable = [
         'dang_ky_id',
-        'diem_tong_khoa',
+        'tong_so_gio_ke_hoach',
+        'tong_so_gio_thuc_te',
         'diem_trung_binh',
-        'tong_gio_hoc',
-        'ket_qua',        // 'hoan_thanh' | 'khong_hoan_thanh' (mapping Đạt/Không đạt)
-        'can_hoc_lai',    // 0|1
-        'da_chuyen_duyet',
+        'ket_qua_goi_y',
+        'ket_qua',
         'danh_gia_ren_luyen',
+        'can_hoc_lai',
+        'hoc_phi',
+        'nguoi_nhap',
+        'ngay_nhap',
+        'needs_review',
+    ];
+
+    protected $casts = [
+        'tong_so_gio_ke_hoach' => 'decimal:2',
+        'tong_so_gio_thuc_te'  => 'decimal:2',
+        'diem_trung_binh'      => 'decimal:2',
+        'can_hoc_lai'          => 'boolean',
+        'needs_review'         => 'boolean',
+        'ngay_nhap'            => 'datetime',
     ];
 
     public function dangKy()

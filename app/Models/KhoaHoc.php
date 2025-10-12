@@ -22,6 +22,9 @@ class KhoaHoc extends Model
         'nam',
         'yeu_cau_phan_tram_gio',
         'yeu_cau_diem_tb',
+        'da_chuyen_ket_qua',
+        'thoi_gian_chuyen_ket_qua',
+        'nguoi_chuyen_ket_qua',
     ];
 
     protected $appends = [
@@ -30,9 +33,11 @@ class KhoaHoc extends Model
 
     protected $casts = [
         // Bảo đảm hiển thị đúng định dạng
-        'yeu_cau_phan_tram_gio' => 'integer',
-        'yeu_cau_diem_tb'       => 'decimal:1',
-        'tam_hoan'              => 'boolean',
+        'yeu_cau_phan_tram_gio'   => 'integer',
+        'yeu_cau_diem_tb'         => 'decimal:1',
+        'tam_hoan'                => 'boolean',
+        'da_chuyen_ket_qua'       => 'boolean',
+        'thoi_gian_chuyen_ket_qua' => 'datetime',
     ];
 
     protected ?array $scheduleBoundsCache = null;
@@ -45,6 +50,21 @@ class KhoaHoc extends Model
     public function lichHocs()
     {
         return $this->hasMany(LichHoc::class, 'khoa_hoc_id');
+    }
+
+    public function dangKies()
+    {
+        return $this->hasMany(DangKy::class, 'khoa_hoc_id');
+    }
+
+    public function hocVienHoanThanhRecords()
+    {
+        return $this->hasMany(HocVienHoanThanh::class, 'khoa_hoc_id');
+    }
+
+    public function hocVienKhongHoanThanhRecords()
+    {
+        return $this->hasMany(HocVienKhongHoanThanh::class, 'khoa_hoc_id');
     }
 
     public function setRelation($relation, $value)

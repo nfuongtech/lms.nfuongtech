@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class DiemDanhHocVien extends Page
@@ -52,6 +53,7 @@ class DiemDanhHocVien extends Page
     public $diemDanhData = [];
     public $tongKetData = [];
     public $isEditing = [];
+    public $ketQuaLocked = [];
 
     public $daChuyenKetQua = false;
     public $coTheChinhSua = false;
@@ -62,6 +64,8 @@ class DiemDanhHocVien extends Page
     public $loaiEmail = 'hoc_vien';
 
     public $showConfirmModal = false;
+
+    protected array $ketQuaColumnCache = [];
 
     public function mount(): void
     {
@@ -128,7 +132,15 @@ class DiemDanhHocVien extends Page
             $status = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.trang_thai", 'co_mat');
             if ($status === 'co_mat') {
                 Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.ly_do_vang", '');
+                $currentHours = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc");
+                if (($currentHours === null || $currentHours === 0) && isset($this->khoaHocLichHocs[$lichHocId]['so_gio'])) {
+                    Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", $this->khoaHocLichHocs[$lichHocId]['so_gio']);
+                }
+            } else {
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", 0);
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.diem", null);
             }
+            $this->ketQuaLocked[$dangKyId] = false;
         }
 
         if ($field === 'so_gio_hoc') {
@@ -136,6 +148,11 @@ class DiemDanhHocVien extends Page
             if (($hours === '' || $hours === null) && isset($this->khoaHocLichHocs[$lichHocId])) {
                 Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", $this->khoaHocLichHocs[$lichHocId]['so_gio']);
             }
+            $this->ketQuaLocked[$dangKyId] = false;
+        }
+
+        if ($field === 'diem') {
+            $this->ketQuaLocked[$dangKyId] = false;
         }
 
         $this->recalculateTongKet($dangKyId);
@@ -154,6 +171,8 @@ class DiemDanhHocVien extends Page
         if ($field === 'ket_qua') {
             $normalized = $this->normalizeKetQua(Arr::get($this->tongKetData, "$dangKyId.ket_qua"));
             Arr::set($this->tongKetData, "$dangKyId.ket_qua", $normalized);
+            $goiY = Arr::get($this->tongKetData, "$dangKyId.ket_qua_goi_y");
+            $this->ketQuaLocked[$dangKyId] = $normalized !== null && $normalized !== $goiY;
         }
     }
 
@@ -183,7 +202,7 @@ class DiemDanhHocVien extends Page
     {
         if ($this->daChuyenKetQua) {
             Notification::make()
-                ->title('Khóa học đã được chuyển kết quả để duyệt')
+                ->title('Khóa học đã được chuyển kết quả')
                 ->warning()
                 ->send();
             return;
@@ -247,10 +266,6 @@ class DiemDanhHocVien extends Page
                     $soGio = $cell['so_gio_hoc'] ?? ($this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null);
                     $diem = $cell['diem'] ?? null;
 
-                    if ($status !== 'co_mat') {
-                        $soGio = 0;
-                    }
-
                     DiemDanh::updateOrCreate(
                         [
                             'dang_ky_id' => $dangKyId,
@@ -259,7 +274,7 @@ class DiemDanhHocVien extends Page
                         [
                             'trang_thai' => $status,
                             'ly_do_vang' => $lyDo,
-                            'so_gio_hoc' => $soGio === '' ? null : $soGio,
+                            'so_gio_hoc' => $status === 'co_mat' ? ($soGio === '' ? null : $soGio) : 0,
                             'diem_buoi_hoc' => $diem === '' ? null : $diem,
                             'danh_gia_ky_luat' => null,
                         ]
@@ -271,20 +286,11 @@ class DiemDanhHocVien extends Page
                 $goiY = $this->normalizeKetQua($tongKet['ket_qua_goi_y'] ?? null);
                 $hocVienId = $row['hoc_vien']->id;
 
+                $attributes = $this->buildKetQuaAttributes($ketQua, $goiY, $tongKet);
+
                 $ketQuaModel = KetQuaKhoaHoc::updateOrCreate(
                     ['dang_ky_id' => $dangKyId],
-                    [
-                        'tong_so_gio_ke_hoach' => $this->khoaHocRequirements['tong_gio_ke_hoach'],
-                        'tong_so_gio_thuc_te' => $tongKet['tong_so_gio_thuc_te'] ?? null,
-                        'diem_trung_binh' => $tongKet['diem_trung_binh'] ?? null,
-                        'ket_qua_goi_y' => $goiY,
-                        'ket_qua' => $ketQua,
-                        'danh_gia_ren_luyen' => $tongKet['danh_gia_ren_luyen'] ?? null,
-                        'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
-                        'nguoi_nhap' => Auth::user()?->name,
-                        'ngay_nhap' => now(),
-                        'needs_review' => false,
-                    ]
+                    $attributes
                 );
 
                 HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete();
@@ -340,7 +346,7 @@ class DiemDanhHocVien extends Page
         }
 
         Notification::make()
-            ->title('Đã chuyển kết quả để duyệt')
+            ->title('Đã chuyển kết quả')
             ->success()
             ->send();
     }
@@ -531,6 +537,7 @@ class DiemDanhHocVien extends Page
         $this->diemDanhData = [];
         $this->tongKetData = [];
         $this->isEditing = [];
+        $this->ketQuaLocked = [];
         $this->khoaHocLichHocs = [];
         $this->coTheChinhSua = false;
         $this->daChuyenKetQua = false;
@@ -624,29 +631,45 @@ class DiemDanhHocVien extends Page
 
             foreach ($lichHocIds as $lichHocId) {
                 $record = $dangKy->diemDanhs->firstWhere('lich_hoc_id', $lichHocId);
+                $status = $record->trang_thai ?? 'co_mat';
+                $defaultHours = $this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null;
+                $hours = $record->so_gio_hoc ?? $defaultHours;
+                $score = $record?->diem_buoi_hoc;
+
+                if ($status !== 'co_mat') {
+                    $hours = 0;
+                    $score = null;
+                }
+
                 $this->diemDanhData[$dangKy->id][$lichHocId] = [
-                    'trang_thai' => $record->trang_thai ?? 'co_mat',
+                    'trang_thai' => $status,
                     'ly_do_vang' => $record->ly_do_vang ?? '',
-                    'so_gio_hoc' => $record->so_gio_hoc ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'],
-                    'diem' => $record?->diem_buoi_hoc,
+                    'so_gio_hoc' => $hours,
+                    'diem' => $score,
                 ];
             }
 
             $ketQua = KetQuaKhoaHoc::firstOrNew(['dang_ky_id' => $dangKy->id]);
+            $diemTrungBinh = $ketQua->diem_trung_binh ?? $ketQua->diem;
+            $tongGioThucTe = $ketQua->tong_so_gio_thuc_te ?? null;
+
             $this->tongKetData[$dangKy->id] = [
-                'diem_trung_binh' => $ketQua->diem_trung_binh,
-                'ket_qua_goi_y' => $ketQua->ket_qua_goi_y,
+                'diem_trung_binh' => $diemTrungBinh,
+                'ket_qua_goi_y' => $ketQua->ket_qua_goi_y ?? null,
                 'ket_qua' => $ketQua->ket_qua ?? $ketQua->ket_qua_goi_y,
-                'danh_gia_ren_luyen' => $ketQua->danh_gia_ren_luyen,
-                'tong_so_gio_thuc_te' => $ketQua->tong_so_gio_thuc_te,
+                'danh_gia_ren_luyen' => $ketQua->danh_gia_ren_luyen ?? null,
+                'tong_so_gio_thuc_te' => $tongGioThucTe,
             ];
 
             if (!$this->tongKetData[$dangKy->id]['ket_qua']) {
                 $this->tongKetData[$dangKy->id]['ket_qua'] = 'hoan_thanh';
             }
 
-            $this->isEditing[$dangKy->id] = $this->coTheChinhSua && !$this->daChuyenKetQua;
+            $this->isEditing[$dangKy->id] = ($this->isEditing[$dangKy->id] ?? false) && $this->coTheChinhSua && !$this->daChuyenKetQua;
             $this->recalculateTongKet($dangKy->id, false);
+
+            $this->ketQuaLocked[$dangKy->id] = ($this->tongKetData[$dangKy->id]['ket_qua'] ?? null)
+                && ($this->tongKetData[$dangKy->id]['ket_qua'] !== ($this->tongKetData[$dangKy->id]['ket_qua_goi_y'] ?? null));
         }
     }
 
@@ -692,8 +715,17 @@ class DiemDanhHocVien extends Page
         $goiY = ($datGio && $datDiem) ? 'hoan_thanh' : 'khong_hoan_thanh';
         $this->tongKetData[$dangKyId]['ket_qua_goi_y'] = $goiY;
 
-        if ($preserveSelection === false || empty($this->tongKetData[$dangKyId]['ket_qua'])) {
+        $locked = $this->ketQuaLocked[$dangKyId] ?? false;
+        if ($preserveSelection === false) {
+            if (!$locked) {
+                $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
+            }
+        } elseif (empty($this->tongKetData[$dangKyId]['ket_qua']) || !$locked) {
             $this->tongKetData[$dangKyId]['ket_qua'] = $goiY;
+        }
+
+        if (($this->tongKetData[$dangKyId]['ket_qua'] ?? null) === $goiY) {
+            $this->ketQuaLocked[$dangKyId] = false;
         }
     }
 
@@ -711,6 +743,7 @@ class DiemDanhHocVien extends Page
         $this->diemDanhData = [];
         $this->tongKetData = [];
         $this->isEditing = [];
+        $this->ketQuaLocked = [];
         $this->daChuyenKetQua = false;
         $this->coTheChinhSua = false;
     }
@@ -909,6 +942,50 @@ class DiemDanhHocVien extends Page
         };
     }
 
+    private function buildKetQuaAttributes(string $ketQua, ?string $goiY, array $tongKet): array
+    {
+        $attributes = [
+            'ket_qua' => $ketQua,
+            'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
+        ];
+
+        if ($this->ketQuaHasColumn('tong_so_gio_ke_hoach')) {
+            $attributes['tong_so_gio_ke_hoach'] = $this->khoaHocRequirements['tong_gio_ke_hoach'];
+        }
+
+        if ($this->ketQuaHasColumn('tong_so_gio_thuc_te')) {
+            $attributes['tong_so_gio_thuc_te'] = $tongKet['tong_so_gio_thuc_te'] ?? null;
+        }
+
+        if ($this->ketQuaHasColumn('diem_trung_binh')) {
+            $attributes['diem_trung_binh'] = $tongKet['diem_trung_binh'] ?? null;
+        } elseif ($this->ketQuaHasColumn('diem')) {
+            $attributes['diem'] = $tongKet['diem_trung_binh'] ?? null;
+        }
+
+        if ($this->ketQuaHasColumn('ket_qua_goi_y')) {
+            $attributes['ket_qua_goi_y'] = $goiY;
+        }
+
+        if ($this->ketQuaHasColumn('danh_gia_ren_luyen')) {
+            $attributes['danh_gia_ren_luyen'] = $tongKet['danh_gia_ren_luyen'] ?? null;
+        }
+
+        if ($this->ketQuaHasColumn('nguoi_nhap')) {
+            $attributes['nguoi_nhap'] = Auth::user()?->name;
+        }
+
+        if ($this->ketQuaHasColumn('ngay_nhap')) {
+            $attributes['ngay_nhap'] = now();
+        }
+
+        if ($this->ketQuaHasColumn('needs_review')) {
+            $attributes['needs_review'] = false;
+        }
+
+        return $attributes;
+    }
+
     private function evaluateEditPermission(?KhoaHoc $khoaHoc): void
     {
         $user = Auth::user();
@@ -980,5 +1057,21 @@ class DiemDanhHocVien extends Page
     {
         $value = $this->normalizeKetQua($value);
         return $value === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành';
+    }
+
+    private function ketQuaHasColumn(string $column): bool
+    {
+        if (! array_key_exists('__columns', $this->ketQuaColumnCache)) {
+            try {
+                $columns = Schema::getColumnListing('ket_qua_khoa_hocs');
+            } catch (\Throwable $exception) {
+                Log::warning('Không thể lấy danh sách cột ket_qua_khoa_hocs: ' . $exception->getMessage());
+                $columns = [];
+            }
+
+            $this->ketQuaColumnCache['__columns'] = array_fill_keys($columns, true);
+        }
+
+        return isset($this->ketQuaColumnCache['__columns'][$column]);
     }
 }

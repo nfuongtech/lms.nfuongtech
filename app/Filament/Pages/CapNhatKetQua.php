@@ -194,6 +194,7 @@ class CapNhatKetQua extends Page implements Tables\Contracts\HasTable, Forms\Con
                     ])
                     ->action(function (array $data) {
                         $this->chiTinhDiemTongKhoa((int) $data['khoa_hoc_id']);
+                        // >>> SỬA Ở ĐÂY: dùng "->success()" thay vì ".success()"
                         Notification::make()
                             ->title('Đã tính lại Điểm TB theo điểm danh (đã đưa vào danh sách chờ duyệt)')
                             ->success()
