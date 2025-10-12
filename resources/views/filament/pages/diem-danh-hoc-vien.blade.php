@@ -52,8 +52,7 @@
                 <div class="flex items-end gap-2">
                     <button
                         wire:click="chuanBiChuyenKetQua"
-                        class="rounded-lg px-4 py-2 text-sm font-medium text-green-900 border border-green-200 shadow-sm hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 disabled:opacity-60"
-                        style="background-color:#CCFFD8;"
+                        class="fi-btn rounded-lg px-4 py-2 text-gray-900 bg-[#CCFFD8] hover:bg-[#b8f5c7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7cdf9c]"
                         @disabled(!$coTheChinhSua || $daChuyenKetQua)
                     >
                         <span wire:loading.remove wire:target="chuanBiChuyenKetQua">Chuyển kết quả</span>
@@ -154,25 +153,25 @@
                     @endif
 
                     <div class="overflow-x-auto relative">
-                        <table class="min-w-full w-full table-fixed text-sm border">
+                        <table class="min-w-[1200px] w-full table-fixed text-sm border">
                             <thead class="bg-gray-100">
                                 <tr>
-                                    <th class="w-14 px-3 py-2 border-b align-middle sticky left-0 z-30 bg-gray-100" rowspan="2">TT</th>
-                                    <th class="w-32 px-3 py-2 border-b align-middle sticky left-14 z-30 bg-gray-100" style="left:3.5rem;" rowspan="2">Mã số</th>
-                                    <th class="px-3 py-2 border-b align-middle sticky z-30 bg-gray-100" style="left:11.5rem; min-width:14rem;" rowspan="2">Họ &amp; Tên</th>
+                                    <th class="w-14 px-3 py-2 border-b align-middle sticky left-0 z-30 bg-gray-100" rowspan="2" style="left:0rem">TT</th>
+                                    <th class="w-32 px-3 py-2 border-b align-middle sticky left-14 z-30 bg-gray-100" rowspan="2" style="left:3.5rem">Mã số</th>
+                                    <th class="w-52 px-3 py-2 border-b align-middle sticky z-30 bg-gray-100" rowspan="2" style="left:11.5rem">Họ &amp; Tên</th>
                                     @foreach($khoaHocLichHocs as $lichHoc)
                                         <th class="px-3 py-2 border-b text-center" rowspan="1">
                                             {{ $lichHoc['nhan'] }}
                                         </th>
                                     @endforeach
                                     <th class="w-28 px-3 py-2 border-b text-center" rowspan="2">ĐTB</th>
-                                    <th class="px-3 py-2 border-b text-center" style="min-width:10rem;" rowspan="2">Kết quả</th>
-                                    <th class="px-3 py-2 border-b" style="min-width:18rem;" rowspan="2">Đánh giá rèn luyện</th>
+                                    <th class="w-44 px-3 py-2 border-b text-center" rowspan="2">Kết quả</th>
+                                    <th class="w-44 px-3 py-2 border-b" rowspan="2">Đánh giá rèn luyện</th>
                                     <th class="w-28 px-3 py-2 border-b text-center" rowspan="2">Hành động</th>
                                 </tr>
                                 <tr>
                                     @foreach($khoaHocLichHocs as $lichHoc)
-                                        <th class="px-3 py-2 border-b text-xs text-gray-600">
+                                        <th class="px-3 py-2 border-b text-xs text-gray-600 whitespace-normal">
                                             {{ $lichHoc['mo_ta'] }}
                                         </th>
                                     @endforeach
@@ -186,9 +185,9 @@
                                         $editing = $dangKyId ? ($isEditing[$dangKyId] ?? false) : false;
                                     @endphp
                                     <tr class="align-top">
-                                        <td class="px-3 py-3 text-center sticky left-0 bg-white z-20 border-r border-gray-200">{{ $index + 1 }}</td>
-                                        <td class="px-3 py-3 font-medium text-gray-900 whitespace-nowrap sticky left-14 bg-white z-20 border-r border-gray-200" style="left:3.5rem;">{{ $hocVien->msnv }}</td>
-                                        <td class="px-3 py-3 break-words sticky bg-white z-20 border-r border-gray-200" style="left:11.5rem; min-width:14rem;">{{ $hocVien->ho_ten }}</td>
+                                        <td class="px-3 py-3 text-center sticky left-0 bg-white border-r z-20" style="left:0rem">{{ $index + 1 }}</td>
+                                        <td class="px-3 py-3 font-medium text-gray-900 sticky left-14 bg-white border-r z-20" style="left:3.5rem">{{ $hocVien->msnv }}</td>
+                                        <td class="px-3 py-3 sticky bg-white border-r z-20 whitespace-normal" style="left:11.5rem">{{ $hocVien->ho_ten }}</td>
 
                                         @foreach($khoaHocLichHocs as $lichHocId => $lichHoc)
                                             @php
@@ -198,7 +197,7 @@
                                                 $soGio = $cellKey['so_gio_hoc'] ?? '';
                                                 $diem  = $cellKey['diem'] ?? '';
                                             @endphp
-                                            <td class="px-3 py-3">
+                                            <td class="px-3 py-3 align-top whitespace-normal">
                                                 @if($editing)
                                                     <div class="space-y-2">
                                                         <select
@@ -218,27 +217,27 @@
                                                                 placeholder="Lý do vắng"
                                                                 required
                                                             >
-                                                        @endif
+                                                        @else
+                                                            <div class="grid grid-cols-1 gap-2">
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.25"
+                                                                    min="0"
+                                                                    wire:model.live="diemDanhData.{{ $dangKyId }}.{{ $lichHocId }}.so_gio_hoc"
+                                                                    class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                                                    placeholder="Số giờ"
+                                                                >
 
-                                                        @if($status === 'co_mat')
-                                                            <input
-                                                                type="number"
-                                                                step="0.25"
-                                                                min="0"
-                                                                wire:model.live="diemDanhData.{{ $dangKyId }}.{{ $lichHocId }}.so_gio_hoc"
-                                                                class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                                                                placeholder="Số giờ"
-                                                            >
-
-                                                            <input
-                                                                type="number"
-                                                                step="0.1"
-                                                                min="0"
-                                                                max="10"
-                                                                wire:model.live="diemDanhData.{{ $dangKyId }}.{{ $lichHocId }}.diem"
-                                                                class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                                                                placeholder="Điểm"
-                                                            >
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.1"
+                                                                    min="0"
+                                                                    max="10"
+                                                                    wire:model.live="diemDanhData.{{ $dangKyId }}.{{ $lichHocId }}.diem"
+                                                                    class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                                                    placeholder="Điểm"
+                                                                >
+                                                            </div>
                                                         @endif
                                                     </div>
                                                 @else
@@ -247,12 +246,12 @@
                                                             {{ ['co_mat' => 'Có mặt', 'vang_phep' => 'Vắng P', 'vang_khong_phep' => 'Vắng KP'][$status] ?? 'Có mặt' }}
                                                         </div>
                                                         @if($status !== 'co_mat' && $lyDo)
-                                                            <div class="text-gray-500">{{ $lyDo }}</div>
+                                                            <div class="text-gray-500 break-words">{{ $lyDo }}</div>
                                                         @endif
                                                         <div>
-                                                            Số giờ: <strong>{{ $status === 'co_mat' ? ($soGio !== '' ? $soGio : '—') : 0 }}</strong>
-                                                            <span class="text-gray-400">-</span>
-                                                            Điểm: <strong>{{ $status === 'co_mat' ? ($diem !== '' ? $diem : '—') : '-' }}</strong>
+                                                            Số giờ: <strong>{{ $status === 'co_mat' ? ($soGio !== '' ? $soGio : '-') : 0 }}</strong>
+                                                            <span class="mx-1">-</span>
+                                                            Điểm: <strong>{{ $status === 'co_mat' ? ($diem !== '' && $diem !== null ? $diem : '-') : '-' }}</strong>
                                                         </div>
                                                     </div>
                                                 @endif
@@ -269,7 +268,7 @@
                                             <span class="font-semibold">{{ $tongKet['diem_trung_binh'] !== null ? number_format($tongKet['diem_trung_binh'], 2) : '—' }}</span>
                                         </td>
 
-                                        <td class="px-3 py-3">
+                                        <td class="px-3 py-3 min-w-[10rem]">
                                             @if($editing)
                                                 <select
                                                     wire:model.live="tongKetData.{{ $dangKyId }}.ket_qua"
@@ -285,16 +284,37 @@
                                             @endif
                                         </td>
 
-                                        <td class="px-3 py-3">
+                                        <td class="px-3 py-3 min-w-[10rem]">
                                             @if($editing)
-                                                <textarea
-                                                    wire:model.live="tongKetData.{{ $dangKyId }}.danh_gia_ren_luyen"
-                                                    class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                                                    rows="4"
-                                                    placeholder="Nhập đánh giá rèn luyện (nếu có)"
-                                                ></textarea>
+                                                <div class="space-y-2">
+                                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            wire:model.live="tongKetData.{{ $dangKyId }}.co_danh_gia"
+                                                            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                        >
+                                                        <span>Có đánh giá học viên</span>
+                                                    </label>
+
+                                                    @if($tongKet['co_danh_gia'] ?? false)
+                                                        <textarea
+                                                            wire:model.live="tongKetData.{{ $dangKyId }}.danh_gia_ren_luyen"
+                                                            class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                                            rows="4"
+                                                            placeholder="Nhập đánh giá rèn luyện"
+                                                        ></textarea>
+                                                    @endif
+                                                </div>
                                             @else
-                                                <span class="whitespace-pre-line text-sm">{{ $tongKet['danh_gia_ren_luyen'] ?? '—' }}</span>
+                                                @php
+                                                    $coDanhGia = $tongKet['co_danh_gia'] ?? false;
+                                                    $noiDungDanhGia = $coDanhGia ? ($tongKet['danh_gia_ren_luyen'] ?? '') : '';
+                                                @endphp
+                                                @if($coDanhGia && $noiDungDanhGia !== '')
+                                                    <span class="whitespace-pre-line break-words text-sm">{{ $noiDungDanhGia }}</span>
+                                                @else
+                                                    <span class="text-sm text-gray-500">—</span>
+                                                @endif
                                             @endif
                                         </td>
 
@@ -431,8 +451,7 @@
                     <button
                         type="button"
                         wire:click="xacNhanChuyenKetQua"
-                        class="rounded-lg px-4 py-2 text-sm font-medium text-green-900 border border-green-200 shadow-sm hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
-                        style="background-color:#CCFFD8;"
+                        class="fi-btn fi-btn-primary rounded-lg px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                     >
                         Xác nhận
                     </button>

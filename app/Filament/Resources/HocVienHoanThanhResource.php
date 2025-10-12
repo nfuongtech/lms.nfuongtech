@@ -18,7 +18,6 @@ class HocVienHoanThanhResource extends Resource
     protected static ?string $navigationGroup = 'Đào tạo';
     protected static ?string $navigationIcon = 'heroicon-o-check-badge';
     protected static ?string $navigationLabel = 'Học viên hoàn thành';
-    protected static bool $shouldRegisterNavigation = false;
 
     public static function getSlug(): string
     {
@@ -140,6 +139,8 @@ class HocVienHoanThanhResource extends Resource
 
     public static function getPages(): array
     {
-        return [];
+        return [
+            'index' => HocVienHoanThanhResource\Pages\ListHocVienHoanThanhs::route('/'),
+        ];
     }
 }
