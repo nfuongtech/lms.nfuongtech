@@ -7,10 +7,7 @@ use Illuminate\Support\Facades\Schema;
 
 class HocVienHoanThanh extends Model
 {
-<<<<<<< HEAD
-=======
     protected static ?string $resolvedTable = null;
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 
     protected $fillable = [
         'hoc_vien_id',
@@ -48,11 +45,7 @@ class HocVienHoanThanh extends Model
     public function getTable()
     {
         if (static::$resolvedTable) {
-            if (Schema::hasTable(static::$resolvedTable)) {
-                return static::$resolvedTable;
-            }
-
-            static::$resolvedTable = null;
+            return static::$resolvedTable;
         }
 
         $defaultTable = parent::getTable();

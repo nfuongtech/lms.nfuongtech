@@ -1,7 +1,5 @@
 {{-- resources/views/filament/pages/diem-danh-hoc-vien.blade.php --}}
 <x-filament::page>
-<<<<<<< HEAD
-=======
     <style>
         .diem-danh-table .sticky-col {
             position: sticky;
@@ -37,7 +35,6 @@
         }
     </style>
 
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
     <div class="space-y-6">
         {{-- BỘ LỌC --}}
         <div class="flex flex-wrap items-end gap-4">
@@ -191,27 +188,6 @@
                     @endif
 
                     <div class="overflow-x-auto relative">
-<<<<<<< HEAD
-                        <table class="min-w-[1200px] w-full table-fixed text-sm border">
-                            <thead class="bg-gray-100">
-                                <tr>
-                                    <th class="w-14 px-3 py-2 border-b align-middle sticky left-0 z-30 bg-gray-100" rowspan="2" style="left:0rem">TT</th>
-                                    <th class="w-32 px-3 py-2 border-b align-middle sticky left-14 z-30 bg-gray-100" rowspan="2" style="left:3.5rem">Mã số</th>
-                                    <th class="w-52 px-3 py-2 border-b align-middle sticky z-30 bg-gray-100" rowspan="2" style="left:11.5rem">Họ &amp; Tên</th>
-                                    @foreach($khoaHocLichHocs as $lichHoc)
-                                        <th class="px-3 py-2 border-b text-center" rowspan="1">
-                                            {{ $lichHoc['nhan'] }}
-                                        </th>
-                                    @endforeach
-                                    <th class="w-28 px-3 py-2 border-b text-center" rowspan="2">ĐTB</th>
-                                    <th class="w-44 px-3 py-2 border-b text-center" rowspan="2">Kết quả</th>
-                                    <th class="w-44 px-3 py-2 border-b" rowspan="2">Đánh giá rèn luyện</th>
-                                    <th class="w-28 px-3 py-2 border-b text-center" rowspan="2">Hành động</th>
-                                </tr>
-                                <tr>
-                                    @foreach($khoaHocLichHocs as $lichHoc)
-                                        <th class="px-3 py-2 border-b text-xs text-gray-600 whitespace-normal">
-=======
                         <table class="diem-danh-table min-w-[1100px] w-full text-sm border">
                             <thead class="bg-gray-100">
                                 <tr>
@@ -231,7 +207,6 @@
                                 <tr>
                                     @foreach($khoaHocLichHocs as $lichHoc)
                                         <th class="px-3 py-2 border-b text-xs text-gray-600 min-w-[200px]">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                             {{ $lichHoc['mo_ta'] }}
                                         </th>
                                     @endforeach
@@ -243,13 +218,6 @@
                                         $hocVien = $row['hoc_vien'];
                                         $dangKyId = $row['dang_ky_id'];
                                         $editing = $dangKyId ? ($isEditing[$dangKyId] ?? false) : false;
-<<<<<<< HEAD
-                                    @endphp
-                                    <tr class="align-top">
-                                        <td class="px-3 py-3 text-center sticky left-0 bg-white border-r z-20" style="left:0rem">{{ $index + 1 }}</td>
-                                        <td class="px-3 py-3 font-medium text-gray-900 sticky left-14 bg-white border-r z-20" style="left:3.5rem">{{ $hocVien->msnv }}</td>
-                                        <td class="px-3 py-3 sticky bg-white border-r z-20 whitespace-normal" style="left:11.5rem">{{ $hocVien->ho_ten }}</td>
-=======
                                         $tongKet = $dangKyId ? ($tongKetData[$dangKyId] ?? []) : [];
                                         $ketQuaNhan = $tongKet['ket_qua'] ?? '';
                                         $hasDanhGia = (bool)($tongKet['has_danh_gia'] ?? false);
@@ -258,7 +226,6 @@
                                         <td class="px-3 py-3 text-center sticky-col col-tt border-r">{{ $index + 1 }}</td>
                                         <td class="px-3 py-3 font-medium text-gray-900 sticky-col col-ms border-r">{{ $hocVien->msnv }}</td>
                                         <td class="px-3 py-3 sticky-col col-name border-r break-words">{{ $hocVien->ho_ten }}</td>
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
 
                                         @foreach($khoaHocLichHocs as $lichHocId => $lichHoc)
                                             @php
@@ -268,11 +235,7 @@
                                                 $soGio = $cellKey['so_gio_hoc'] ?? '';
                                                 $diem  = $cellKey['diem'] ?? '';
                                             @endphp
-<<<<<<< HEAD
-                                            <td class="px-3 py-3 align-top whitespace-normal">
-=======
                                             <td class="px-3 py-3 align-top min-w-[200px]">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                 @if($editing)
                                                     <div class="space-y-2">
                                                         <select
@@ -316,20 +279,12 @@
                                                         @endif
                                                     </div>
                                                 @else
-<<<<<<< HEAD
-                                                    <div class="space-y-1 text-sm">
-=======
                                                     <div class="space-y-1 text-sm text-gray-700 whitespace-normal break-words">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                         <div class="font-medium">
                                                             {{ ['co_mat' => 'Có mặt', 'vang_phep' => 'Vắng P', 'vang_khong_phep' => 'Vắng KP'][$status] ?? 'Có mặt' }}
                                                         </div>
                                                         @if($status !== 'co_mat' && $lyDo)
-<<<<<<< HEAD
-                                                            <div class="text-gray-500 break-words">{{ $lyDo }}</div>
-=======
                                                             <div class="text-gray-500">{{ $lyDo }}</div>
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                         @endif
                                                         <div>
                                                             Số giờ: <strong>{{ $status === 'co_mat' ? ($soGio !== '' ? $soGio : '-') : 0 }}</strong>
@@ -341,25 +296,11 @@
                                             </td>
                                         @endforeach
 
-<<<<<<< HEAD
-                                        @php
-                                            $tongKet = $dangKyId ? ($tongKetData[$dangKyId] ?? []) : [];
-                                            $ketQuaNhan = $tongKet['ket_qua'] ?? '';
-                                            $ketQuaGoiY = $tongKet['ket_qua_goi_y'] ?? '';
-                                        @endphp
-
-                                        <td class="px-3 py-3 text-center">
-                                            <span class="font-semibold">{{ $tongKet['diem_trung_binh'] !== null ? number_format($tongKet['diem_trung_binh'], 2) : '—' }}</span>
-                                        </td>
-
-                                        <td class="px-3 py-3 min-w-[10rem]">
-=======
                                         <td class="px-3 py-3 text-center align-middle">
                                             <span class="font-semibold">{{ $tongKet['diem_trung_binh'] !== null ? number_format($tongKet['diem_trung_binh'], 2) : '—' }}</span>
                                         </td>
 
                                         <td class="px-3 py-3 align-top w-44 min-w-[11rem]">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                             @if($editing)
                                                 <select
                                                     wire:model.live="tongKetData.{{ $dangKyId }}.ket_qua"
@@ -369,31 +310,12 @@
                                                     <option value="khong_hoan_thanh">Không hoàn thành</option>
                                                 </select>
                                             @else
-<<<<<<< HEAD
-                                                <span class="px-2 py-1 inline-block rounded text-xs font-semibold {{ ($ketQuaNhan ?? '') === 'hoan_thanh' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }}">
-=======
                                                 <span class="px-2 py-1 inline-flex items-center justify-center rounded text-xs font-semibold {{ ($ketQuaNhan ?? '') === 'hoan_thanh' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' }} w-full text-center">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                     {{ $ketQuaNhan === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành' }}
                                                 </span>
                                             @endif
                                         </td>
 
-<<<<<<< HEAD
-                                        <td class="px-3 py-3 min-w-[10rem]">
-                                            @if($editing)
-                                                <div class="space-y-2">
-                                                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                                        <input
-                                                            type="checkbox"
-                                                            wire:model.live="tongKetData.{{ $dangKyId }}.co_danh_gia"
-                                                            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                                        >
-                                                        <span>Có đánh giá học viên</span>
-                                                    </label>
-
-                                                    @if($tongKet['co_danh_gia'] ?? false)
-=======
                                         <td class="px-3 py-3 align-top w-44 min-w-[11rem]">
                                             @if($editing)
                                                 <div class="space-y-2">
@@ -407,47 +329,29 @@
                                                         Có đánh giá học viên
                                                     </label>
                                                     @if($hasDanhGia)
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                         <textarea
                                                             wire:model.live="tongKetData.{{ $dangKyId }}.danh_gia_ren_luyen"
                                                             class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
                                                             rows="4"
                                                             placeholder="Nhập đánh giá rèn luyện"
                                                         ></textarea>
-<<<<<<< HEAD
-=======
                                                     @else
                                                         <p class="text-xs text-gray-500">Không đánh giá.</p>
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                     @endif
                                                 </div>
                                             @else
                                                 @php
-<<<<<<< HEAD
-                                                    $coDanhGia = $tongKet['co_danh_gia'] ?? false;
-                                                    $noiDungDanhGia = $coDanhGia ? ($tongKet['danh_gia_ren_luyen'] ?? '') : '';
-                                                @endphp
-                                                @if($coDanhGia && $noiDungDanhGia !== '')
-                                                    <span class="whitespace-pre-line break-words text-sm">{{ $noiDungDanhGia }}</span>
-                                                @else
-                                                    <span class="text-sm text-gray-500">—</span>
-=======
                                                     $noiDungDanhGia = trim((string) ($tongKet['danh_gia_ren_luyen'] ?? ''));
                                                 @endphp
                                                 @if($hasDanhGia && $noiDungDanhGia !== '')
                                                     <span class="text-sm whitespace-pre-wrap break-words">{{ $noiDungDanhGia }}</span>
                                                 @else
                                                     <span class="text-sm text-gray-500">Không đánh giá</span>
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                                 @endif
                                             @endif
                                         </td>
 
-<<<<<<< HEAD
-                                        <td class="px-3 py-3 text-center">
-=======
                                         <td class="px-3 py-3 text-center align-middle">
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                                             @if($dangKyId)
                                                 @if($editing)
                                                     <button
@@ -566,11 +470,7 @@
             <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
                 <h3 class="text-lg font-semibold mb-4">Xác nhận chuyển kết quả</h3>
                 <p class="text-sm text-gray-600">
-<<<<<<< HEAD
-                    Việc chuyển kết quả sẽ hoàn tất việc Ghi danh &amp; Đánh giá học viên, Giảng viên không thể sửa kết quả.
-=======
                     Việc chuyển kết quả để duyệt sẽ hoàn tất việc Ghi danh &amp; Đánh giá học viên, Giảng viên không thể sửa kết quả.
->>>>>>> origin/codex/update-attendance-page-functionality-tbtb2h
                 </p>
 
                 <div class="mt-6 flex justify-end space-x-3">
