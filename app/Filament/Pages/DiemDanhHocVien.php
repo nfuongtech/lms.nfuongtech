@@ -24,7 +24,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -74,7 +73,6 @@ class DiemDanhHocVien extends Page
         'ho_ten' => true,
         'dtb' => true,
         'ket_qua' => true,
-        'danh_gia' => true,
         'hanh_dong' => true,
     ];
 
@@ -721,7 +719,6 @@ class DiemDanhHocVien extends Page
             'ho_ten' => true,
             'dtb' => true,
             'ket_qua' => true,
-            'danh_gia' => true,
             'hanh_dong' => true,
         ];
     }
@@ -1019,7 +1016,7 @@ class DiemDanhHocVien extends Page
             }
         }
 
-        foreach (['dtb', 'ket_qua', 'danh_gia', 'hanh_dong'] as $key) {
+        foreach (['dtb', 'ket_qua', 'hanh_dong'] as $key) {
             if ($this->columnVisibility[$key] ?? true) {
                 $count++;
             }
@@ -1222,53 +1219,6 @@ class DiemDanhHocVien extends Page
         $this->refreshCourseContext();
     }
 
-    public function xuatExcelKhoaHoc(): mixed
-    {
-        if (!$this->selectedKhoaHoc) {
-            Notification::make()->title('Vui lòng chọn khóa học trước khi xuất Excel')->warning()->send();
-            return null;
-        }
-
-        $khoaHoc = KhoaHoc::with(['chuongTrinh', 'lichHocs' => fn ($q) => $q->orderBy('ngay_hoc')])->find($this->selectedKhoaHoc);
-        if (!$khoaHoc) {
-            Notification::make()->title('Không tìm thấy khóa học đã chọn')->danger()->send();
-            return null;
-        }
-
-        $lichHocs = $khoaHoc->lichHocs;
-        $soBuoi = $lichHocs->count();
-        $tuan = $lichHocs->pluck('tuan')->filter()->unique()->implode(', ');
-        $ngayDaoTao = $this->formatKhoangNgay($lichHocs->min('ngay_hoc'), $lichHocs->max('ngay_hoc'));
-        $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
-        $soLuongHv = DangKy::where('khoa_hoc_id', $khoaHoc->id)->count();
-
-        $rows = [[
-            $khoaHoc->ma_khoa_hoc,
-            $khoaHoc->ten_khoa_hoc,
-            $khoaHoc->trang_thai_hien_thi,
-            $soBuoi,
-            $tuan,
-            $ngayDaoTao,
-            $giangVien,
-            $soLuongHv,
-        ]];
-
-        $export = new SimpleArrayExport($rows, [
-            'Mã khóa',
-            'Tên khóa học',
-            'Trạng thái',
-            'Số buổi',
-            'Tuần',
-            'Ngày đào tạo',
-            'Giảng viên',
-            'Số lượng học viên đăng ký',
-        ]);
-
-        $fileName = Str::slug(($khoaHoc->ma_khoa_hoc ?? 'khoa-hoc') . '-thong-tin') . '.xlsx';
-
-        return Excel::download($export, $fileName);
-    }
-
     public function xuatExcelDanhSachHocVien(): mixed
     {
         if (!$this->selectedKhoaHoc) {
@@ -1281,7 +1231,32 @@ class DiemDanhHocVien extends Page
             return null;
         }
 
-        $headings = ['TT'];
+        $khoaHoc = KhoaHoc::with(['chuongTrinh', 'lichHocs' => fn ($q) => $q->orderBy('ngay_hoc')])->find($this->selectedKhoaHoc);
+        if (!$khoaHoc) {
+            Notification::make()->title('Không tìm thấy khóa học đã chọn')->danger()->send();
+            return null;
+        }
+
+        $lichHocs = $khoaHoc->lichHocs;
+        $tuan = $lichHocs->pluck('tuan')->filter()->unique()->implode(', ');
+        $ngayDaoTao = $this->formatKhoangNgay($lichHocs->min('ngay_hoc'), $lichHocs->max('ngay_hoc'));
+        $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
+
+        $headings = [];
+        if ($this->columnVisibility['tt'] ?? true) {
+            $headings[] = 'TT';
+        }
+
+        $headings = array_merge($headings, [
+            'Mã khóa',
+            'Tên khóa học',
+            'Trạng thái',
+            'Tuần',
+            'Ngày đào tạo',
+            'Giảng viên',
+            'Tổng giờ kế hoạch',
+        ]);
+
         if ($this->columnVisibility['ma_so'] ?? true) {
             $headings[] = 'Mã số';
         }
@@ -1301,9 +1276,6 @@ class DiemDanhHocVien extends Page
         if ($this->columnVisibility['ket_qua'] ?? true) {
             $headings[] = 'Kết quả';
         }
-        if ($this->columnVisibility['danh_gia'] ?? true) {
-            $headings[] = 'Đánh giá rèn luyện';
-        }
         if ($this->columnVisibility['hanh_dong'] ?? true) {
             $headings[] = 'Ghi chú hành động';
         }
@@ -1312,7 +1284,19 @@ class DiemDanhHocVien extends Page
         foreach ($this->hocVienRows as $index => $row) {
             $dangKyId = $row['dang_ky_id'];
             $hocVien = $row['hoc_vien'];
-            $dataRow = [$index + 1];
+            $dataRow = [];
+
+            if ($this->columnVisibility['tt'] ?? true) {
+                $dataRow[] = $index + 1;
+            }
+
+            $dataRow[] = $khoaHoc->ma_khoa_hoc;
+            $dataRow[] = optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? ($khoaHoc->ten_khoa_hoc ?? '');
+            $dataRow[] = $khoaHoc->trang_thai_hien_thi;
+            $dataRow[] = $tuan;
+            $dataRow[] = $ngayDaoTao;
+            $dataRow[] = $giangVien;
+            $dataRow[] = $this->formatDecimal($this->khoaHocRequirements['tong_gio_ke_hoach'] ?? null);
 
             if ($this->columnVisibility['ma_so'] ?? true) {
                 $dataRow[] = $hocVien->msnv;
@@ -1338,7 +1322,7 @@ class DiemDanhHocVien extends Page
                 if ($status === 'co_mat') {
                     $gio = $this->formatDecimal($cell['so_gio_hoc'] ?? null);
                     $diem = $this->formatDecimal($cell['diem'] ?? null);
-                    $dataRow[] = "$label - Giờ: $gio - Điểm: $diem";
+                    $dataRow[] = "$label ($gio giờ) - Điểm: $diem";
                 } else {
                     $dataRow[] = $reason !== '' ? "$label - $reason" : $label;
                 }
@@ -1351,9 +1335,6 @@ class DiemDanhHocVien extends Page
             if ($this->columnVisibility['ket_qua'] ?? true) {
                 $dataRow[] = $this->mapKetQuaLabel($tongKet['ket_qua'] ?? null);
             }
-            if ($this->columnVisibility['danh_gia'] ?? true) {
-                $dataRow[] = trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) ?: 'Không đánh giá';
-            }
             if ($this->columnVisibility['hanh_dong'] ?? true) {
                 $dataRow[] = $this->isEditing[$dangKyId] ? 'Đang chỉnh sửa' : 'Đã đóng';
             }
@@ -1363,6 +1344,52 @@ class DiemDanhHocVien extends Page
 
         $export = new SimpleArrayExport($rows, $headings);
         $fileName = 'danh-sach-hoc-vien-' . ($this->selectedKhoaHoc ?? 'khoa-hoc') . '.xlsx';
+
+        return Excel::download($export, $fileName);
+    }
+
+    public function xuatExcelDanhSachKhoaHocTrongNam(): mixed
+    {
+        if (!$this->selectedNam) {
+            Notification::make()->title('Vui lòng chọn năm để xuất Excel')->warning()->send();
+            return null;
+        }
+
+        $this->refreshKhoaHocYearRows();
+
+        if (empty($this->khoaHocYearRows)) {
+            Notification::make()->title('Không có khóa học để xuất Excel')->warning()->send();
+            return null;
+        }
+
+        $rows = [];
+        foreach ($this->khoaHocYearRows as $index => $row) {
+            $rows[] = [
+                $index + 1,
+                $row['ma_khoa_hoc'] ?? '',
+                $row['ten_khoa_hoc'] ?? '',
+                $row['trang_thai'] ?? '',
+                $row['so_buoi'] ?? '',
+                $row['tuan'] ?? '',
+                $row['ngay_dao_tao'] ?? '',
+                $row['giang_vien'] ?? '',
+                $row['so_luong_hv'] ?? '',
+            ];
+        }
+
+        $export = new SimpleArrayExport($rows, [
+            'TT',
+            'Mã khóa',
+            'Tên khóa học',
+            'Trạng thái',
+            'Số buổi',
+            'Tuần',
+            'Ngày đào tạo',
+            'Giảng viên',
+            'Số lượng học viên đăng ký',
+        ]);
+
+        $fileName = 'khoa-hoc-' . $this->selectedNam . '.xlsx';
 
         return Excel::download($export, $fileName);
     }
