@@ -35,7 +35,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected static string $view = 'filament.resources.hoc-vien-hoan-thanh-resource.pages.list-hoc-vien-hoan-thanhs';
 
-    public array $tableFilters = [];
+    public ?array $tableFilters = [];
 
     protected function getHeaderActions(): array
     {
