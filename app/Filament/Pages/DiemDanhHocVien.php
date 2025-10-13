@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -73,6 +74,7 @@ class DiemDanhHocVien extends Page
         'ho_ten' => true,
         'dtb' => true,
         'ket_qua' => true,
+        'danh_gia' => false,
         'hanh_dong' => true,
     ];
 
@@ -719,6 +721,7 @@ class DiemDanhHocVien extends Page
             'ho_ten' => true,
             'dtb' => true,
             'ket_qua' => true,
+            'danh_gia' => false,
             'hanh_dong' => true,
         ];
     }
@@ -779,8 +782,14 @@ class DiemDanhHocVien extends Page
             return;
         }
 
-        $khoaHocIds = LichHoc::query()
-            ->where('nam', $this->selectedNam)
+        $lichHocQuery = LichHoc::query()
+            ->where('nam', $this->selectedNam);
+
+        if ($this->selectedTuan) {
+            $lichHocQuery->where('tuan', $this->selectedTuan);
+        }
+
+        $khoaHocIds = $lichHocQuery
             ->pluck('khoa_hoc_id')
             ->unique();
 
@@ -799,12 +808,9 @@ class DiemDanhHocVien extends Page
         foreach ($khoaHocs as $khoaHoc) {
             $lichTrongNam = $khoaHoc->lichHocs->where('nam', $this->selectedNam);
             $soBuoi = $lichTrongNam->count();
-            $tuanSet = $lichTrongNam->pluck('tuan')->unique()->values();
+            $tuanSet = $lichTrongNam->pluck('tuan')->filter()->unique()->values();
             $tuanCsv = $tuanSet->implode(', ');
-            $ngayMin = $lichTrongNam->min('ngay_hoc');
-            $ngayMax = $lichTrongNam->max('ngay_hoc');
-
-            $ngayDaoTao = $this->formatKhoangNgay($ngayMin, $ngayMax);
+            $ngayDaoTao = $this->formatNgayDaoTaoList($lichTrongNam);
 
             $giangVienNames = [];
             foreach ($lichTrongNam as $lich) {
@@ -829,6 +835,7 @@ class DiemDanhHocVien extends Page
                 'ngay_dao_tao' => $ngayDaoTao,
                 'giang_vien' => implode(', ', array_keys($giangVienNames)),
                 'so_luong_hv' => $soLuongHv,
+                'ghi_chu' => $khoaHoc->da_chuyen_ket_qua ? 'Đã đóng' : '',
             ];
         }
 
@@ -868,13 +875,89 @@ class DiemDanhHocVien extends Page
         return '';
     }
 
+    private function formatNgayDaoTaoList($lichHocs): string
+    {
+        if (!$lichHocs instanceof Collection) {
+            $lichHocs = collect($lichHocs);
+        }
+
+        $dates = $lichHocs
+            ->sortBy('ngay_hoc')
+            ->map(function ($lich) {
+                $value = $lich->ngay_hoc ?? null;
+
+                if ($value instanceof \DateTimeInterface) {
+                    return $value->format('d/m/Y');
+                }
+
+                if ($value) {
+                    $timestamp = strtotime((string) $value);
+                    return $timestamp ? date('d/m/Y', $timestamp) : null;
+                }
+
+                return null;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $dates->isEmpty() ? '' : implode("\n", $dates->all());
+    }
+
+    private function formatNgayGioDaoTaoChiTiet($lichHocs): string
+    {
+        if (!$lichHocs instanceof Collection) {
+            $lichHocs = collect($lichHocs);
+        }
+
+        $items = $lichHocs
+            ->sortBy('ngay_hoc')
+            ->map(function ($lich) {
+                $ngay = $lich->ngay_hoc ?? null;
+                if ($ngay instanceof \DateTimeInterface) {
+                    $ngay = $ngay->format('d/m/Y');
+                } elseif ($ngay) {
+                    $timestamp = strtotime((string) $ngay);
+                    $ngay = $timestamp ? date('d/m/Y', $timestamp) : null;
+                }
+
+                if (!$ngay) {
+                    return null;
+                }
+
+                $gioBatDau = $lich->gio_bat_dau ? substr($lich->gio_bat_dau, 0, 5) : null;
+                $gioKetThuc = $lich->gio_ket_thuc ? substr($lich->gio_ket_thuc, 0, 5) : null;
+
+                if ($gioBatDau && $gioKetThuc) {
+                    return $ngay . ' ' . $gioBatDau . '-' . $gioKetThuc;
+                }
+
+                if ($gioBatDau) {
+                    return $ngay . ' ' . $gioBatDau;
+                }
+
+                if ($gioKetThuc) {
+                    return $ngay . ' ' . $gioKetThuc;
+                }
+
+                return $ngay;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $items->isEmpty() ? '' : implode(', ', $items->all());
+    }
+
     private function ensureCellDefaults(int $dangKyId, int $lichHocId): void
     {
         if (!isset($this->diemDanhData[$dangKyId][$lichHocId])) {
             $this->diemDanhData[$dangKyId][$lichHocId] = [
                 'trang_thai' => 'co_mat',
                 'ly_do_vang' => '',
-                'so_gio_hoc' => $this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null,
+                'so_gio_hoc' => isset($this->khoaHocLichHocs[$lichHocId])
+                    ? round((float) $this->khoaHocLichHocs[$lichHocId]['so_gio'], 1)
+                    : null,
                 'diem' => null,
             ];
         }
@@ -1016,7 +1099,7 @@ class DiemDanhHocVien extends Page
             }
         }
 
-        foreach (['dtb', 'ket_qua', 'hanh_dong'] as $key) {
+        foreach (['dtb', 'ket_qua', 'danh_gia', 'hanh_dong'] as $key) {
             if ($this->columnVisibility[$key] ?? true) {
                 $count++;
             }
@@ -1028,16 +1111,37 @@ class DiemDanhHocVien extends Page
     public function formatDecimal($value): string
     {
         if ($value === null || $value === '') {
-            return '—';
+            return '-';
         }
 
-        $normalized = number_format((float) $value, 1, '.', '');
+        $number = (float) $value;
 
-        if (str_ends_with($normalized, '.0')) {
-            $normalized = rtrim(rtrim($normalized, '0'), '.');
+        if (abs($number) < 0.00001) {
+            return '-';
         }
 
-        return $normalized;
+        return number_format($number, 1, '.', '');
+    }
+
+    private function prepareDanhGiaText(array $tongKet): string
+    {
+        $raw = trim((string) ($tongKet['danh_gia_ren_luyen'] ?? ''));
+        $flag = $tongKet['has_danh_gia'] ?? false;
+        $hasDanhGia = false;
+
+        if ($flag !== null) {
+            $hasDanhGia = filter_var($flag, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($hasDanhGia === null) {
+                $hasDanhGia = in_array($flag, ['1', 1, 'on', 'true', true], true);
+            }
+        }
+
+        if ($raw === '' && !$hasDanhGia) {
+            return '-';
+        }
+
+        return $raw !== '' ? $raw : '-';
     }
 
     public function luuTamThoi(): void
@@ -1219,6 +1323,52 @@ class DiemDanhHocVien extends Page
         $this->refreshCourseContext();
     }
 
+    public function xuatExcelDanhSachKhoaHoc(): mixed
+    {
+        if (!$this->selectedNam) {
+            Notification::make()->title('Vui lòng chọn năm trước khi xuất Excel')->warning()->send();
+            return null;
+        }
+
+        if (empty($this->khoaHocYearRows)) {
+            Notification::make()->title('Không có khóa học để xuất Excel')->warning()->send();
+            return null;
+        }
+
+        $rows = [];
+        foreach ($this->khoaHocYearRows as $index => $row) {
+            $rows[] = [
+                $index + 1,
+                $row['ma_khoa_hoc'] ?? '',
+                $row['ten_khoa_hoc'] ?? '',
+                $row['trang_thai'] ?? '',
+                $row['so_buoi'] ?? '',
+                $row['tuan'] ?? '',
+                str_replace("\n", PHP_EOL, $row['ngay_dao_tao'] ?? ''),
+                $row['giang_vien'] ?? '',
+                $row['so_luong_hv'] ?? '',
+                $row['ghi_chu'] ?? '',
+            ];
+        }
+
+        $export = new SimpleArrayExport($rows, [
+            'TT',
+            'Mã khóa',
+            'Tên khóa học',
+            'Trạng thái',
+            'Số buổi',
+            'Tuần',
+            'Ngày đào tạo',
+            'Giảng viên',
+            'Số lượng học viên đăng ký',
+            'Ghi chú',
+        ]);
+
+        $fileName = 'khoa-hoc-' . $this->selectedNam . '.xlsx';
+
+        return Excel::download($export, $fileName);
+    }
+
     public function xuatExcelDanhSachHocVien(): mixed
     {
         if (!$this->selectedKhoaHoc) {
@@ -1238,78 +1388,52 @@ class DiemDanhHocVien extends Page
         }
 
         $lichHocs = $khoaHoc->lichHocs;
+        $soBuoi = $lichHocs->count();
         $tuan = $lichHocs->pluck('tuan')->filter()->unique()->implode(', ');
         $ngayDaoTao = $this->formatKhoangNgay($lichHocs->min('ngay_hoc'), $lichHocs->max('ngay_hoc'));
+        $ngayGioDaoTao = $this->formatNgayGioDaoTaoChiTiet($lichHocs);
         $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
+        $soLuongHvDangKy = count($this->hocVienRows);
+        $khoaHocTen = $khoaHoc->chuongTrinh->ten_chuong_trinh ?? $khoaHoc->ten_khoa_hoc ?? '';
+        $rows = [
+            ['TRƯỜNG CAO ĐẲNG THACO'],
+            [],
+            ['CHUYÊN CẦN & KẾT QUẢ HỌC VIÊN'],
+            [],
+            ['Tên khóa học: ' . ($khoaHocTen ?: '-') , '', 'Mã khóa: ' . ($khoaHoc->ma_khoa_hoc ?? '-')],
+            [
+                'Giảng viên: ' . ($giangVien ?: '-'),
+                '',
+                'Ngày giờ đào tạo: ' . ($ngayGioDaoTao ?: '-'),
+                '',
+                'Tuần: ' . ($tuan ?: '-'),
+                '',
+                'Trạng thái: ' . ($khoaHoc->trang_thai_hien_thi ?? '-'),
+            ],
+            ['Danh sách học viên'],
+            [],
+            [
+                'TT',
+                'Mã số',
+                'Họ & Tên',
+                'Ngày tháng năm sinh',
+                'Giới tính',
+                'Đơn vị',
+                'Buổi học',
+                'ĐTB',
+                'Đánh giá rèn luyện',
+                'Kết quả',
+                'Ghi chú hành động',
+            ],
+        ];
 
-        $headings = [];
-        if ($this->columnVisibility['tt'] ?? true) {
-            $headings[] = 'TT';
-        }
-
-        $headings = array_merge($headings, [
-            'Mã khóa',
-            'Tên khóa học',
-            'Trạng thái',
-            'Tuần',
-            'Ngày đào tạo',
-            'Giảng viên',
-            'Tổng giờ kế hoạch',
-        ]);
-
-        if ($this->columnVisibility['ma_so'] ?? true) {
-            $headings[] = 'Mã số';
-        }
-        if ($this->columnVisibility['ho_ten'] ?? true) {
-            $headings[] = 'Họ & Tên';
-        }
-
-        foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
-            if ($this->sessionColumnVisibility[$lichHocId] ?? true) {
-                $headings[] = 'Buổi ' . $lichHoc['nhan'];
-            }
-        }
-
-        if ($this->columnVisibility['dtb'] ?? true) {
-            $headings[] = 'ĐTB';
-        }
-        if ($this->columnVisibility['ket_qua'] ?? true) {
-            $headings[] = 'Kết quả';
-        }
-        if ($this->columnVisibility['hanh_dong'] ?? true) {
-            $headings[] = 'Ghi chú hành động';
-        }
-
-        $rows = [];
         foreach ($this->hocVienRows as $index => $row) {
             $dangKyId = $row['dang_ky_id'];
             $hocVien = $row['hoc_vien'];
-            $dataRow = [];
+            $tongKet = $this->tongKetData[$dangKyId] ?? [];
 
-            if ($this->columnVisibility['tt'] ?? true) {
-                $dataRow[] = $index + 1;
-            }
-
-            $dataRow[] = $khoaHoc->ma_khoa_hoc;
-            $dataRow[] = optional($khoaHoc->chuongTrinh)->ten_chuong_trinh ?? ($khoaHoc->ten_khoa_hoc ?? '');
-            $dataRow[] = $khoaHoc->trang_thai_hien_thi;
-            $dataRow[] = $tuan;
-            $dataRow[] = $ngayDaoTao;
-            $dataRow[] = $giangVien;
-            $dataRow[] = $this->formatDecimal($this->khoaHocRequirements['tong_gio_ke_hoach'] ?? null);
-
-            if ($this->columnVisibility['ma_so'] ?? true) {
-                $dataRow[] = $hocVien->msnv;
-            }
-            if ($this->columnVisibility['ho_ten'] ?? true) {
-                $dataRow[] = $hocVien->ho_ten;
-            }
-
+            $sessionSummaries = [];
             foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
-                if (!($this->sessionColumnVisibility[$lichHocId] ?? true)) {
-                    continue;
-                }
-
                 $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
                 $status = $cell['trang_thai'] ?? 'co_mat';
                 $label = match ($status) {
@@ -1317,79 +1441,40 @@ class DiemDanhHocVien extends Page
                     'vang_khong_phep' => 'Vắng KP',
                     default => 'Có mặt',
                 };
-                $reason = trim((string) ($cell['ly_do_vang'] ?? ''));
+
+                $prefix = 'Buổi ' . ($lichHoc['nhan'] ?? '');
 
                 if ($status === 'co_mat') {
                     $gio = $this->formatDecimal($cell['so_gio_hoc'] ?? null);
                     $diem = $this->formatDecimal($cell['diem'] ?? null);
-                    $dataRow[] = "$label ($gio giờ) - Điểm: $diem";
+                    $sessionSummaries[] = trim($prefix . ': ' . $label . ' (' . $gio . ' giờ) - Điểm: ' . $diem);
                 } else {
-                    $dataRow[] = $reason !== '' ? "$label - $reason" : $label;
+                    $reason = trim((string) ($cell['ly_do_vang'] ?? ''));
+                    $summary = trim($prefix . ': ' . $label);
+                    if ($reason !== '') {
+                        $summary .= ' - ' . $reason;
+                    }
+                    $sessionSummaries[] = $summary;
                 }
             }
 
-            $tongKet = $this->tongKetData[$dangKyId] ?? [];
-            if ($this->columnVisibility['dtb'] ?? true) {
-                $dataRow[] = $this->formatDecimal($tongKet['diem_trung_binh'] ?? null);
-            }
-            if ($this->columnVisibility['ket_qua'] ?? true) {
-                $dataRow[] = $this->mapKetQuaLabel($tongKet['ket_qua'] ?? null);
-            }
-            if ($this->columnVisibility['hanh_dong'] ?? true) {
-                $dataRow[] = $this->isEditing[$dangKyId] ? 'Đang chỉnh sửa' : 'Đã đóng';
-            }
-
-            $rows[] = $dataRow;
-        }
-
-        $export = new SimpleArrayExport($rows, $headings);
-        $fileName = 'danh-sach-hoc-vien-' . ($this->selectedKhoaHoc ?? 'khoa-hoc') . '.xlsx';
-
-        return Excel::download($export, $fileName);
-    }
-
-    public function xuatExcelDanhSachKhoaHocTrongNam(): mixed
-    {
-        if (!$this->selectedNam) {
-            Notification::make()->title('Vui lòng chọn năm để xuất Excel')->warning()->send();
-            return null;
-        }
-
-        $this->refreshKhoaHocYearRows();
-
-        if (empty($this->khoaHocYearRows)) {
-            Notification::make()->title('Không có khóa học để xuất Excel')->warning()->send();
-            return null;
-        }
-
-        $rows = [];
-        foreach ($this->khoaHocYearRows as $index => $row) {
             $rows[] = [
                 $index + 1,
-                $row['ma_khoa_hoc'] ?? '',
-                $row['ten_khoa_hoc'] ?? '',
-                $row['trang_thai'] ?? '',
-                $row['so_buoi'] ?? '',
-                $row['tuan'] ?? '',
-                $row['ngay_dao_tao'] ?? '',
-                $row['giang_vien'] ?? '',
-                $row['so_luong_hv'] ?? '',
+                $hocVien->msnv ?? '-',
+                $hocVien->ho_ten ?? '-',
+                optional($hocVien->nam_sinh)->format('d/m/Y') ?? '-',
+                $hocVien->gioi_tinh ?? '-',
+                optional($hocVien->donVi)->ten_hien_thi ?? '-',
+                implode(PHP_EOL, $sessionSummaries) ?: '-',
+                $this->formatDecimal($tongKet['diem_trung_binh'] ?? null),
+                $this->prepareDanhGiaText($tongKet),
+                $this->mapKetQuaLabel($tongKet['ket_qua'] ?? null),
+                $this->isEditing[$dangKyId] ? 'Đang chỉnh sửa' : 'Đã đóng',
             ];
         }
 
-        $export = new SimpleArrayExport($rows, [
-            'TT',
-            'Mã khóa',
-            'Tên khóa học',
-            'Trạng thái',
-            'Số buổi',
-            'Tuần',
-            'Ngày đào tạo',
-            'Giảng viên',
-            'Số lượng học viên đăng ký',
-        ]);
-
-        $fileName = 'khoa-hoc-' . $this->selectedNam . '.xlsx';
+        $export = new SimpleArrayExport($rows);
+        $fileName = Str::slug(($khoaHoc->ma_khoa_hoc ?? 'khoa-hoc') . '-danh-sach-hoc-vien') . '.xlsx';
 
         return Excel::download($export, $fileName);
     }

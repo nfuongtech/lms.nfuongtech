@@ -17,6 +17,8 @@ class HocVienHoanThanh extends Model
         'chi_phi_dao_tao',
         'chung_chi_link',
         'chung_chi_tap_tin',
+        'thoi_han_chung_nhan',
+        'ngay_het_han_chung_nhan',
         'chung_chi_da_cap',
         'ghi_chu',
     ];
@@ -25,6 +27,7 @@ class HocVienHoanThanh extends Model
         'ngay_hoan_thanh' => 'date',
         'chung_chi_da_cap' => 'boolean',
         'chi_phi_dao_tao' => 'decimal:2',
+        'ngay_het_han_chung_nhan' => 'date',
     ];
 
     public function hocVien()

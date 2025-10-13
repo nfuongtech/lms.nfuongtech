@@ -50,27 +50,29 @@
 
             @if($selectedKhoaHoc)
                 <div class="flex flex-wrap items-end gap-2">
-                    <button
-                        wire:click="chuanBiChuyenKetQua"
-                        class="fi-btn rounded-lg px-4 py-2 bg-[#CCFFD8] text-[#00529C] hover:bg-[#b8f5c7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7cdf9c]"
-                        @disabled(!$coTheChinhSua || $daChuyenKetQua)
-                    >
-                        <span wire:loading.remove wire:target="chuanBiChuyenKetQua">Chuyển kết quả</span>
-                        <span wire:loading wire:target="chuanBiChuyenKetQua">Đang xử lý...</span>
-                    </button>
+                    @if(!$daChuyenKetQua)
+                        <button
+                            wire:click="chuanBiChuyenKetQua"
+                            class="fi-btn rounded-lg px-4 py-2 bg-[#CCFFD8] text-[#00529C] hover:bg-[#b8f5c7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7cdf9c]"
+                            @disabled(!$coTheChinhSua)
+                        >
+                            <span wire:loading.remove wire:target="chuanBiChuyenKetQua">Chuyển kết quả</span>
+                            <span wire:loading wire:target="chuanBiChuyenKetQua">Đang xử lý...</span>
+                        </button>
 
-                    <button
-                        wire:click="luuTamThoi"
-                        class="fi-btn rounded-lg px-4 py-2 bg-[#FFFCD5] text-[#00529C] border border-[#eedb8d] hover:bg-[#f6f0bc] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eedb8d]"
-                        @disabled(!$coTheChinhSua || $daChuyenKetQua)
-                    >
-                        <span wire:loading.remove wire:target="luuTamThoi">Lưu tạm</span>
-                        <span wire:loading wire:target="luuTamThoi">Đang lưu...</span>
-                    </button>
+                        <button
+                            wire:click="luuTamThoi"
+                            class="fi-btn rounded-lg px-4 py-2 bg-[#FFFCD5] text-[#00529C] hover:bg-[#f6f0bc] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eedb8d]"
+                            @disabled(!$coTheChinhSua)
+                        >
+                            <span wire:loading.remove wire:target="luuTamThoi">Lưu tạm</span>
+                            <span wire:loading wire:target="luuTamThoi">Đang lưu...</span>
+                        </button>
+                    @endif
 
                     <button
                         wire:click="xuatExcelDanhSachHocVien"
-                        class="fi-btn rounded-lg px-4 py-2 bg-[#FFFCD5] text-[#00529C] hover:bg-[#f6f0bc] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eedb8d]"
+                        class="fi-btn rounded-lg px-4 py-2 bg-[#CCFFD8] text-[#00529C] hover:bg-[#b8f5c7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7cdf9c]"
                     >
                         <span wire:loading.remove wire:target="xuatExcelDanhSachHocVien">Xuất Excel danh sách</span>
                         <span wire:loading wire:target="xuatExcelDanhSachHocVien">Đang xuất...</span>
@@ -96,13 +98,12 @@
                     <h3 class="text-lg font-semibold">
                         Danh sách Khóa học trong năm {{ $selectedNam }}
                     </h3>
-
                     <button
-                        wire:click="xuatExcelDanhSachKhoaHocTrongNam"
-                        class="fi-btn rounded-lg px-4 py-2 bg-[#FFFCD5] text-[#00529C] hover:bg-[#f6f0bc] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eedb8d]"
+                        wire:click="xuatExcelDanhSachKhoaHoc"
+                        class="fi-btn rounded-lg px-4 py-2 bg-[#CCFFD8] text-[#00529C] hover:bg-[#b8f5c7] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#7cdf9c]"
                     >
-                        <span wire:loading.remove wire:target="xuatExcelDanhSachKhoaHocTrongNam">Xuất Excel</span>
-                        <span wire:loading wire:target="xuatExcelDanhSachKhoaHocTrongNam">Đang xuất...</span>
+                        <span wire:loading.remove wire:target="xuatExcelDanhSachKhoaHoc">Xuất Excel</span>
+                        <span wire:loading wire:target="xuatExcelDanhSachKhoaHoc">Đang xuất...</span>
                     </button>
                 </div>
 
@@ -113,12 +114,13 @@
                                 <th class="w-14 px-4 py-2 border-b">STT</th>
                                 <th class="w-36 px-4 py-2 border-b">Mã khóa</th>
                                 <th class="px-4 py-2 border-b">Tên khóa học</th>
-                                <th class="w-36 px-4 py-2 border-b text-center">Trạng thái</th>
+                                <th class="w-36 px-4 py-2 border-b">Trạng thái</th>
                                 <th class="w-20 px-4 py-2 border-b text-center">Số buổi</th>
-                                <th class="w-40 px-4 py-2 border-b">Tuần</th>
+                                <th class="w-40 px-4 py-2 border-b text-center">Tuần</th>
                                 <th class="w-56 px-4 py-2 border-b text-center">Ngày đào tạo</th>
                                 <th class="w-64 px-4 py-2 border-b text-center">Giảng viên</th>
                                 <th class="w-28 px-4 py-2 border-b text-center">Số lượng HV</th>
+                                <th class="w-32 px-4 py-2 border-b text-center">Ghi chú</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -130,32 +132,35 @@
                                     @endif
                                 >
                                     <td class="px-4 py-3 text-center">{{ $i + 1 }}</td>
-                                    <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ $row['ma_khoa_hoc'] }}</td>
-                                    <td class="px-4 py-3 break-words">{{ $row['ten_khoa_hoc'] }}</td>
+                                    <td class="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{{ $row['ma_khoa_hoc'] ?? '-' }}</td>
+                                    <td class="px-4 py-3 break-words">{{ $row['ten_khoa_hoc'] ?? '-' }}</td>
                                     <td class="px-4 py-3 text-center">
                                         @php
                                             $statusStyles = [
                                                 'Dự thảo' => 'bg-gray-100 text-gray-800',
                                                 'Ban hành' => 'bg-blue-100 text-blue-800',
                                                 'Đang đào tạo' => 'bg-yellow-100 text-yellow-800',
+                                                'Chuẩn bị đào tạo' => 'bg-indigo-100 text-indigo-800',
                                                 'Kết thúc' => 'bg-green-100 text-green-800',
                                                 'Tạm hoãn' => 'bg-red-100 text-red-800',
+                                                'Hoãn' => 'bg-red-100 text-red-800',
                                             ];
                                             $badgeClass = $statusStyles[$row['trang_thai']] ?? 'bg-gray-100 text-gray-800';
                                         @endphp
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap {{ $badgeClass }}">
-                                            {{ $row['trang_thai'] }}
+                                        <span class="px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap {{ $badgeClass }}">
+                                            {{ $row['trang_thai'] ?? '-' }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-center">{{ $row['so_buoi'] }}</td>
-                                    <td class="px-4 py-3 break-words">{{ $row['tuan'] }}</td>
-                                    <td class="px-4 py-3 text-center whitespace-nowrap">{{ $row['ngay_dao_tao'] }}</td>
-                                    <td class="px-4 py-3 text-center break-words">{{ $row['giang_vien'] }}</td>
-                                    <td class="px-4 py-3 text-center">{{ $row['so_luong_hv'] }}</td>
+                                    <td class="px-4 py-3 text-center">{{ $row['so_buoi'] ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center break-words">{{ $row['tuan'] ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center whitespace-normal">{!! nl2br(e($row['ngay_dao_tao'] ?: '-')) !!}</td>
+                                    <td class="px-4 py-3 text-center break-words">{{ $row['giang_vien'] ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center">{{ $row['so_luong_hv'] ?: '-' }}</td>
+                                    <td class="px-4 py-3 text-center">{{ $row['ghi_chu'] ?: '-' }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-4 py-6 text-center text-gray-500">
+                                    <td colspan="10" class="px-4 py-6 text-center text-gray-500">
                                         Không có khóa học nào trong năm {{ $selectedNam }}.
                                     </td>
                                 </tr>
@@ -212,6 +217,10 @@
                             <span>Kết quả</span>
                         </label>
                         <label class="inline-flex items-center gap-1">
+                            <input type="checkbox" wire:model.live="columnVisibility.danh_gia" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                            <span>Đánh giá rèn luyện</span>
+                        </label>
+                        <label class="inline-flex items-center gap-1">
                             <input type="checkbox" wire:model.live="columnVisibility.hanh_dong" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
                             <span>Hành động</span>
                         </label>
@@ -248,6 +257,9 @@
                                     @endif
                                     @if($columnVisibility['ket_qua'] ?? true)
                                         <th class="w-44 min-w-[11rem] px-3 py-2 border-b text-center align-middle" rowspan="2">Kết quả</th>
+                                    @endif
+                                    @if($columnVisibility['danh_gia'] ?? false)
+                                        <th class="w-44 min-w-[11rem] px-3 py-2 border-b text-center align-middle" rowspan="2">Đánh giá rèn luyện</th>
                                     @endif
                                     @if($columnVisibility['hanh_dong'] ?? true)
                                         <th class="w-28 px-3 py-2 border-b text-center align-middle" rowspan="2">Hành động</th>
@@ -338,18 +350,18 @@
                                                             @endif
                                                         </div>
                                                     @else
-                                                        <div class="space-y-1 text-gray-700 whitespace-normal break-words">
-                                                            @if($status === 'co_mat')
-                                                                <div class="font-medium">
-                                                                    {{ $statusLabel }} ({{ $this->formatDecimal($soGio) }} giờ) - Điểm: {{ $this->formatDecimal($diem) }}
-                                                                </div>
-                                                            @else
-                                                                <div class="font-medium">{{ $statusLabel }}</div>
-                                                                @if($lyDo !== '')
-                                                                    <div class="text-gray-500">{{ $lyDo }}</div>
-                                                                @endif
+                                                    <div class="space-y-1 text-gray-700 whitespace-normal break-words">
+                                                        @if($status === 'co_mat')
+                                                            <div class="font-medium">
+                                                                {{ $statusLabel }} ({{ $this->formatDecimal($soGio) }} giờ) - Điểm: {{ $this->formatDecimal($diem) }}
+                                                            </div>
+                                                        @else
+                                                            <div class="font-medium">{{ $statusLabel }}</div>
+                                                            @if($lyDo !== '')
+                                                                <div class="text-gray-500">{{ $lyDo }}</div>
                                                             @endif
-                                                        </div>
+                                                        @endif
+                                                    </div>
                                                     @endif
                                                 </td>
                                             @endif
@@ -372,12 +384,50 @@
                                                         <option value="khong_hoan_thanh">Không hoàn thành</option>
                                                     </select>
                                                     @if($ketQuaGoiY)
-                                                        <p class="mt-1 text-xs text-gray-500 whitespace-normal">Gợi ý: {{ $ketQuaGoiYLabel }}</p>
+                                                        <p class="mt-2 text-xs text-gray-500 whitespace-normal break-words">Gợi ý: {{ $ketQuaGoiYLabel }}</p>
                                                     @endif
                                                 @else
                                                     <span class="px-2 py-1 inline-flex items-center justify-center rounded text-xs font-semibold w-full {{ ($ketQuaNhan ?? '') === 'hoan_thanh' ? 'bg-[#CCFFD8] text-[#00529C]' : 'bg-red-100 text-red-700' }}">
                                                         {{ $ketQuaNhan === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành' }}
                                                     </span>
+                                                @endif
+                                            </td>
+                                        @endif
+
+                                        @if($columnVisibility['danh_gia'] ?? false)
+                                            @php
+                                                $flag = $tongKet['has_danh_gia'] ?? false;
+                                                $hasDanhGia = filter_var($flag, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                                                if ($hasDanhGia === null) {
+                                                    $hasDanhGia = in_array($flag, ['1', 1, 'on', 'true', true], true);
+                                                }
+                                                $danhGiaText = trim((string) ($tongKet['danh_gia_ren_luyen'] ?? ''));
+                                                $showDanhGia = $hasDanhGia || $danhGiaText !== '';
+                                            @endphp
+                                            <td class="px-3 py-3 align-top w-44 min-w-[11rem] text-center">
+                                                @if($editing)
+                                                    <div class="space-y-2 text-left">
+                                                        <label class="inline-flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                wire:model.live="tongKetData.{{ $dangKyId }}.has_danh_gia"
+                                                                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                            >
+                                                            <span>Có đánh giá</span>
+                                                        </label>
+                                                        @if($hasDanhGia)
+                                                            <textarea
+                                                                wire:model.live="tongKetData.{{ $dangKyId }}.danh_gia_ren_luyen"
+                                                                rows="3"
+                                                                class="fi-input w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                                                placeholder="Nhập đánh giá"
+                                                            ></textarea>
+                                                        @else
+                                                            <p class="text-xs italic text-gray-500">Không đánh giá</p>
+                                                        @endif
+                                                    </div>
+                                                @else
+                                                    <span class="block whitespace-pre-line">{{ $showDanhGia ? $danhGiaText : '-' }}</span>
                                                 @endif
                                             </td>
                                         @endif
