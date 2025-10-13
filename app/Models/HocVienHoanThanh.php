@@ -17,6 +17,7 @@ class HocVienHoanThanh extends Model
         'chi_phi_dao_tao',
         'chung_chi_link',
         'chung_chi_tap_tin',
+        'so_chung_nhan',
         'thoi_han_chung_nhan',
         'ngay_het_han_chung_nhan',
         'chung_chi_da_cap',

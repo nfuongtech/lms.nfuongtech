@@ -47,6 +47,7 @@ class HocVienHoanThanhResource extends Resource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'hocVien.donVi',
+                'hocVien.donViPhapNhan',
                 'khoaHoc.chuongTrinh',
                 'ketQua',
             ]))
@@ -91,6 +92,11 @@ class HocVienHoanThanhResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('hocVien.donVi.thaco_tdtv')
                     ->label('THACO/TĐTV')
+                    ->wrap()
+                    ->formatStateUsing(fn ($state) => self::textOrDash($state))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('hocVien.donViPhapNhan.ten_don_vi')
+                    ->label('Đơn vị trả lương')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
                     ->toggleable(),
@@ -301,11 +307,6 @@ class HocVienHoanThanhResource extends Resource
         }
 
         $float = (float) $value;
-
-        if (abs($float) < 0.0001) {
-            return '-';
-        }
-
         return number_format($float, 1, '.', '');
     }
 
@@ -317,11 +318,7 @@ class HocVienHoanThanhResource extends Resource
 
         $float = (float) $value;
 
-        if (abs($float) < 0.0001) {
-            return '-';
-        }
-
-        return number_format($float, 0, '.', ',');
+        return number_format($float, 0, ',', '.');
     }
 
     public static function textOrDash(mixed $value): string
@@ -395,6 +392,12 @@ class HocVienHoanThanhResource extends Resource
                     ->nullable(),
                 Forms\Components\Toggle::make('chung_chi_da_cap')
                     ->label('Đã cấp chứng nhận'),
+            ]),
+            Forms\Components\Grid::make()->columns(3)->schema([
+                Forms\Components\TextInput::make('so_chung_nhan')
+                    ->label('Số chứng nhận')
+                    ->maxLength(120)
+                    ->nullable(),
                 Forms\Components\Select::make('thoi_han_chung_nhan')
                     ->label('Thời hạn Chứng nhận')
                     ->options([
@@ -452,6 +455,7 @@ class HocVienHoanThanhResource extends Resource
             'chung_chi_da_cap' => $record->chung_chi_da_cap,
             'chung_chi_link' => $record->chung_chi_link,
             'chung_chi_tap_tin' => $record->chung_chi_tap_tin,
+            'so_chung_nhan' => $record->so_chung_nhan,
             'thoi_han_chung_nhan' => $record->thoi_han_chung_nhan,
             'ngay_het_han_chung_nhan' => $record->ngay_het_han_chung_nhan,
             'danh_gia_ren_luyen' => $record->ketQua?->danh_gia_ren_luyen,
@@ -480,10 +484,11 @@ class HocVienHoanThanhResource extends Resource
 
         $updateData = [
             'ngay_hoan_thanh' => $data['ngay_hoan_thanh'] ?? null,
-            'chi_phi_dao_tao' => $data['chi_phi_dao_tao'] ?? null,
+            'chi_phi_dao_tao' => self::toDecimal($data['chi_phi_dao_tao'] ?? null),
             'chung_chi_da_cap' => $data['chung_chi_da_cap'] ?? false,
             'chung_chi_link' => $data['chung_chi_link'] ?? null,
             'chung_chi_tap_tin' => $data['chung_chi_tap_tin'] ?? $record->chung_chi_tap_tin,
+            'so_chung_nhan' => $data['so_chung_nhan'] ?? null,
             'thoi_han_chung_nhan' => $data['thoi_han_chung_nhan'] ?? null,
             'ngay_het_han_chung_nhan' => $data['ngay_het_han_chung_nhan'] ?? null,
             'ghi_chu' => $data['ghi_chu'] ?? null,
@@ -586,11 +591,14 @@ class HocVienHoanThanhResource extends Resource
                 optional($hocVien?->nam_sinh)->format('d/m/Y') ?? '-',
                 self::textOrDash($hocVien?->gioi_tinh),
                 self::textOrDash($hocVien?->donVi?->ten_hien_thi),
+                self::textOrDash($hocVien?->donViPhapNhan?->ten_don_vi),
                 self::textOrDash($course?->ten_khoa_hoc),
                 self::textOrDash($course?->ma_khoa_hoc),
                 $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
                 $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
                 $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : '-',
+                self::currencyOrDash($record->chi_phi_dao_tao),
+                self::textOrDash($record->so_chung_nhan),
                 $record->ngay_het_han_chung_nhan ? Carbon::parse($record->ngay_het_han_chung_nhan)->format('d/m/Y') : '-',
                 $sessionSummary ?: '-',
                 self::textOrDash($ketQua?->danh_gia_ren_luyen),
@@ -651,11 +659,14 @@ class HocVienHoanThanhResource extends Resource
             'Ngày tháng năm sinh',
             'Giới tính',
             'Đơn vị',
+            'Đơn vị trả lương',
             'Tên khóa học',
             'Mã khóa',
             'ĐTB',
             'Giờ thực học',
             'Ngày hoàn thành',
+            'Chi phí đào tạo',
+            'Số chứng nhận',
             'Ngày hết hạn chứng nhận',
             'Buổi học',
             'Đánh giá rèn luyện',
@@ -744,6 +755,7 @@ class HocVienHoanThanhResource extends Resource
             [
                 'ngay_hoan_thanh' => $ngayHoanThanh,
                 'chi_phi_dao_tao' => self::toDecimal(Arr::get($row, 'chi_phi_dao_tao')),
+                'so_chung_nhan' => Arr::get($row, 'so_chung_nhan'),
                 'chung_chi_link' => Arr::get($row, 'file_link_chung_nhan') ?? Arr::get($row, 'link_chung_nhan'),
                 'thoi_han_chung_nhan' => Arr::get($row, 'thoi_han_chung_nhan'),
                 'ngay_het_han_chung_nhan' => $ngayHetHan,

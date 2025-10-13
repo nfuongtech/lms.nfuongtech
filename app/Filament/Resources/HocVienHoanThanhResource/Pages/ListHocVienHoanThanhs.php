@@ -5,13 +5,19 @@ namespace App\Filament\Resources\HocVienHoanThanhResource\Pages;
 use App\Exports\SimpleArrayExport;
 use App\Filament\Resources\HocVienHoanThanhResource;
 use App\Mail\PlanNotificationMail;
+use App\Models\DangKy;
 use App\Models\EmailAccount;
 use App\Models\EmailLog;
 use App\Models\EmailTemplate;
+use App\Models\HocVienHoanThanh;
+use App\Models\HocVienKhongHoanThanh;
+use App\Models\KhoaHoc;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -23,12 +29,19 @@ class ListHocVienHoanThanhs extends ListRecords
 {
     protected static string $resource = HocVienHoanThanhResource::class;
 
+    protected static ?string $title = 'Học viên hoàn thành';
+
+    protected ?string $heading = 'Học viên hoàn thành';
+
+    protected static string $view = 'filament.resources.hoc-vien-hoan-thanh-resource.pages.list-hoc-vien-hoan-thanhs';
+
+    public ?array $tableFilters = [];
+
     protected function getHeaderActions(): array
     {
         return [
             Actions\Action::make('export_excel')
                 ->label('Xuất Excel')
-                ->icon('heroicon-o-arrow-down-tray')
                 ->extraAttributes(['style' => 'background-color:#CCFFD8;color:#00529C;'])
                 ->action(function () {
                     $records = $this->getExportCollection();
@@ -43,7 +56,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
             Actions\Action::make('download_template')
                 ->label('Tải mẫu import')
-                ->icon('heroicon-o-arrow-down-on-square')
                 ->extraAttributes(['style' => 'background-color:#CCFFD8;color:#00529C;'])
                 ->action(function () {
                     $headings = [
@@ -55,6 +67,7 @@ class ListHocVienHoanThanhs extends ListRecords
                         'Giờ thực học',
                         'Ngày hoàn thành',
                         'Chi phí đào tạo',
+                        'Số chứng nhận',
                         'Link chứng nhận',
                         'Thời hạn chứng nhận (năm)',
                         'Ngày hết hạn chứng nhận',
@@ -65,8 +78,8 @@ class ListHocVienHoanThanhs extends ListRecords
                 }),
 
             Actions\Action::make('import_excel')
-                ->label('Import học viên hoàn thành')
-                ->icon('heroicon-o-arrow-up-tray')
+                ->label('Import')
+                ->extraAttributes(['style' => 'background-color:#CCFFD8;color:#00529C;'])
                 ->form([
                     Forms\Components\FileUpload::make('file')
                         ->label('Chọn file Excel (.xlsx)')
@@ -121,7 +134,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
             Actions\Action::make('send_email')
                 ->label('Gửi Email')
-                ->icon('heroicon-o-envelope')
                 ->extraAttributes(['style' => 'background-color:#FFFCD5;color:#00529C;'])
                 ->form([
                     Forms\Components\Select::make('email_template_id')
@@ -231,9 +243,135 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
+    public function getSummaryRowsProperty(): Collection
+    {
+        $filters = $this->filterState;
+
+        $courseQuery = KhoaHoc::query()
+            ->with(['lichHocs' => function ($query) use ($filters) {
+                $query->where('nam', $filters['year'])
+                    ->when($filters['week'], fn ($q) => $q->where('tuan', $filters['week']))
+                    ->orderBy('ngay_hoc')
+                    ->with('giangVien');
+            }])
+            ->whereHas('lichHocs', function (Builder $query) use ($filters) {
+                $query->where('nam', $filters['year']);
+
+                if ($filters['week']) {
+                    $query->where('tuan', $filters['week']);
+                }
+            });
+
+        if ($filters['course_id']) {
+            $courseQuery->where('id', $filters['course_id']);
+        }
+
+        $courses = $courseQuery->orderBy('ma_khoa_hoc')->get();
+        $courseIds = $courses->pluck('id');
+
+        if ($courseIds->isEmpty()) {
+            return collect();
+        }
+
+        $registrations = DangKy::whereIn('khoa_hoc_id', $courseIds)
+            ->selectRaw('khoa_hoc_id, COUNT(*) as total')
+            ->groupBy('khoa_hoc_id')
+            ->pluck('total', 'khoa_hoc_id');
+
+        $completed = HocVienHoanThanh::whereIn('khoa_hoc_id', $courseIds)
+            ->selectRaw('khoa_hoc_id, COUNT(*) as total, SUM(COALESCE(chi_phi_dao_tao, 0)) as total_cost')
+            ->groupBy('khoa_hoc_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                $row->khoa_hoc_id => [
+                    'total' => (int) $row->total,
+                    'total_cost' => (float) $row->total_cost,
+                ],
+            ]);
+
+        $failed = HocVienKhongHoanThanh::whereIn('khoa_hoc_id', $courseIds)
+            ->selectRaw('khoa_hoc_id, COUNT(*) as total')
+            ->groupBy('khoa_hoc_id')
+            ->pluck('total', 'khoa_hoc_id');
+
+        return $courses->values()->map(function (KhoaHoc $course, int $index) use ($registrations, $completed, $failed) {
+            $lichHocs = $course->lichHocs;
+            $totalHours = $lichHocs->sum(fn ($lich) => (float) ($lich->so_gio_giang ?? 0));
+            $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
+            $dates = $lichHocs->pluck('ngay_hoc')->filter()->unique()->sort()->map(fn ($date) => Carbon::parse($date)->format('d/m/Y'))->implode("\n");
+
+            return [
+                'index' => $index + 1,
+                'id' => $course->id,
+                'ma_khoa' => $course->ma_khoa_hoc ?? '-',
+                'ten_khoa' => $course->ten_khoa_hoc ?? '-',
+                'tong_gio' => $totalHours > 0 ? number_format($totalHours, 1, '.', '') : '-',
+                'giang_vien' => $giangVien ?: '-',
+                'thoi_gian' => $dates ?: '-',
+                'so_luong_hv' => (int) ($registrations[$course->id] ?? 0),
+                'hoan_thanh' => (int) data_get($completed, $course->id . '.total', 0),
+                'khong_hoan_thanh' => (int) ($failed[$course->id] ?? 0),
+                'tong_thu' => (float) data_get($completed, $course->id . '.total_cost', 0),
+            ];
+        });
+    }
+
+    public function selectCourseFromSummary(int $courseId): void
+    {
+        $current = $this->filterState['course_id'] ?? null;
+        $this->setCourseFilter($current === $courseId ? null : $courseId);
+    }
+
+    public function getFilterStateProperty(): array
+    {
+        return $this->resolveFilterState();
+    }
+
+    protected function resolveFilterState(): array
+    {
+        $filters = data_get($this->tableFilters, 'bo_loc', []);
+
+        if (is_array($filters) && array_key_exists('data', $filters) && is_array($filters['data'])) {
+            $filters = $filters['data'];
+        }
+
+        $year = (int) ($filters['year'] ?? now()->year);
+        $week = isset($filters['week']) && $filters['week'] !== '' ? (int) $filters['week'] : null;
+        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+
+        return [
+            'year' => $year ?: now()->year,
+            'week' => $week,
+            'course_id' => $courseId,
+        ];
+    }
+
+    protected function setCourseFilter(?int $courseId): void
+    {
+        if (isset($this->tableFilters['bo_loc']['data']) && is_array($this->tableFilters['bo_loc']['data'])) {
+            $this->tableFilters['bo_loc']['data']['course_id'] = $courseId ? (string) $courseId : null;
+        } else {
+            $this->tableFilters['bo_loc']['course_id'] = $courseId ? (string) $courseId : null;
+        }
+
+        if (method_exists($this, 'resetTablePage')) {
+            $this->resetTablePage();
+        }
+    }
+
     protected function getExportCollection(): Collection
     {
-        $query = clone $this->getTableQuery();
+        $filters = $this->filterState;
+
+        $query = HocVienHoanThanh::query()->with([
+            'hocVien.donVi',
+            'hocVien.donViPhapNhan',
+            'khoaHoc.chuongTrinh',
+            'khoaHoc.lichHocs.giangVien',
+            'ketQua.dangKy.diemDanhs.lichHoc',
+        ]);
+
+        HocVienHoanThanhResource::applyFilterConstraints($query, $filters);
 
         return $query->get();
     }
