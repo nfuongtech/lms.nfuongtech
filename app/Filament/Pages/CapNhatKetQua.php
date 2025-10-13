@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\Schema;
 
 class CapNhatKetQua extends Page implements Tables\Contracts\HasTable, Forms\Contracts\HasForms
 {
+    protected static bool $shouldRegisterNavigation = false;
+
     use Tables\Concerns\InteractsWithTable;
     use Forms\Concerns\InteractsWithForms;
 
@@ -43,6 +45,11 @@ class CapNhatKetQua extends Page implements Tables\Contracts\HasTable, Forms\Con
     public static function getSlug(): string
     {
         return 'cap-nhat-ket-qua';
+    }
+
+    public static function canAccess(): bool
+    {
+        return false;
     }
 
     public function table(Table $table): Table
