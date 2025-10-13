@@ -83,7 +83,11 @@ class HocVienHoanThanhResource extends Resource
                             ])
                             ->required(),
                         Forms\Components\DatePicker::make('ngay_hoan_thanh')->label('Ngày hoàn thành')->closeOnDateSelection(),
-                        Forms\Components\TextInput::make('chi_phi_dao_tao')->label('Chi phí đào tạo')->numeric()->prefix('VND')->nullable(),
+                        Forms\Components\TextInput::make('chi_phi_dao_tao')
+                            ->label('Chi phí đào tạo')
+                            ->numeric()
+                            ->prefix('VND')
+                            ->nullable(),
                         Forms\Components\Toggle::make('chung_chi_da_cap')->label('Đã cấp chứng chỉ'),
                         Forms\Components\TextInput::make('chung_chi_link')->label('Link chứng chỉ')->url()->maxLength(255),
                         Forms\Components\FileUpload::make('chung_chi_tap_tin')

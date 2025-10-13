@@ -12,6 +12,7 @@ use App\Models\HocVienKhongHoanThanh;
 use App\Models\KetQuaKhoaHoc;
 use App\Models\KhoaHoc;
 use App\Models\LichHoc;
+use App\Exports\SimpleArrayExport;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Database\QueryException;
@@ -23,14 +24,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DiemDanhHocVien extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationGroup = 'Đào tạo';
-    protected static ?string $navigationLabel = 'Ghi danh & Đánh giá học viên';
-    protected static ?string $title = 'Ghi danh & Đánh giá học viên';
+    protected static ?string $navigationLabel = 'Đánh giá học viên';
+    protected static ?string $title = 'Đánh giá học viên';
     protected static string $view = 'filament.pages.diem-danh-hoc-vien';
 
     public $namHienTai;
@@ -65,10 +68,24 @@ class DiemDanhHocVien extends Page
 
     public $showConfirmModal = false;
 
+    public $columnVisibility = [
+        'tt' => true,
+        'ma_so' => true,
+        'ho_ten' => true,
+        'dtb' => true,
+        'ket_qua' => true,
+        'danh_gia' => true,
+        'hanh_dong' => true,
+    ];
+
+    public $sessionColumnVisibility = [];
+
     public function mount(): void
     {
         $this->namHienTai = now()->year;
         $this->selectedNam = $this->namHienTai;
+
+        $this->resetColumnVisibility();
 
         $this->availableNams = LichHoc::query()
             ->select('nam')
@@ -131,7 +148,11 @@ class DiemDanhHocVien extends Page
             if ($status === 'co_mat') {
                 Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.ly_do_vang", '');
                 if (isset($this->khoaHocLichHocs[$lichHocId])) {
-                    Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", $this->khoaHocLichHocs[$lichHocId]['so_gio']);
+                    Arr::set(
+                        $this->diemDanhData,
+                        "$dangKyId.$lichHocId.so_gio_hoc",
+                        $this->khoaHocLichHocs[$lichHocId]['so_gio']
+                    );
                 }
             } else {
                 Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", 0);
@@ -141,8 +162,23 @@ class DiemDanhHocVien extends Page
 
         if ($field === 'so_gio_hoc') {
             $hours = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc");
-            if (($hours === '' || $hours === null) && isset($this->khoaHocLichHocs[$lichHocId])) {
-                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", $this->khoaHocLichHocs[$lichHocId]['so_gio']);
+            if ($hours === '' || $hours === null) {
+                if (isset($this->khoaHocLichHocs[$lichHocId])) {
+                    Arr::set(
+                        $this->diemDanhData,
+                        "$dangKyId.$lichHocId.so_gio_hoc",
+                        $this->khoaHocLichHocs[$lichHocId]['so_gio']
+                    );
+                }
+            } else {
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.so_gio_hoc", round((float) $hours, 1));
+            }
+        }
+
+        if ($field === 'diem') {
+            $score = Arr::get($this->diemDanhData, "$dangKyId.$lichHocId.diem");
+            if ($score !== '' && $score !== null) {
+                Arr::set($this->diemDanhData, "$dangKyId.$lichHocId.diem", round((float) $score, 1));
             }
         }
 
@@ -254,122 +290,14 @@ class DiemDanhHocVien extends Page
             return;
         }
 
-        DB::beginTransaction();
-
         try {
-            $khoaHoc = KhoaHoc::with('lichHocs')->find($this->selectedKhoaHoc);
-            if (!$khoaHoc) {
-                throw new \RuntimeException('Không tìm thấy khóa học.');
-            }
-
-            $lichHocIds = array_keys($this->khoaHocLichHocs);
-            foreach ($this->hocVienRows as $row) {
-                $dangKyId = $row['dang_ky_id'];
-                if (!$dangKyId) {
-                    continue;
-                }
-
-                foreach ($lichHocIds as $lichHocId) {
-                    $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
-                    $status = $cell['trang_thai'] ?? 'co_mat';
-                    $lyDo = $status === 'co_mat' ? null : ($cell['ly_do_vang'] ?? null);
-                    $soGio = $cell['so_gio_hoc'] ?? ($this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null);
-                    $diem = $cell['diem'] ?? null;
-
-                    if ($status !== 'co_mat') {
-                        $soGio = 0;
-                    }
-
-                    DiemDanh::updateOrCreate(
-                        [
-                            'dang_ky_id' => $dangKyId,
-                            'lich_hoc_id' => $lichHocId,
-                        ],
-                        [
-                            'trang_thai' => $status,
-                            'ly_do_vang' => $lyDo,
-                            'so_gio_hoc' => $soGio === '' ? null : $soGio,
-                            'diem_buoi_hoc' => $diem === '' ? null : $diem,
-                            'danh_gia_ky_luat' => null,
-                        ]
-                    );
-                }
-
-                $tongKet = $this->tongKetData[$dangKyId] ?? [];
-                $ketQua = $this->normalizeKetQua($tongKet['ket_qua'] ?? null);
-                $goiY = $this->normalizeKetQua($tongKet['ket_qua_goi_y'] ?? null);
-                $hocVienId = $row['hoc_vien']->id;
-
-                $hasDanhGia = filter_var($tongKet['has_danh_gia'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-                if ($hasDanhGia === null) {
-                    $hasDanhGia = in_array($tongKet['has_danh_gia'] ?? false, ['1', 1, 'on', true], true);
-                }
-
-                $danhGia = $hasDanhGia ? trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) : '';
-                if ($danhGia === '') {
-                    $danhGia = null;
-                }
-
-                $payload = [
-                    'ket_qua_goi_y' => $goiY,
-                    'ket_qua' => $ketQua,
-                    'danh_gia_ren_luyen' => $danhGia,
-                    'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
-                ];
-
-                if (array_key_exists('tong_so_gio_thuc_te', $tongKet)) {
-                    $payload['tong_so_gio_thuc_te'] = $tongKet['tong_so_gio_thuc_te'];
-                }
-
-                if ($this->khoaHocRequirements['tong_gio_ke_hoach'] !== null) {
-                    $payload['tong_so_gio_ke_hoach'] = $this->khoaHocRequirements['tong_gio_ke_hoach'];
-                }
-
-                if (array_key_exists('diem_trung_binh', $tongKet)) {
-                    $payload['diem_trung_binh'] = $tongKet['diem_trung_binh'];
-                }
-
-                $payload = $this->filterKetQuaColumns($payload, $ketQua);
-
-                $ketQuaModel = KetQuaKhoaHoc::updateOrCreate(
-                    ['dang_ky_id' => $dangKyId],
-                    $payload
-                );
-
-                $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
-                $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
-
-                if ($ketQua === 'hoan_thanh') {
-                    $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::updateOrCreate(
-                        [
-                            'hoc_vien_id' => $hocVienId,
-                            'khoa_hoc_id' => $khoaHoc->id,
-                            'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
-                        ],
-                        []
-                    ));
-                } elseif ($ketQua === 'khong_hoan_thanh') {
-                    $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::updateOrCreate(
-                        [
-                            'hoc_vien_id' => $hocVienId,
-                            'khoa_hoc_id' => $khoaHoc->id,
-                            'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
-                        ],
-                        []
-                    ));
-                }
-            }
-
-            $khoaHoc->update([
-                'da_chuyen_ket_qua' => true,
-                'thoi_gian_chuyen_ket_qua' => now(),
-                'nguoi_chuyen_ket_qua' => Auth::user()?->name,
+            $this->persistDanhGia(true);
+        } catch (\Throwable $exception) {
+            Log::error('Không thể chuyển kết quả: ' . $exception->getMessage(), [
+                'trace' => $exception->getTraceAsString(),
             ]);
 
-            DB::commit();
-        } catch (\Throwable $exception) {
-            DB::rollBack();
-            Log::error('Không thể chuyển kết quả: ' . $exception->getMessage(), ['trace' => $exception->getTraceAsString()]);
+            $this->showConfirmModal = false;
 
             Notification::make()
                 ->title('Không thể chuyển kết quả')
@@ -377,16 +305,10 @@ class DiemDanhHocVien extends Page
                 ->danger()
                 ->send();
 
-            $this->showConfirmModal = false;
             return;
         }
 
         $this->showConfirmModal = false;
-        $this->daChuyenKetQua = true;
-        $this->coTheChinhSua = false;
-        foreach (array_keys($this->isEditing) as $dangKyId) {
-            $this->isEditing[$dangKyId] = false;
-        }
 
         Notification::make()
             ->title('Đã chuyển kết quả')
@@ -629,16 +551,17 @@ class DiemDanhHocVien extends Page
             $lichHocArray[$lichHoc->id] = [
                 'nhan' => $nhan,
                 'mo_ta' => $ngayMoTa . $moTaGio . $moTaDiaDiem,
-                'so_gio' => (float) ($lichHoc->so_gio_giang ?? 0),
+                'so_gio' => round((float) ($lichHoc->so_gio_giang ?? 0), 1),
                 'giang_vien_id' => $lichHoc->giang_vien_id,
             ];
         }
 
         $this->khoaHocLichHocs = $lichHocArray;
+        $this->sessionColumnVisibility = array_fill_keys(array_keys($this->khoaHocLichHocs), true);
         $this->khoaHocRequirements = [
             'yeu_cau_gio' => $khoaHoc->yeu_cau_phan_tram_gio,
             'yeu_cau_diem' => $khoaHoc->yeu_cau_diem_tb,
-            'tong_gio_ke_hoach' => round($tongGioKeHoach, 2),
+            'tong_gio_ke_hoach' => round($tongGioKeHoach, 1),
         ];
         $this->daChuyenKetQua = (bool) $khoaHoc->da_chuyen_ket_qua;
 
@@ -673,11 +596,21 @@ class DiemDanhHocVien extends Page
 
             foreach ($lichHocIds as $lichHocId) {
                 $record = $dangKy->diemDanhs->firstWhere('lich_hoc_id', $lichHocId);
+                $hoursValue = $record->so_gio_hoc ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'];
+                if ($hoursValue !== null && $hoursValue !== '') {
+                    $hoursValue = round((float) $hoursValue, 1);
+                }
+
+                $scoreValue = $record?->diem_buoi_hoc;
+                if ($scoreValue !== null && $scoreValue !== '') {
+                    $scoreValue = round((float) $scoreValue, 1);
+                }
+
                 $this->diemDanhData[$dangKy->id][$lichHocId] = [
                     'trang_thai' => $record->trang_thai ?? 'co_mat',
                     'ly_do_vang' => $record->ly_do_vang ?? '',
-                    'so_gio_hoc' => $record->so_gio_hoc ?? $this->khoaHocLichHocs[$lichHocId]['so_gio'],
-                    'diem' => $record?->diem_buoi_hoc,
+                    'so_gio_hoc' => $hoursValue,
+                    'diem' => $scoreValue,
                 ];
             }
 
@@ -735,9 +668,9 @@ class DiemDanhHocVien extends Page
             }
         }
 
-        $diemTrungBinh = $countDiem > 0 ? round($tongDiem / $countDiem, 2) : null;
+        $diemTrungBinh = $countDiem > 0 ? round($tongDiem / $countDiem, 1) : null;
         $this->tongKetData[$dangKyId]['diem_trung_binh'] = $diemTrungBinh;
-        $this->tongKetData[$dangKyId]['tong_so_gio_thuc_te'] = round($tongThucTe, 2);
+        $this->tongKetData[$dangKyId]['tong_so_gio_thuc_te'] = round($tongThucTe, 1);
 
         $phanTram = $tongKeHoach > 0 ? ($tongThucTe / $tongKeHoach) * 100 : 0;
         $datGio = $this->khoaHocRequirements['yeu_cau_gio'] === null
@@ -776,6 +709,21 @@ class DiemDanhHocVien extends Page
         $this->isEditing = [];
         $this->daChuyenKetQua = false;
         $this->coTheChinhSua = false;
+        $this->sessionColumnVisibility = [];
+        $this->resetColumnVisibility();
+    }
+
+    private function resetColumnVisibility(): void
+    {
+        $this->columnVisibility = [
+            'tt' => true,
+            'ma_so' => true,
+            'ho_ten' => true,
+            'dtb' => true,
+            'ket_qua' => true,
+            'danh_gia' => true,
+            'hanh_dong' => true,
+        ];
     }
 
     private function getAvailableWeeksProperty(): Collection
@@ -937,30 +885,8 @@ class DiemDanhHocVien extends Page
 
     private function validateBeforeSubmit(): void
     {
-        $errors = [];
-        foreach ($this->hocVienRows as $row) {
-            $dangKyId = $row['dang_ky_id'];
-            foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
-                $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? null;
-                if (!$cell) {
-                    continue;
-                }
-                $status = $cell['trang_thai'] ?? 'co_mat';
-                if (in_array($status, ['vang_phep', 'vang_khong_phep'], true)) {
-                    if (!isset($cell['ly_do_vang']) || trim((string) $cell['ly_do_vang']) === '') {
-                        $errors[] = sprintf(
-                            'Vui lòng nhập lý do vắng cho %s (buổi %s).',
-                            $row['hoc_vien']->ho_ten,
-                            $lichHoc['nhan']
-                        );
-                    }
-                }
-            }
-        }
-
-        if (!empty($errors)) {
-            throw ValidationException::withMessages(['ly_do_vang' => $errors]);
-        }
+        // Hiện tại không bắt buộc nhập lý do vắng.
+        return;
     }
 
     private function normalizeKetQua(?string $value): string
@@ -1075,6 +1001,370 @@ class DiemDanhHocVien extends Page
     {
         $value = $this->normalizeKetQua($value);
         return $value === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành';
+    }
+
+    public function getVisibleColumnCountProperty(): int
+    {
+        $count = 0;
+
+        foreach (['tt', 'ma_so', 'ho_ten'] as $key) {
+            if ($this->columnVisibility[$key] ?? true) {
+                $count++;
+            }
+        }
+
+        foreach ($this->khoaHocLichHocs as $lichHocId => $_) {
+            if ($this->sessionColumnVisibility[$lichHocId] ?? true) {
+                $count++;
+            }
+        }
+
+        foreach (['dtb', 'ket_qua', 'danh_gia', 'hanh_dong'] as $key) {
+            if ($this->columnVisibility[$key] ?? true) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    public function formatDecimal($value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        $normalized = number_format((float) $value, 1, '.', '');
+
+        if (str_ends_with($normalized, '.0')) {
+            $normalized = rtrim(rtrim($normalized, '0'), '.');
+        }
+
+        return $normalized;
+    }
+
+    public function luuTamThoi(): void
+    {
+        if ($this->daChuyenKetQua) {
+            Notification::make()->title('Khóa học đã chuyển kết quả, không thể lưu tạm')->warning()->send();
+            return;
+        }
+
+        if (!$this->coTheChinhSua) {
+            Notification::make()->title('Bạn không có quyền lưu tạm kết quả')->danger()->send();
+            return;
+        }
+
+        if (empty($this->hocVienRows)) {
+            Notification::make()->title('Không có học viên để lưu tạm')->warning()->send();
+            return;
+        }
+
+        try {
+            $this->persistDanhGia(false);
+        } catch (\Throwable $exception) {
+            Log::error('Lưu tạm đánh giá thất bại: ' . $exception->getMessage(), [
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            Notification::make()
+                ->title('Không thể lưu tạm')
+                ->body($exception->getMessage())
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        Notification::make()->title('Đã lưu tạm thông tin đánh giá')->success()->send();
+    }
+
+    private function persistDanhGia(bool $finalize): void
+    {
+        DB::beginTransaction();
+
+        try {
+            $khoaHoc = KhoaHoc::with('lichHocs')->find($this->selectedKhoaHoc);
+            if (!$khoaHoc) {
+                throw new \RuntimeException('Không tìm thấy khóa học.');
+            }
+
+            $lichHocIds = array_keys($this->khoaHocLichHocs);
+
+            foreach ($this->hocVienRows as $row) {
+                $dangKyId = $row['dang_ky_id'];
+                if (!$dangKyId) {
+                    continue;
+                }
+
+                foreach ($lichHocIds as $lichHocId) {
+                    $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
+                    $status = $cell['trang_thai'] ?? 'co_mat';
+                    $lyDo = $status === 'co_mat' ? null : ($cell['ly_do_vang'] ?? null);
+                    $soGio = $cell['so_gio_hoc'] ?? ($this->khoaHocLichHocs[$lichHocId]['so_gio'] ?? null);
+                    $diem = $cell['diem'] ?? null;
+
+                    if ($status !== 'co_mat') {
+                        $soGio = 0;
+                        $diem = null;
+                    }
+
+                    $payload = [
+                        'trang_thai' => $status,
+                        'ly_do_vang' => $lyDo !== null && trim((string) $lyDo) !== '' ? $lyDo : null,
+                        'so_gio_hoc' => $soGio === '' || $soGio === null ? null : round((float) $soGio, 1),
+                        'diem_buoi_hoc' => $diem === '' || $diem === null ? null : round((float) $diem, 1),
+                        'danh_gia_ky_luat' => null,
+                    ];
+
+                    DiemDanh::updateOrCreate(
+                        [
+                            'dang_ky_id' => $dangKyId,
+                            'lich_hoc_id' => $lichHocId,
+                        ],
+                        $payload
+                    );
+                }
+
+                $tongKet = $this->tongKetData[$dangKyId] ?? [];
+                $ketQua = $this->normalizeKetQua($tongKet['ket_qua'] ?? null);
+                $goiY = $this->normalizeKetQua($tongKet['ket_qua_goi_y'] ?? null);
+                $hocVienId = $row['hoc_vien']->id;
+
+                $hasDanhGia = filter_var($tongKet['has_danh_gia'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($hasDanhGia === null) {
+                    $hasDanhGia = in_array($tongKet['has_danh_gia'] ?? false, ['1', 1, 'on', true], true);
+                }
+
+                $danhGia = $hasDanhGia ? trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) : '';
+                if ($danhGia === '') {
+                    $danhGia = null;
+                }
+
+                $payload = [
+                    'ket_qua_goi_y' => $goiY,
+                    'ket_qua' => $ketQua,
+                    'danh_gia_ren_luyen' => $danhGia,
+                    'can_hoc_lai' => $ketQua === 'khong_hoan_thanh',
+                ];
+
+                if (array_key_exists('tong_so_gio_thuc_te', $tongKet)) {
+                    $payload['tong_so_gio_thuc_te'] = $tongKet['tong_so_gio_thuc_te'] !== null
+                        ? round((float) $tongKet['tong_so_gio_thuc_te'], 1)
+                        : null;
+                }
+
+                if ($this->khoaHocRequirements['tong_gio_ke_hoach'] !== null) {
+                    $payload['tong_so_gio_ke_hoach'] = $this->khoaHocRequirements['tong_gio_ke_hoach'];
+                }
+
+                if (array_key_exists('diem_trung_binh', $tongKet)) {
+                    $payload['diem_trung_binh'] = $tongKet['diem_trung_binh'] !== null
+                        ? round((float) $tongKet['diem_trung_binh'], 1)
+                        : null;
+                }
+
+                $payload = $this->filterKetQuaColumns($payload, $ketQua);
+
+                $ketQuaModel = KetQuaKhoaHoc::updateOrCreate(
+                    ['dang_ky_id' => $dangKyId],
+                    $payload
+                );
+
+                if ($finalize) {
+                    $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
+                    $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::where('ket_qua_khoa_hoc_id', $ketQuaModel->id)->delete());
+
+                    if ($ketQua === 'hoan_thanh') {
+                        $this->runIgnoringMissingTable(fn () => HocVienHoanThanh::updateOrCreate(
+                            [
+                                'hoc_vien_id' => $hocVienId,
+                                'khoa_hoc_id' => $khoaHoc->id,
+                                'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
+                            ],
+                            []
+                        ));
+                    } elseif ($ketQua === 'khong_hoan_thanh') {
+                        $this->runIgnoringMissingTable(fn () => HocVienKhongHoanThanh::updateOrCreate(
+                            [
+                                'hoc_vien_id' => $hocVienId,
+                                'khoa_hoc_id' => $khoaHoc->id,
+                                'ket_qua_khoa_hoc_id' => $ketQuaModel->id,
+                            ],
+                            []
+                        ));
+                    }
+                }
+            }
+
+            if ($finalize) {
+                $khoaHoc->update([
+                    'da_chuyen_ket_qua' => true,
+                    'thoi_gian_chuyen_ket_qua' => now(),
+                    'nguoi_chuyen_ket_qua' => Auth::user()?->name,
+                ]);
+            }
+
+            DB::commit();
+        } catch (\Throwable $exception) {
+            DB::rollBack();
+            throw $exception;
+        }
+
+        if ($finalize) {
+            $this->daChuyenKetQua = true;
+            $this->coTheChinhSua = false;
+            foreach (array_keys($this->isEditing) as $dangKyId) {
+                $this->isEditing[$dangKyId] = false;
+            }
+        }
+
+        $this->refreshCourseContext();
+    }
+
+    public function xuatExcelKhoaHoc(): mixed
+    {
+        if (!$this->selectedKhoaHoc) {
+            Notification::make()->title('Vui lòng chọn khóa học trước khi xuất Excel')->warning()->send();
+            return null;
+        }
+
+        $khoaHoc = KhoaHoc::with(['chuongTrinh', 'lichHocs' => fn ($q) => $q->orderBy('ngay_hoc')])->find($this->selectedKhoaHoc);
+        if (!$khoaHoc) {
+            Notification::make()->title('Không tìm thấy khóa học đã chọn')->danger()->send();
+            return null;
+        }
+
+        $lichHocs = $khoaHoc->lichHocs;
+        $soBuoi = $lichHocs->count();
+        $tuan = $lichHocs->pluck('tuan')->filter()->unique()->implode(', ');
+        $ngayDaoTao = $this->formatKhoangNgay($lichHocs->min('ngay_hoc'), $lichHocs->max('ngay_hoc'));
+        $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
+        $soLuongHv = DangKy::where('khoa_hoc_id', $khoaHoc->id)->count();
+
+        $rows = [[
+            $khoaHoc->ma_khoa_hoc,
+            $khoaHoc->ten_khoa_hoc,
+            $khoaHoc->trang_thai_hien_thi,
+            $soBuoi,
+            $tuan,
+            $ngayDaoTao,
+            $giangVien,
+            $soLuongHv,
+        ]];
+
+        $export = new SimpleArrayExport($rows, [
+            'Mã khóa',
+            'Tên khóa học',
+            'Trạng thái',
+            'Số buổi',
+            'Tuần',
+            'Ngày đào tạo',
+            'Giảng viên',
+            'Số lượng học viên đăng ký',
+        ]);
+
+        $fileName = Str::slug(($khoaHoc->ma_khoa_hoc ?? 'khoa-hoc') . '-thong-tin') . '.xlsx';
+
+        return Excel::download($export, $fileName);
+    }
+
+    public function xuatExcelDanhSachHocVien(): mixed
+    {
+        if (!$this->selectedKhoaHoc) {
+            Notification::make()->title('Vui lòng chọn khóa học trước khi xuất Excel')->warning()->send();
+            return null;
+        }
+
+        if (empty($this->hocVienRows)) {
+            Notification::make()->title('Không có học viên để xuất Excel')->warning()->send();
+            return null;
+        }
+
+        $headings = ['TT'];
+        if ($this->columnVisibility['ma_so'] ?? true) {
+            $headings[] = 'Mã số';
+        }
+        if ($this->columnVisibility['ho_ten'] ?? true) {
+            $headings[] = 'Họ & Tên';
+        }
+
+        foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
+            if ($this->sessionColumnVisibility[$lichHocId] ?? true) {
+                $headings[] = 'Buổi ' . $lichHoc['nhan'];
+            }
+        }
+
+        if ($this->columnVisibility['dtb'] ?? true) {
+            $headings[] = 'ĐTB';
+        }
+        if ($this->columnVisibility['ket_qua'] ?? true) {
+            $headings[] = 'Kết quả';
+        }
+        if ($this->columnVisibility['danh_gia'] ?? true) {
+            $headings[] = 'Đánh giá rèn luyện';
+        }
+        if ($this->columnVisibility['hanh_dong'] ?? true) {
+            $headings[] = 'Ghi chú hành động';
+        }
+
+        $rows = [];
+        foreach ($this->hocVienRows as $index => $row) {
+            $dangKyId = $row['dang_ky_id'];
+            $hocVien = $row['hoc_vien'];
+            $dataRow = [$index + 1];
+
+            if ($this->columnVisibility['ma_so'] ?? true) {
+                $dataRow[] = $hocVien->msnv;
+            }
+            if ($this->columnVisibility['ho_ten'] ?? true) {
+                $dataRow[] = $hocVien->ho_ten;
+            }
+
+            foreach ($this->khoaHocLichHocs as $lichHocId => $lichHoc) {
+                if (!($this->sessionColumnVisibility[$lichHocId] ?? true)) {
+                    continue;
+                }
+
+                $cell = $this->diemDanhData[$dangKyId][$lichHocId] ?? [];
+                $status = $cell['trang_thai'] ?? 'co_mat';
+                $label = match ($status) {
+                    'vang_phep' => 'Vắng P',
+                    'vang_khong_phep' => 'Vắng KP',
+                    default => 'Có mặt',
+                };
+                $reason = trim((string) ($cell['ly_do_vang'] ?? ''));
+
+                if ($status === 'co_mat') {
+                    $gio = $this->formatDecimal($cell['so_gio_hoc'] ?? null);
+                    $diem = $this->formatDecimal($cell['diem'] ?? null);
+                    $dataRow[] = "$label - Giờ: $gio - Điểm: $diem";
+                } else {
+                    $dataRow[] = $reason !== '' ? "$label - $reason" : $label;
+                }
+            }
+
+            $tongKet = $this->tongKetData[$dangKyId] ?? [];
+            if ($this->columnVisibility['dtb'] ?? true) {
+                $dataRow[] = $this->formatDecimal($tongKet['diem_trung_binh'] ?? null);
+            }
+            if ($this->columnVisibility['ket_qua'] ?? true) {
+                $dataRow[] = $this->mapKetQuaLabel($tongKet['ket_qua'] ?? null);
+            }
+            if ($this->columnVisibility['danh_gia'] ?? true) {
+                $dataRow[] = trim((string) ($tongKet['danh_gia_ren_luyen'] ?? '')) ?: 'Không đánh giá';
+            }
+            if ($this->columnVisibility['hanh_dong'] ?? true) {
+                $dataRow[] = $this->isEditing[$dangKyId] ? 'Đang chỉnh sửa' : 'Đã đóng';
+            }
+
+            $rows[] = $dataRow;
+        }
+
+        $export = new SimpleArrayExport($rows, $headings);
+        $fileName = 'danh-sach-hoc-vien-' . ($this->selectedKhoaHoc ?? 'khoa-hoc') . '.xlsx';
+
+        return Excel::download($export, $fileName);
     }
 
     private function filterKetQuaColumns(array $payload, string $ketQua): array
