@@ -31,7 +31,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected static ?string $title = 'Học viên hoàn thành';
 
-    protected static ?string $heading = 'Học viên hoàn thành';
+    protected ?string $heading = 'Học viên hoàn thành';
 
     protected static string $view = 'filament.resources.hoc-vien-hoan-thanh-resource.pages.list-hoc-vien-hoan-thanhs';
 
