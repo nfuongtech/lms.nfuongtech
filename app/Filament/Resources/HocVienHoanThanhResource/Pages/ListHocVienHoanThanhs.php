@@ -4,26 +4,16 @@ namespace App\Filament\Resources\HocVienHoanThanhResource\Pages;
 
 use App\Exports\SimpleArrayExport;
 use App\Filament\Resources\HocVienHoanThanhResource;
-use App\Mail\PlanNotificationMail;
 use App\Models\DangKy;
-use App\Models\EmailAccount;
-use App\Models\EmailLog;
-use App\Models\EmailTemplate;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
-use Filament\Actions;
-use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ListHocVienHoanThanhs extends ListRecords
@@ -54,221 +44,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [
-            Actions\Action::make('download_template')
-                ->label('Tải mẫu import')
-                ->extraAttributes([
-                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-black hover:bg-gray-50',
-                    'style' => 'color:#000000;',
-                ])
-                ->action(function () {
-                    $headings = [
-                        'MS',
-                        'Họ & Tên',
-                        'Tên khóa học',
-                        'Mã khóa',
-                        'ĐTB',
-                        'Giờ thực học',
-                        'Ngày hoàn thành',
-                        'Chi phí đào tạo',
-                        'Số chứng nhận',
-                        'Link chứng nhận',
-                        'Thời hạn chứng nhận (năm)',
-                        'Ngày hết hạn chứng nhận',
-                        'Ghi chú',
-                    ];
-
-                    return Excel::download(new SimpleArrayExport([], $headings), 'mau_hoc_vien_hoan_thanh.xlsx');
-                }),
-
-            Actions\Action::make('import_excel')
-                ->label('Import')
-                ->extraAttributes([
-                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-black hover:bg-gray-50',
-                    'style' => 'color:#000000;',
-                ])
-                ->form([
-                    Forms\Components\FileUpload::make('file')
-                        ->label('Chọn file Excel (.xlsx)')
-                        ->acceptedFileTypes(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
-                        ->required()
-                        ->storeFiles(false),
-                ])
-                ->action(function (array $data) {
-                    $file = $data['file'] ?? null;
-
-                    if (! $file instanceof TemporaryUploadedFile) {
-                        Notification::make()->title('Không tìm thấy file tải lên')->danger()->send();
-                        return;
-                    }
-
-                    $rows = HocVienHoanThanhResource::parseImportRows($file->getRealPath());
-
-                    if (empty($rows)) {
-                        Notification::make()->title('File không có dữ liệu hợp lệ')->warning()->send();
-                        return;
-                    }
-
-                    $imported = 0;
-                    $errors = [];
-
-                    foreach ($rows as $index => $row) {
-                        $result = HocVienHoanThanhResource::handleImportRow($row);
-
-                        if (! empty($result['errors'])) {
-                            foreach ($result['errors'] as $message) {
-                                $errors[] = 'Dòng ' . ($index + 2) . ': ' . $message;
-                            }
-                            continue;
-                        }
-
-                        $imported++;
-                    }
-
-                    if (! empty($errors)) {
-                        Notification::make()
-                            ->title('Có lỗi khi import')
-                            ->body(implode("\n", array_slice($errors, 0, 10)))
-                            ->danger()
-                            ->send();
-                    }
-
-                    Notification::make()
-                        ->title('Đã import dữ liệu')
-                        ->body('Số dòng cập nhật: ' . $imported . (empty($errors) ? '' : '. Có ' . count($errors) . ' lỗi.'))
-                        ->success()
-                        ->send();
-                }),
-
-            Actions\Action::make('export_excel')
-                ->label('Xuất Excel')
-                ->extraAttributes([
-                    'style' => 'background-color:#CCFFD8;color:#00529C;',
-                    'class' => 'fi-btn fi-btn-sm border border-gray-200',
-                ])
-                ->action(function () {
-                    $records = $this->getExportCollection();
-
-                    if ($records->isEmpty()) {
-                        Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
-                        return null;
-                    }
-
-                    return HocVienHoanThanhResource::export($records, 'hoc_vien_hoan_thanh.xlsx');
-                }),
-
-            Actions\Action::make('send_email')
-                ->label('Gửi Email')
-                ->extraAttributes([
-                    'style' => 'background-color:#FFFCD5;color:#00529C;',
-                    'class' => 'fi-btn fi-btn-sm border border-gray-200',
-                ])
-                ->form([
-                    Forms\Components\Select::make('email_template_id')
-                        ->label('Mẫu email')
-                        ->options(fn () => EmailTemplate::orderBy('ten_mau')->pluck('ten_mau', 'id')->toArray())
-                        ->required()
-                        ->searchable(),
-                    Forms\Components\Select::make('email_account_id')
-                        ->label('Tài khoản gửi')
-                        ->options(fn () => EmailAccount::where('active', 1)->orderBy('name')->pluck('name', 'id')->toArray())
-                        ->required()
-                        ->searchable(),
-                ])
-                ->action(function (array $data) {
-                    $records = $this->getExportCollection();
-
-                    if ($records->isEmpty()) {
-                        Notification::make()->title('Không có học viên để gửi email')->warning()->send();
-                        return;
-                    }
-
-                    $template = EmailTemplate::find($data['email_template_id'] ?? null);
-                    $account = EmailAccount::find($data['email_account_id'] ?? null);
-
-                    if (! $template || ! $account) {
-                        Notification::make()->title('Thiếu thông tin gửi email')->danger()->send();
-                        return;
-                    }
-
-                    Config::set('mail.mailers.dynamic', [
-                        'transport' => 'smtp',
-                        'host' => $account->host,
-                        'port' => $account->port,
-                        'encryption' => $account->encryption_tls ? 'tls' : null,
-                        'username' => $account->username,
-                        'password' => $account->password,
-                    ]);
-
-                    Config::set('mail.from', [
-                        'address' => $account->email,
-                        'name' => $account->name,
-                    ]);
-
-                    $success = 0;
-                    $failed = 0;
-
-                    foreach ($records as $record) {
-                        $hocVien = $record->hocVien;
-                        $ketQua = $record->ketQua;
-                        $course = $record->khoaHoc;
-
-                        $recipient = $hocVien?->email;
-                        if (! $recipient) {
-                            $failed++;
-                            EmailLog::create([
-                                'email_account_id' => $account->id,
-                                'recipient_email' => 'N/A',
-                                'subject' => 'Không gửi (thiếu email học viên)',
-                                'content' => '',
-                                'status' => 'failed',
-                                'error_message' => 'Học viên không có email.',
-                            ]);
-                            continue;
-                        }
-
-                        $placeholders = [
-                            '{ten_hoc_vien}' => $hocVien?->ho_ten ?? 'N/A',
-                            '{msnv}' => $hocVien?->msnv ?? 'N/A',
-                            '{ten_khoa_hoc}' => $course?->ten_khoa_hoc ?? 'N/A',
-                            '{ma_khoa_hoc}' => $course?->ma_khoa_hoc ?? 'N/A',
-                            '{diem_tb}' => $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
-                            '{gio_thuc_hoc}' => $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
-                            '{ket_qua}' => $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
-                        ];
-
-                        $subject = strtr($template->tieu_de, $placeholders);
-                        $body = strtr($template->noi_dung, $placeholders);
-
-                        try {
-                            Mail::mailer('dynamic')->to($recipient)->send(new PlanNotificationMail($subject, $body));
-                            $success++;
-                            $status = 'success';
-                            $error = null;
-                        } catch (\Throwable $exception) {
-                            $failed++;
-                            $status = 'failed';
-                            $error = $exception->getMessage();
-                            Log::error('Lỗi gửi email học viên hoàn thành: ' . $exception->getMessage());
-                        }
-
-                        EmailLog::create([
-                            'email_account_id' => $account->id,
-                            'recipient_email' => $recipient,
-                            'subject' => $subject,
-                            'content' => $body,
-                            'status' => $status,
-                            'error_message' => $error,
-                        ]);
-                    }
-
-                    Notification::make()
-                        ->title('Gửi email hoàn tất')
-                        ->body("Thành công: {$success}. Thất bại: {$failed}.")
-                        ->success()
-                        ->send();
-                }),
-        ];
+        return [];
     }
 
     public function mount(): void
@@ -282,6 +58,59 @@ class ListHocVienHoanThanhs extends ListRecords
     public function hydrate(): void
     {
         $this->syncFilterInputsFromState($this->resolveFilterState());
+    }
+
+    public function exportFilteredExcel()
+    {
+        $records = $this->getExportCollection();
+
+        if ($records->isEmpty()) {
+            Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
+
+            return null;
+        }
+
+        $columnDefinitions = $this->getExportColumnDefinitions();
+        $visibleColumnKeys = $this->getVisibleColumnKeys();
+
+        $studentHeaders = [];
+        foreach ($visibleColumnKeys as $columnKey) {
+            if (! isset($columnDefinitions[$columnKey])) {
+                continue;
+            }
+
+            $studentHeaders[] = $columnDefinitions[$columnKey]['label'];
+        }
+
+        if (empty($studentHeaders)) {
+            Notification::make()->title('Chưa có cột hiển thị để xuất')->warning()->send();
+
+            return null;
+        }
+
+        $studentRows = [];
+        foreach ($records as $index => $record) {
+            $studentRows[] = $this->mapRecordToExportRow($record, $index + 1, $visibleColumnKeys, $columnDefinitions);
+        }
+
+        $rows = [];
+        $rows[] = ['Tổng quan khóa học'];
+
+        foreach ($this->buildSummaryExportRows() as $summaryRow) {
+            $rows[] = $summaryRow;
+        }
+
+        if (! empty($studentRows)) {
+            $rows[] = [];
+            $rows[] = ['Danh sách học viên hoàn thành'];
+            $rows[] = $studentHeaders;
+
+            foreach ($studentRows as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return Excel::download(new SimpleArrayExport($rows), 'hoc_vien_hoan_thanh.xlsx');
     }
 
     public function getSummaryRowsProperty(): Collection
@@ -648,6 +477,253 @@ class ListHocVienHoanThanhs extends ListRecords
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    protected function buildSummaryExportRows(): array
+    {
+        $header = [
+            'TT',
+            'Mã khóa',
+            'Tên khóa học',
+            'Trạng thái',
+            'Tổng số giờ',
+            'Giảng viên',
+            'Thời gian đào tạo',
+            'Số lượng HV',
+            'Hoàn thành',
+            'Không hoàn thành',
+            'Tổng thu',
+            'Ghi chú',
+        ];
+
+        $rows = [$header];
+
+        foreach ($this->summaryRows as $row) {
+            $rows[] = [
+                $row['index'],
+                $row['ma_khoa'],
+                $row['ten_khoa'],
+                $row['trang_thai'],
+                $row['tong_gio'],
+                $row['giang_vien'],
+                str_replace("\n", ', ', $row['thoi_gian'] ?? ''),
+                number_format($row['so_luong_hv'] ?? 0, 0, ',', '.'),
+                number_format($row['hoan_thanh'] ?? 0, 0, ',', '.'),
+                number_format($row['khong_hoan_thanh'] ?? 0, 0, ',', '.'),
+                ($row['tong_thu'] ?? 0) > 0
+                    ? number_format((float) $row['tong_thu'], 0, ',', '.')
+                    : '-',
+                $row['ghi_chu'] ?? '-',
+            ];
+        }
+
+        if ($this->summaryRows->isNotEmpty()) {
+            $totals = $this->summaryTotals;
+
+            $rows[] = [
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'Tổng cộng',
+                number_format($totals['so_luong_hv'] ?? 0, 0, ',', '.'),
+                number_format($totals['hoan_thanh'] ?? 0, 0, ',', '.'),
+                number_format($totals['khong_hoan_thanh'] ?? 0, 0, ',', '.'),
+                ($totals['tong_thu'] ?? 0) > 0
+                    ? number_format((float) $totals['tong_thu'], 0, ',', '.')
+                    : '-',
+                '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    protected function getVisibleColumnKeys(): array
+    {
+        try {
+            $columns = collect($this->getTableColumns());
+        } catch (\Throwable $exception) {
+            return array_keys($this->getExportColumnDefinitions());
+        }
+
+        $toggleState = [];
+
+        if (method_exists($this, 'getTableColumnToggleForm')) {
+            try {
+                $form = $this->getTableColumnToggleForm();
+                if ($form && method_exists($form, 'getState')) {
+                    $toggleState = (array) $form->getState();
+                }
+            } catch (\Throwable $exception) {
+                $toggleState = [];
+            }
+        }
+
+        $keys = $columns
+            ->filter(function ($column) use ($toggleState) {
+                if (! method_exists($column, 'getName')) {
+                    return false;
+                }
+
+                $name = $column->getName();
+
+                if (method_exists($column, 'isHidden') && $column->isHidden()) {
+                    return false;
+                }
+
+                if (method_exists($column, 'isToggleable') && $column->isToggleable()) {
+                    if (array_key_exists($name, $toggleState)) {
+                        return (bool) $toggleState[$name];
+                    }
+
+                    if (method_exists($column, 'isToggledHiddenByDefault') && $column->isToggledHiddenByDefault()) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->map(fn ($column) => $column->getName())
+            ->filter()
+            ->values()
+            ->all();
+
+        if (empty($keys)) {
+            $keys = array_keys($this->getExportColumnDefinitions());
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @return array<string, array{label: string, value: callable}>
+     */
+    protected function getExportColumnDefinitions(): array
+    {
+        return [
+            'index' => [
+                'label' => 'TT',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => (string) $index,
+            ],
+            'hocVien.msnv' => [
+                'label' => 'MS',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->msnv),
+            ],
+            'hocVien.ho_ten' => [
+                'label' => 'Họ & Tên',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->ho_ten),
+            ],
+            'hocVien.nam_sinh' => [
+                'label' => 'Năm sinh',
+                'value' => function (HocVienHoanThanh $record, int $index): string {
+                    $date = $record->hocVien?->nam_sinh;
+
+                    return $date ? Carbon::parse($date)->format('d/m/Y') : '-';
+                },
+            ],
+            'hocVien.gioi_tinh' => [
+                'label' => 'Giới tính',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->gioi_tinh),
+            ],
+            'hocVien.chuc_vu' => [
+                'label' => 'Chức vụ',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->chuc_vu),
+            ],
+            'hocVien.donVi.phong_bo_phan' => [
+                'label' => 'Phòng/Bộ phận',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->donVi?->phong_bo_phan),
+            ],
+            'hocVien.donVi.cong_ty_ban_nvqt' => [
+                'label' => 'Công ty/Ban NVQT',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->donVi?->cong_ty_ban_nvqt),
+            ],
+            'hocVien.donVi.thaco_tdtv' => [
+                'label' => 'THACO/TĐTV',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->donVi?->thaco_tdtv),
+            ],
+            'hocVien.donViPhapNhan.ten_don_vi' => [
+                'label' => 'Đơn vị pháp nhân/trả lương',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->hocVien?->donViPhapNhan?->ten_don_vi),
+            ],
+            'khoaHoc.ten_khoa_hoc' => [
+                'label' => 'Tên khóa học',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->khoaHoc?->ten_khoa_hoc),
+            ],
+            'khoaHoc.ma_khoa_hoc' => [
+                'label' => 'Mã khóa',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->khoaHoc?->ma_khoa_hoc),
+            ],
+            'loai_hinh_dao_tao' => [
+                'label' => 'Loại hình đào tạo',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::trainingTypeText($record),
+            ],
+            'ketQua.diem_trung_binh' => [
+                'label' => 'ĐTB',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::decimalOrDash($record->ketQua?->diem_trung_binh),
+            ],
+            'ketQua.tong_so_gio_thuc_te' => [
+                'label' => 'Giờ thực học',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::decimalOrDash($record->ketQua?->tong_so_gio_thuc_te),
+            ],
+            'ngay_hoan_thanh' => [
+                'label' => 'Ngày hoàn thành',
+                'value' => function (HocVienHoanThanh $record, int $index): string {
+                    return $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : '-';
+                },
+            ],
+            'chi_phi_dao_tao' => [
+                'label' => 'Chi phí đào tạo',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::currencyOrDash($record->chi_phi_dao_tao),
+            ],
+            'so_chung_nhan' => [
+                'label' => 'Số chứng nhận',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->so_chung_nhan),
+            ],
+            'certificate_links' => [
+                'label' => 'File/Link Chứng nhận',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::certificatePlainText($record),
+            ],
+            'ngay_het_han_chung_nhan' => [
+                'label' => 'Ngày hết hạn',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::expiryText($record),
+            ],
+            'ketQua.danh_gia_ren_luyen' => [
+                'label' => 'Đánh giá rèn luyện',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->ketQua?->danh_gia_ren_luyen),
+            ],
+            'ketQua.ket_qua' => [
+                'label' => 'Kết quả',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::resultText($record->ketQua?->ket_qua),
+            ],
+            'ghi_chu' => [
+                'label' => 'Ghi chú',
+                'value' => fn (HocVienHoanThanh $record, int $index): string => HocVienHoanThanhResource::textOrDash($record->ghi_chu),
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, array{label: string, value: callable}>  $definitions
+     * @return array<int, string>
+     */
+    protected function mapRecordToExportRow(HocVienHoanThanh $record, int $index, array $visibleColumnKeys, array $definitions): array
+    {
+        $row = [];
+
+        foreach ($visibleColumnKeys as $columnKey) {
+            if (! isset($definitions[$columnKey])) {
+                continue;
+            }
+
+            $resolver = $definitions[$columnKey]['value'];
+
+            $row[] = (string) $resolver($record, $index);
+        }
+
+        return $row;
     }
 
     protected function getExportCollection(): Collection
