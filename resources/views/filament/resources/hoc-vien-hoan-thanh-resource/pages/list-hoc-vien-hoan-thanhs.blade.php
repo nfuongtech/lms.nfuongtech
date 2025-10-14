@@ -19,8 +19,6 @@
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
 
-        @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
-
         @if($pageHeading !== '')
             <h1 class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</h1>
         @endif
@@ -30,19 +28,9 @@
 
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                    <div class="space-y-1">
-                        <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                        <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
-                    </div>
-
-                    @if(! empty($headerActions))
-                        <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                            @foreach($headerActions as $action)
-                                {{ $action }}
-                            @endforeach
-                        </div>
-                    @endif
+                <div class="space-y-1">
+                    <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
+                    <p class="text-xs text-gray-500">Sử dụng bộ lọc ở phía trên để thu hẹp dữ liệu. Nhấn vào hàng trong bảng để xem danh sách học viên hoàn thành của khóa học tương ứng.</p>
                 </div>
             </div>
 
