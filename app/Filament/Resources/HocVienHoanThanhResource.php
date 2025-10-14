@@ -63,7 +63,7 @@ class HocVienHoanThanhResource extends Resource
                     ->rowIndex()
                     ->alignment(Alignment::Center)
                     ->toggleable(false)
-                    ->extraAttributes([
+                    ->extraCellAttributes([
                         'class' => 'sticky left-0 z-30 bg-white dark:bg-gray-900',
                         'style' => 'left:0;min-width:3.5rem;',
                     ]),
@@ -73,7 +73,7 @@ class HocVienHoanThanhResource extends Resource
                     ->sortable()
                     ->searchable()
                     ->toggleable(false)
-                    ->extraAttributes([
+                    ->extraCellAttributes([
                         'class' => 'sticky z-30 bg-white dark:bg-gray-900',
                         'style' => 'left:4.5rem;min-width:7rem;',
                     ]),
@@ -82,7 +82,7 @@ class HocVienHoanThanhResource extends Resource
                     ->sortable()
                     ->searchable()
                     ->toggleable(false)
-                    ->extraAttributes([
+                    ->extraCellAttributes([
                         'class' => 'sticky z-20 bg-white dark:bg-gray-900',
                         'style' => 'left:11.5rem;min-width:16rem;',
                     ]),
