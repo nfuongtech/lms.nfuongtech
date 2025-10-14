@@ -23,6 +23,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -453,6 +454,19 @@ class ListHocVienHoanThanhs extends ListRecords
         HocVienHoanThanhResource::applyFilterConstraints($query, $filters);
 
         return $query->get();
+    }
+
+    public function statusBadgeClass(?string $status): string
+    {
+        $slug = Str::slug($status ?? '');
+
+        return match ($slug) {
+            'tam-hoan' => 'bg-amber-100 text-amber-800',
+            'ket-thuc' => 'bg-rose-100 text-rose-700',
+            'dang-dao-tao' => 'bg-blue-100 text-blue-700',
+            'ban-hanh' => 'bg-emerald-100 text-emerald-700',
+            default => 'bg-gray-100 text-gray-700',
+        };
     }
 
     public function getYearOptionsProperty(): array
