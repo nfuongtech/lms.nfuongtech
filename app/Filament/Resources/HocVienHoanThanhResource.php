@@ -66,10 +66,6 @@ class HocVienHoanThanhResource extends Resource
                     ->extraAttributes([
                         'class' => 'sticky left-0 z-30 bg-white dark:bg-gray-900',
                         'style' => 'left:0;min-width:3.5rem;',
-                    ])
-                    ->headerExtraAttributes([
-                        'class' => 'sticky left-0 z-40 bg-white dark:bg-gray-900',
-                        'style' => 'left:0;min-width:3.5rem;',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.msnv')
                     ->label('MS')
@@ -80,10 +76,6 @@ class HocVienHoanThanhResource extends Resource
                     ->extraAttributes([
                         'class' => 'sticky z-30 bg-white dark:bg-gray-900',
                         'style' => 'left:4.5rem;min-width:7rem;',
-                    ])
-                    ->headerExtraAttributes([
-                        'class' => 'sticky z-40 bg-white dark:bg-gray-900',
-                        'style' => 'left:4.5rem;min-width:7rem;',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.ho_ten')
                     ->label('Họ & Tên')
@@ -92,10 +84,6 @@ class HocVienHoanThanhResource extends Resource
                     ->toggleable(false)
                     ->extraAttributes([
                         'class' => 'sticky z-20 bg-white dark:bg-gray-900',
-                        'style' => 'left:11.5rem;min-width:16rem;',
-                    ])
-                    ->headerExtraAttributes([
-                        'class' => 'sticky z-30 bg-white dark:bg-gray-900',
                         'style' => 'left:11.5rem;min-width:16rem;',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.nam_sinh')
