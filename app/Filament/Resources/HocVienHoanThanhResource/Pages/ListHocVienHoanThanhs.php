@@ -58,7 +58,8 @@ class ListHocVienHoanThanhs extends ListRecords
             Actions\Action::make('download_template')
                 ->label('Tải mẫu import')
                 ->extraAttributes([
-                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
+                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-black hover:bg-gray-50',
+                    'style' => 'color:#000000;',
                 ])
                 ->action(function () {
                     $headings = [
@@ -83,7 +84,8 @@ class ListHocVienHoanThanhs extends ListRecords
             Actions\Action::make('import_excel')
                 ->label('Import')
                 ->extraAttributes([
-                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
+                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-black hover:bg-gray-50',
+                    'style' => 'color:#000000;',
                 ])
                 ->form([
                     Forms\Components\FileUpload::make('file')
@@ -608,10 +610,9 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
 
         $this->tableFilters['bo_loc'] = [
-            'isActive' => (bool) collect($data)
-                ->reject(fn ($value, $key) => in_array($key, ['year', 'month'], true))
+            'isActive' => collect($data)
                 ->reject(fn ($value) => $value === null || $value === '' || (is_array($value) && empty($value)))
-                ->count(),
+                ->isNotEmpty(),
             'data' => $data,
         ];
 

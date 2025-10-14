@@ -14,43 +14,115 @@
                     text-transform: uppercase;
                     color: rgb(55 65 81);
                 }
+
+                .hvht-action-bar {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: flex-end;
+                    gap: 0.5rem;
+                }
+
+                .hvht-sticky-tt,
+                .hvht-sticky-ms,
+                .hvht-sticky-name {
+                    position: sticky;
+                    min-width: var(--hvht-width);
+                    width: var(--hvht-width);
+                    box-sizing: border-box;
+                }
+
+                .hvht-sticky-tt {
+                    --hvht-width: 3.5rem;
+                    left: 0;
+                }
+
+                .hvht-sticky-ms {
+                    --hvht-width: 7rem;
+                    left: 3.5rem;
+                }
+
+                .hvht-sticky-name {
+                    --hvht-width: 16rem;
+                    left: 10.5rem;
+                }
+
+                .hvht-table-sticky-tt,
+                .hvht-table-sticky-ms,
+                .hvht-table-sticky-name {
+                    position: sticky;
+                    min-width: var(--hvht-width);
+                    width: var(--hvht-width);
+                    background-color: inherit;
+                    box-sizing: border-box;
+                }
+
+                .hvht-table-sticky-tt {
+                    --hvht-width: 3.5rem;
+                    left: 0;
+                }
+
+                .hvht-table-sticky-ms {
+                    --hvht-width: 7rem;
+                    left: 3.5rem;
+                }
+
+                .hvht-table-sticky-name {
+                    --hvht-width: 16rem;
+                    left: 10.5rem;
+                }
+
+                thead .hvht-sticky-tt,
+                thead .hvht-sticky-ms,
+                thead .hvht-sticky-name {
+                    top: 0;
+                    z-index: 40;
+                    background-color: rgb(243 244 246);
+                }
+
+                tbody .hvht-sticky-tt,
+                tbody .hvht-sticky-ms,
+                tbody .hvht-sticky-name {
+                    z-index: 30;
+                    background-color: inherit;
+                }
+
+                .fi-ta-table thead .hvht-table-sticky-tt,
+                .fi-ta-table thead .hvht-table-sticky-ms,
+                .fi-ta-table thead .hvht-table-sticky-name {
+                    top: 0;
+                    z-index: 45;
+                    background-color: rgb(243 244 246);
+                }
+
+                .fi-ta-table tbody .hvht-table-sticky-tt,
+                .fi-ta-table tbody .hvht-table-sticky-ms,
+                .fi-ta-table tbody .hvht-table-sticky-name {
+                    z-index: 35;
+                }
             </style>
         @endonce
 
-        @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
+        @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
 
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            @if($pageHeading !== '')
-                <div class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</div>
-            @endif
-            @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
-            @if(! empty($headerActions))
-                <div class="flex flex-wrap gap-2">
-                    @foreach($headerActions as $action)
-                        {{ $action }}
-                    @endforeach
-                </div>
-            @endif
-        </div>
+        @if(! empty($headerActions))
+            <div class="hvht-action-bar">
+                @foreach($headerActions as $action)
+                    {{ $action }}
+                @endforeach
+            </div>
+        @endif
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
         @php($totals = $this->summaryTotals)
 
         <div class="bg-white shadow rounded-lg">
-            <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                    <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
-                </div>
-            </div>
-
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-100 text-gray-700">
                         <tr>
-                            <th class="px-3 py-2 text-center font-semibold">TT</th>
-                            <th class="px-3 py-2 font-semibold">Mã khóa</th>
-                            <th class="px-3 py-2 font-semibold">Tên khóa học</th>
+                            <th class="px-3 py-2 text-center font-semibold hvht-sticky-tt">TT</th>
+                            <th class="px-3 py-2 font-semibold hvht-sticky-ms">Mã khóa</th>
+                            <th class="px-3 py-2 font-semibold hvht-sticky-name">Tên khóa học</th>
                             <th class="px-3 py-2 font-semibold">Trạng thái</th>
                             <th class="px-3 py-2 text-center font-semibold">Tổng số giờ</th>
                             <th class="px-3 py-2 font-semibold">Giảng viên</th>
@@ -69,9 +141,9 @@
                                 wire:click="selectCourseFromSummary({{ $row['id'] }})"
                                 class="cursor-pointer transition hover:bg-primary-50 {{ $selectedCourse === $row['id'] ? 'bg-primary-50' : 'bg-white' }}"
                             >
-                                <td class="px-3 py-2 text-center font-medium text-gray-900">{{ $row['index'] }}</td>
-                                <td class="px-3 py-2 font-medium text-gray-900">{{ $row['ma_khoa'] }}</td>
-                                <td class="px-3 py-2 text-gray-700">{{ $row['ten_khoa'] }}</td>
+                                <td class="px-3 py-2 text-center font-medium text-gray-900 hvht-sticky-tt">{{ $row['index'] }}</td>
+                                <td class="px-3 py-2 font-medium text-gray-900 hvht-sticky-ms">{{ $row['ma_khoa'] }}</td>
+                                <td class="px-3 py-2 text-gray-700 hvht-sticky-name">{{ $row['ten_khoa'] }}</td>
                                 <td class="px-3 py-2">
                                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ $this->statusBadgeClass($row['trang_thai'] ?? null) }} whitespace-nowrap">
                                         {{ $row['trang_thai'] ?? '-' }}
