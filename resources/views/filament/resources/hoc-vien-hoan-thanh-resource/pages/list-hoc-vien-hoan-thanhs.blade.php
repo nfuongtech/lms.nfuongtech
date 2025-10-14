@@ -2,7 +2,11 @@
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-gray-900">{{ $this->getHeading() }}</h1>
-            <x-filament::header-actions :actions="$this->getCachedHeaderActions()" class="shrink-0" />
+            <div class="flex items-center gap-2 shrink-0">
+                @foreach ($this->getCachedHeaderActions() as $action)
+                    {{ $action }}
+                @endforeach
+            </div>
         </div>
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
