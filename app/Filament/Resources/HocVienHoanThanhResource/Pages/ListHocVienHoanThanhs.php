@@ -12,7 +12,6 @@ use App\Models\EmailTemplate;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
-use App\Models\QuyTacMaKhoa;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -33,7 +32,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected static ?string $title = 'Học viên hoàn thành';
 
-    protected ?string $heading = 'Học viên hoàn thành';
+    protected ?string $heading = null;
 
     protected static string $view = 'filament.resources.hoc-vien-hoan-thanh-resource.pages.list-hoc-vien-hoan-thanhs';
 
@@ -53,25 +52,14 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public array $filterTrainingTypes = [];
 
-    public function mount(): void
-    {
-        parent::mount();
-
-        $state = $this->defaultFilterState();
-        $this->applyFilterState($state, false);
-    }
-
-    public function hydrate(): void
-    {
-        $this->syncFilterInputsFromState($this->resolveFilterState());
-    }
-
     protected function getHeaderActions(): array
     {
         return [
             Actions\Action::make('download_template')
                 ->label('Tải mẫu import')
-                ->extraAttributes(['style' => 'background-color:#CCFFD8;color:#00529C;'])
+                ->extraAttributes([
+                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
+                ])
                 ->action(function () {
                     $headings = [
                         'MS',
@@ -94,7 +82,9 @@ class ListHocVienHoanThanhs extends ListRecords
 
             Actions\Action::make('import_excel')
                 ->label('Import')
-                ->extraAttributes(['style' => 'background-color:#FFFFFF;color:#000000;border:1px solid #d1d5db;'])
+                ->extraAttributes([
+                    'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-gray-900 hover:bg-gray-50',
+                ])
                 ->form([
                     Forms\Components\FileUpload::make('file')
                         ->label('Chọn file Excel (.xlsx)')
@@ -122,6 +112,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     foreach ($rows as $index => $row) {
                         $result = HocVienHoanThanhResource::handleImportRow($row);
+
                         if (! empty($result['errors'])) {
                             foreach ($result['errors'] as $message) {
                                 $errors[] = 'Dòng ' . ($index + 2) . ': ' . $message;
@@ -149,7 +140,10 @@ class ListHocVienHoanThanhs extends ListRecords
 
             Actions\Action::make('export_excel')
                 ->label('Xuất Excel')
-                ->extraAttributes(['style' => 'background-color:#CCFFD8;color:#00529C;'])
+                ->extraAttributes([
+                    'style' => 'background-color:#CCFFD8;color:#00529C;',
+                    'class' => 'fi-btn fi-btn-sm border border-gray-200',
+                ])
                 ->action(function () {
                     $records = $this->getExportCollection();
 
@@ -163,7 +157,10 @@ class ListHocVienHoanThanhs extends ListRecords
 
             Actions\Action::make('send_email')
                 ->label('Gửi Email')
-                ->extraAttributes(['style' => 'background-color:#FFFCD5;color:#00529C;'])
+                ->extraAttributes([
+                    'style' => 'background-color:#FFFCD5;color:#00529C;',
+                    'class' => 'fi-btn fi-btn-sm border border-gray-200',
+                ])
                 ->form([
                     Forms\Components\Select::make('email_template_id')
                         ->label('Mẫu email')
@@ -272,6 +269,19 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
+    public function mount(): void
+    {
+        parent::mount();
+
+        $state = $this->defaultFilterState();
+        $this->applyFilterState($state, false);
+    }
+
+    public function hydrate(): void
+    {
+        $this->syncFilterInputsFromState($this->resolveFilterState());
+    }
+
     public function getSummaryRowsProperty(): Collection
     {
         $filters = $this->resolveFilterState();
@@ -296,8 +306,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
         if (! empty($filters['training_types'])) {
             $courseQuery->where(function (Builder $builder) use ($filters) {
-                $builder->whereIn('loai_hinh_dao_tao', $filters['training_types'])
-                    ->orWhereHas('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $filters['training_types']));
+                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $filters['training_types']);
             });
         }
 
@@ -351,7 +360,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 'hoan_thanh' => (int) data_get($completed, $course->id . '.total', 0),
                 'khong_hoan_thanh' => (int) ($failed[$course->id] ?? 0),
                 'tong_thu' => (float) data_get($completed, $course->id . '.total_cost', 0),
-                'ghi_chu' => $course->da_chuyen_ket_qua ? 'Đã chuyển' : '-',
+                'ghi_chu' => $course->da_chuyen_ket_qua ? 'Đã khóa' : '-',
             ];
         })->filter(fn (array $row) => $row['so_luong_hv'] > 0)->values()->map(function (array $row, int $index) {
             $row['index'] = $index + 1;
@@ -437,23 +446,6 @@ class ListHocVienHoanThanhs extends ListRecords
         $state = $this->resolveFilterState();
         $state['course_id'] = $courseId;
         $this->applyFilterState($state);
-    }
-
-    protected function getExportCollection(): Collection
-    {
-        $filters = $this->resolveFilterState();
-
-        $query = HocVienHoanThanh::query()->with([
-            'hocVien.donVi',
-            'hocVien.donViPhapNhan',
-            'khoaHoc.chuongTrinh',
-            'khoaHoc.lichHocs.giangVien',
-            'ketQua.dangKy.diemDanhs.lichHoc',
-        ]);
-
-        HocVienHoanThanhResource::applyFilterConstraints($query, $filters);
-
-        return $query->get();
     }
 
     public function statusBadgeClass(?string $status): string
@@ -654,5 +646,12 @@ class ListHocVienHoanThanhs extends ListRecords
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    protected function getExportCollection(): Collection
+    {
+        $query = clone $this->getTableQuery();
+
+        return $query->get();
     }
 }

@@ -1,74 +1,47 @@
 <x-filament::page>
     <div class="space-y-6">
-        <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-gray-900">{{ $this->getHeading() }}</h1>
-            <div class="flex items-center gap-2 shrink-0">
-                @foreach ($this->getCachedHeaderActions() as $action)
-                    {{ $action }}
-                @endforeach
-            </div>
+        @once
+            <style>
+                .fi-ta-filter-indicators > span:first-child {
+                    display: none;
+                }
+
+                .fi-ta-filter-indicators::before {
+                    content: 'Đang áp dụng lọc';
+                    margin-right: 0.5rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    color: rgb(55 65 81);
+                }
+            </style>
+        @endonce
+
+        @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
+
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            @if($pageHeading !== '')
+                <div class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</div>
+            @endif
+            @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
+            @if(! empty($headerActions))
+                <div class="flex flex-wrap gap-2">
+                    @foreach($headerActions as $action)
+                        {{ $action }}
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
         @php($totals = $this->summaryTotals)
 
         <div class="bg-white shadow rounded-lg">
-            <div class="px-4 py-4 border-b space-y-4">
-                <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Năm</label>
-                        <select wire:model="filterYear" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                            @foreach($this->yearOptions as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Tháng</label>
-                        <select wire:model="filterMonth" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                            <option value="">Tất cả</option>
-                            @foreach($this->monthOptions as $value => $label)
-                                <option value="{{ $value }}">Tháng {{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Tuần</label>
-                        <select wire:model="filterWeek" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                            <option value="">Tất cả</option>
-                            @foreach($this->weekOptions as $value => $label)
-                                <option value="{{ $value }}">Tuần {{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Từ ngày</label>
-                        <input type="date" wire:model="filterFromDate" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Đến ngày</label>
-                        <input type="date" wire:model="filterToDate" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500" />
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Loại hình đào tạo</label>
-                        <select multiple wire:model="filterTrainingTypes" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                            @foreach($this->trainingTypeOptions as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="md:col-span-2 lg:col-span-3 xl:col-span-2">
-                        <label class="block text-xs font-semibold uppercase text-gray-500">Khóa học</label>
-                        <select wire:model="filterCourseId" class="fi-input mt-1 w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                            <option value="">Tất cả</option>
-                            @foreach($this->courseOptions as $value => $label)
-                                <option value="{{ $value }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+            <div class="px-4 py-4 border-b">
+                <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
+                    <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
                 </div>
-                <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
             </div>
 
             <div class="overflow-x-auto">

@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
@@ -61,18 +62,30 @@ class HocVienHoanThanhResource extends Resource
                     ->label('TT')
                     ->rowIndex()
                     ->alignment(Alignment::Center)
-                    ->toggleable(false),
+                    ->toggleable(false)
+                    ->extraAttributes([
+                        'class' => 'sticky left-0 z-30 bg-white dark:bg-gray-900',
+                        'style' => 'left:0;min-width:3.5rem;',
+                    ]),
                 Tables\Columns\TextColumn::make('hocVien.msnv')
                     ->label('MS')
                     ->alignment(Alignment::Center)
                     ->sortable()
                     ->searchable()
-                    ->toggleable(false),
+                    ->toggleable(false)
+                    ->extraAttributes([
+                        'class' => 'sticky z-30 bg-white dark:bg-gray-900',
+                        'style' => 'left:4.5rem;min-width:7rem;',
+                    ]),
                 Tables\Columns\TextColumn::make('hocVien.ho_ten')
                     ->label('Họ & Tên')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(false),
+                    ->toggleable(false)
+                    ->extraAttributes([
+                        'class' => 'sticky z-20 bg-white dark:bg-gray-900',
+                        'style' => 'left:11.5rem;min-width:16rem;',
+                    ]),
                 Tables\Columns\TextColumn::make('hocVien.nam_sinh')
                     ->label('Năm sinh')
                     ->alignment(Alignment::Center)
@@ -107,12 +120,12 @@ class HocVienHoanThanhResource extends Resource
                     ->label('Đơn vị pháp nhân/trả lương')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('khoaHoc.ten_khoa_hoc')
                     ->label('Tên khóa học')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('khoaHoc.ma_khoa_hoc')
                     ->label('Mã khóa')
                     ->alignment(Alignment::Center)
@@ -123,23 +136,23 @@ class HocVienHoanThanhResource extends Resource
                     ->state(fn (HocVienHoanThanh $record) => self::resolveTrainingType($record))
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ketQua.diem_trung_binh')
                     ->label('ĐTB')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::decimalOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ketQua.tong_so_gio_thuc_te')
                     ->label('Giờ thực học')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::decimalOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ngay_hoan_thanh')
                     ->label('Ngày hoàn thành')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state)->format('d/m/Y') : '-')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('chi_phi_dao_tao')
                     ->label('Chi phí đào tạo')
                     ->alignment(Alignment::Center)
@@ -149,23 +162,36 @@ class HocVienHoanThanhResource extends Resource
                     ->label('Số chứng nhận')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('certificate_links')
                     ->label('File/Link Chứng nhận')
                     ->state(fn (HocVienHoanThanh $record) => self::certificateState($record))
                     ->html()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ngay_het_han_chung_nhan')
                     ->label('Ngày hết hạn')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn (HocVienHoanThanh $record, $state) => self::formatExpiry($record, $state))
-                    ->toggleable(),
+                    ->extraAttributes(function (HocVienHoanThanh $record) {
+                        if ($record->thoi_han_chung_nhan === 'khong_thoi_han') {
+                            return [];
+                        }
+
+                        if (! $record->ngay_het_han_chung_nhan) {
+                            return [];
+                        }
+
+                        return [
+                            'class' => 'bg-rose-50 text-rose-700 font-semibold',
+                        ];
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ketQua.danh_gia_ren_luyen')
                     ->label('Đánh giá rèn luyện')
                     ->alignment(Alignment::Center)
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 BadgeColumn::make('ketQua.ket_qua')
                     ->label('Kết quả')
                     ->alignment(Alignment::Center)
@@ -173,13 +199,15 @@ class HocVienHoanThanhResource extends Resource
                         'success' => fn (?string $state) => $state === 'hoan_thanh',
                         'danger' => fn (?string $state) => $state === 'khong_hoan_thanh',
                     ])
-                    ->formatStateUsing(fn (?string $state) => $state === 'khong_hoan_thanh' ? 'Không hoàn thành' : 'Hoàn thành'),
+                    ->formatStateUsing(fn (?string $state) => $state === 'khong_hoan_thanh' ? 'Không hoàn thành' : 'Hoàn thành')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ghi_chu')
                     ->label('Ghi chú')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultPaginationPageOption(50)
             ->filters([
                 Tables\Filters\Filter::make('bo_loc')
                     ->form([
@@ -308,8 +336,7 @@ class HocVienHoanThanhResource extends Resource
 
         if (! empty($trainingTypes)) {
             $query->whereHas('khoaHoc', function (Builder $courseQuery) use ($trainingTypes) {
-                $courseQuery->whereIn('loai_hinh_dao_tao', $trainingTypes)
-                    ->orWhereHas('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
+                self::applyTrainingTypeFilter($courseQuery, $trainingTypes);
             });
         }
 
@@ -391,8 +418,7 @@ class HocVienHoanThanhResource extends Resource
 
         if (! empty($trainingTypes)) {
             $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
-                $builder->whereIn('loai_hinh_dao_tao', $trainingTypes)
-                    ->orWhereHas('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
+                self::applyTrainingTypeFilter($builder, $trainingTypes);
             });
         }
 
@@ -406,6 +432,42 @@ class HocVienHoanThanhResource extends Resource
                 return [$course->id => $label ?: ($course->ma_khoa_hoc ?? (string) $course->id)];
             })
             ->toArray();
+    }
+
+    protected static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
+    {
+        $trainingTypes = collect($trainingTypes)
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($trainingTypes)) {
+            return;
+        }
+
+        $hasCourseColumn = Schema::hasColumn('khoa_hocs', 'loai_hinh_dao_tao');
+        $hasProgramTable = Schema::hasTable('chuong_trinhs') && Schema::hasColumn('chuong_trinhs', 'loai_hinh_dao_tao');
+
+        $builder->where(function (Builder $query) use ($trainingTypes, $hasCourseColumn, $hasProgramTable) {
+            $applied = false;
+
+            if ($hasCourseColumn) {
+                $query->whereIn('loai_hinh_dao_tao', $trainingTypes);
+                $applied = true;
+            }
+
+            if ($hasProgramTable) {
+                $method = $applied ? 'orWhereHas' : 'whereHas';
+                $query->{$method}('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
+                $applied = true;
+            }
+
+            if (! $applied) {
+                $query->whereRaw('1 = 0');
+            }
+        });
     }
 
     public static function getTrainingTypeOptions(): array

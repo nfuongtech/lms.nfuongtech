@@ -844,7 +844,7 @@ class DiemDanhHocVien extends Page
                 'ngay_dao_tao' => $ngayDaoTao,
                 'giang_vien' => implode(', ', array_keys($giangVienNames)),
                 'so_luong_hv' => $soLuongHv,
-                'ghi_chu' => $khoaHoc->da_chuyen_ket_qua ? 'Đã chuyển' : '',
+                'ghi_chu' => $khoaHoc->da_chuyen_ket_qua ? 'Đã khóa' : '',
             ];
         }
 
