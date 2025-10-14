@@ -19,28 +19,30 @@
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
 
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            @if($pageHeading !== '')
-                <div class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</div>
-            @endif
-            @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
-            @if(! empty($headerActions))
-                <div class="flex flex-wrap gap-2">
-                    @foreach($headerActions as $action)
-                        {{ $action }}
-                    @endforeach
-                </div>
-            @endif
-        </div>
+        @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
+
+        @if($pageHeading !== '')
+            <h1 class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</h1>
+        @endif
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
         @php($totals = $this->summaryTotals)
 
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                    <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                    <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
+                <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                    <div class="space-y-1">
+                        <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
+                        <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
+                    </div>
+
+                    @if(! empty($headerActions))
+                        <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+                            @foreach($headerActions as $action)
+                                {{ $action }}
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
 
