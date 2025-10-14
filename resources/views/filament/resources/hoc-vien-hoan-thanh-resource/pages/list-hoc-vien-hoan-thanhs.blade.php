@@ -18,8 +18,14 @@
         @endonce
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
-
         @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
+        @php($filtersTrigger = null)
+
+        @if(method_exists($this, 'getCachedTableFiltersTriggerAction'))
+            @php($filtersTrigger = $this->getCachedTableFiltersTriggerAction())
+        @elseif(method_exists($this, 'getTableFiltersTriggerAction'))
+            @php($filtersTrigger = $this->getTableFiltersTriggerAction())
+        @endif
 
         @if($pageHeading !== '')
             <h1 class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</h1>
@@ -33,11 +39,15 @@
                 <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div class="space-y-1">
                         <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                        <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
+                        <p class="text-xs text-gray-500">Sử dụng bộ lọc để thu hẹp danh sách khóa học, nhấn vào từng hàng để xem chi tiết học viên đã hoàn thành.</p>
                     </div>
 
-                    @if(! empty($headerActions))
+                    @if($filtersTrigger || ! empty($headerActions))
                         <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+                            @if($filtersTrigger)
+                                {{ $filtersTrigger }}
+                            @endif
+
                             @foreach($headerActions as $action)
                                 {{ $action }}
                             @endforeach

@@ -38,20 +38,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public ?array $tableFilters = [];
 
-    public int $filterYear;
-
-    public ?int $filterMonth = null;
-
-    public ?int $filterWeek = null;
-
-    public ?string $filterFromDate = null;
-
-    public ?string $filterToDate = null;
-
-    public ?int $filterCourseId = null;
-
-    public array $filterTrainingTypes = [];
-
     protected function getHeaderActions(): array
     {
         return [
@@ -61,25 +47,7 @@ class ListHocVienHoanThanhs extends ListRecords
                     'class' => 'fi-btn fi-btn-sm border border-gray-300 bg-white text-black hover:bg-gray-50',
                     'style' => 'color:#000000;',
                 ])
-                ->action(function () {
-                    $headings = [
-                        'MS',
-                        'Họ & Tên',
-                        'Tên khóa học',
-                        'Mã khóa',
-                        'ĐTB',
-                        'Giờ thực học',
-                        'Ngày hoàn thành',
-                        'Chi phí đào tạo',
-                        'Số chứng nhận',
-                        'Link chứng nhận',
-                        'Thời hạn chứng nhận (năm)',
-                        'Ngày hết hạn chứng nhận',
-                        'Ghi chú',
-                    ];
-
-                    return Excel::download(new SimpleArrayExport([], $headings), 'mau_hoc_vien_hoan_thanh.xlsx');
-                }),
+                ->action(fn () => Excel::download(new SimpleArrayExport([], self::getImportTemplateHeadings()), 'mau_hoc_vien_hoan_thanh.xlsx')),
 
             Actions\Action::make('import_excel')
                 ->label('Import')
@@ -94,11 +62,12 @@ class ListHocVienHoanThanhs extends ListRecords
                         ->required()
                         ->storeFiles(false),
                 ])
-                ->action(function (array $data) {
+                ->action(function (array $data): void {
                     $file = $data['file'] ?? null;
 
                     if (! $file instanceof TemporaryUploadedFile) {
                         Notification::make()->title('Không tìm thấy file tải lên')->danger()->send();
+
                         return;
                     }
 
@@ -106,6 +75,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (empty($rows)) {
                         Notification::make()->title('File không có dữ liệu hợp lệ')->warning()->send();
+
                         return;
                     }
 
@@ -119,6 +89,7 @@ class ListHocVienHoanThanhs extends ListRecords
                             foreach ($result['errors'] as $message) {
                                 $errors[] = 'Dòng ' . ($index + 2) . ': ' . $message;
                             }
+
                             continue;
                         }
 
@@ -147,14 +118,9 @@ class ListHocVienHoanThanhs extends ListRecords
                     'class' => 'fi-btn fi-btn-sm border border-gray-200',
                 ])
                 ->action(function () {
-                    $records = $this->getExportCollection();
+                    $export = $this->exportCurrentView();
 
-                    if ($records->isEmpty()) {
-                        Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
-                        return null;
-                    }
-
-                    return HocVienHoanThanhResource::export($records, 'hoc_vien_hoan_thanh.xlsx');
+                    return $export;
                 }),
 
             Actions\Action::make('send_email')
@@ -175,11 +141,12 @@ class ListHocVienHoanThanhs extends ListRecords
                         ->required()
                         ->searchable(),
                 ])
-                ->action(function (array $data) {
+                ->action(function (array $data): void {
                     $records = $this->getExportCollection();
 
                     if ($records->isEmpty()) {
                         Notification::make()->title('Không có học viên để gửi email')->warning()->send();
+
                         return;
                     }
 
@@ -188,6 +155,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (! $template || ! $account) {
                         Notification::make()->title('Thiếu thông tin gửi email')->danger()->send();
+
                         return;
                     }
 
@@ -200,73 +168,52 @@ class ListHocVienHoanThanhs extends ListRecords
                         'password' => $account->password,
                     ]);
 
-                    Config::set('mail.from', [
-                        'address' => $account->email,
-                        'name' => $account->name,
-                    ]);
-
-                    $success = 0;
-                    $failed = 0;
+                    Config::set('mail.default', 'dynamic');
 
                     foreach ($records as $record) {
-                        $hocVien = $record->hocVien;
-                        $ketQua = $record->ketQua;
-                        $course = $record->khoaHoc;
+                        $email = $record->hocVien?->email_ca_nhan ?? $record->hocVien?->email_co_quan;
 
-                        $recipient = $hocVien?->email;
-                        if (! $recipient) {
-                            $failed++;
-                            EmailLog::create([
-                                'email_account_id' => $account->id,
-                                'recipient_email' => 'N/A',
-                                'subject' => 'Không gửi (thiếu email học viên)',
-                                'content' => '',
-                                'status' => 'failed',
-                                'error_message' => 'Học viên không có email.',
-                            ]);
+                        if (! $email) {
                             continue;
                         }
 
-                        $placeholders = [
-                            '{ten_hoc_vien}' => $hocVien?->ho_ten ?? 'N/A',
-                            '{msnv}' => $hocVien?->msnv ?? 'N/A',
-                            '{ten_khoa_hoc}' => $course?->ten_khoa_hoc ?? 'N/A',
-                            '{ma_khoa_hoc}' => $course?->ma_khoa_hoc ?? 'N/A',
-                            '{diem_tb}' => $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
-                            '{gio_thuc_hoc}' => $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
-                            '{ket_qua}' => $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
-                        ];
-
-                        $subject = strtr($template->tieu_de, $placeholders);
-                        $body = strtr($template->noi_dung, $placeholders);
-
                         try {
-                            Mail::mailer('dynamic')->to($recipient)->send(new PlanNotificationMail($subject, $body));
-                            $success++;
-                            $status = 'success';
-                            $error = null;
-                        } catch (\Throwable $exception) {
-                            $failed++;
-                            $status = 'failed';
-                            $error = $exception->getMessage();
-                            Log::error('Lỗi gửi email học viên hoàn thành: ' . $exception->getMessage());
-                        }
+                            Mail::to($email)->send(new PlanNotificationMail($template, $record));
 
-                        EmailLog::create([
-                            'email_account_id' => $account->id,
-                            'recipient_email' => $recipient,
-                            'subject' => $subject,
-                            'content' => $body,
-                            'status' => $status,
-                            'error_message' => $error,
-                        ]);
+                            EmailLog::create([
+                                'email' => $email,
+                                'email_template_id' => $template->id,
+                                'email_account_id' => $account->id,
+                                'status' => 'sent',
+                                'type' => 'hoc_vien_hoan_thanh',
+                                'additional_data' => [
+                                    'hoc_vien_id' => $record->hoc_vien_id,
+                                    'khoa_hoc_id' => $record->khoa_hoc_id,
+                                ],
+                            ]);
+                        } catch (\Throwable $exception) {
+                            Log::error('Không thể gửi email học viên hoàn thành', [
+                                'error' => $exception->getMessage(),
+                                'hoc_vien_id' => $record->hoc_vien_id,
+                                'khoa_hoc_id' => $record->khoa_hoc_id,
+                            ]);
+
+                            EmailLog::create([
+                                'email' => $email,
+                                'email_template_id' => $template->id,
+                                'email_account_id' => $account->id,
+                                'status' => 'failed',
+                                'type' => 'hoc_vien_hoan_thanh',
+                                'additional_data' => [
+                                    'hoc_vien_id' => $record->hoc_vien_id,
+                                    'khoa_hoc_id' => $record->khoa_hoc_id,
+                                    'error' => $exception->getMessage(),
+                                ],
+                            ]);
+                        }
                     }
 
-                    Notification::make()
-                        ->title('Gửi email hoàn tất')
-                        ->body("Thành công: {$success}. Thất bại: {$failed}.")
-                        ->success()
-                        ->send();
+                    Notification::make()->title('Đã gửi email thông báo')->success()->send();
                 }),
         ];
     }
@@ -274,14 +221,37 @@ class ListHocVienHoanThanhs extends ListRecords
     public function mount(): void
     {
         parent::mount();
-
-        $state = $this->defaultFilterState();
-        $this->applyFilterState($state, false);
+        if (! data_get($this->tableFilters, 'bo_loc.data')) {
+            $this->applyFilterState($this->defaultFilterState());
+        }
     }
 
-    public function hydrate(): void
+    public function exportCurrentView()
     {
-        $this->syncFilterInputsFromState($this->resolveFilterState());
+        $records = $this->getExportCollection();
+
+        if ($records->isEmpty()) {
+            Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
+
+            return null;
+        }
+
+        $visibleColumns = collect($this->getVisibleTableColumns())
+            ->map(fn ($column) => [
+                'name' => $column->getName(),
+                'label' => $column->getLabel(),
+            ])
+            ->values()
+            ->all();
+
+        return HocVienHoanThanhResource::exportWithSummary(
+            $this->summaryRows,
+            $records,
+            $visibleColumns,
+            $this->resolveFilterState(),
+            $this->summaryTotals,
+            'hoc_vien_hoan_thanh.xlsx'
+        );
     }
 
     public function getSummaryRowsProperty(): Collection
@@ -386,10 +356,10 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function selectCourseFromSummary(int $courseId): void
     {
-        $current = $this->filterState['course_id'] ?? null;
-        $newCourse = $current === $courseId ? null : $courseId;
-        $this->filterCourseId = $newCourse;
-        $this->setCourseFilter($newCourse);
+        $state = $this->resolveFilterState();
+        $state['course_id'] = ($state['course_id'] ?? null) === $courseId ? null : $courseId;
+
+        $this->applyFilterState($state);
     }
 
     public function getFilterStateProperty(): array
@@ -443,13 +413,6 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
-    protected function setCourseFilter(?int $courseId): void
-    {
-        $state = $this->resolveFilterState();
-        $state['course_id'] = $courseId;
-        $this->applyFilterState($state);
-    }
-
     public function statusBadgeClass(?string $status): string
     {
         $slug = Str::slug($status ?? '');
@@ -463,124 +426,6 @@ class ListHocVienHoanThanhs extends ListRecords
         };
     }
 
-    public function getYearOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getYearOptions();
-    }
-
-    public function getMonthOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getMonthOptions($this->filterYear ?? now()->year);
-    }
-
-    public function getWeekOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getWeekOptions($this->filterYear ?? now()->year, $this->filterMonth);
-    }
-
-    public function getCourseOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getCourseOptions(
-            $this->filterYear ?? now()->year,
-            $this->filterMonth,
-            $this->filterWeek,
-            $this->filterFromDate,
-            $this->filterToDate,
-            $this->filterTrainingTypes
-        );
-    }
-
-    public function getTrainingTypeOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getTrainingTypeOptions();
-    }
-
-    public function updatedFilterYear($value): void
-    {
-        $year = (int) ($value ?: now()->year);
-        $this->filterYear = $year;
-        $this->filterWeek = null;
-        if ($this->filterMonth === null) {
-            $this->filterMonth = now()->month;
-        }
-
-        $this->updateFilter('year', $year);
-    }
-
-    public function updatedFilterMonth($value): void
-    {
-        $month = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterMonth = $month;
-        $this->filterWeek = null;
-        $this->updateFilter('month', $month);
-    }
-
-    public function updatedFilterWeek($value): void
-    {
-        $week = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterWeek = $week;
-        $this->updateFilter('week', $week);
-    }
-
-    public function updatedFilterFromDate($value): void
-    {
-        $from = $this->normalizeDate($value);
-        $this->filterFromDate = $from;
-
-        if ($from && $this->filterToDate && $from > $this->filterToDate) {
-            $this->filterToDate = $from;
-        }
-
-        $this->updateFilter('from_date', $from);
-    }
-
-    public function updatedFilterToDate($value): void
-    {
-        $to = $this->normalizeDate($value);
-        $this->filterToDate = $to;
-
-        if ($to && $this->filterFromDate && $to < $this->filterFromDate) {
-            $this->filterFromDate = $to;
-        }
-
-        $this->updateFilter('to_date', $to);
-    }
-
-    public function updatedFilterCourseId($value): void
-    {
-        $course = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterCourseId = $course;
-        $this->updateFilter('course_id', $course);
-    }
-
-    public function updatedFilterTrainingTypes($value): void
-    {
-        $types = collect($value ?? [])
-            ->filter(fn ($item) => $item !== null && $item !== '')
-            ->map(fn ($item) => (string) $item)
-            ->unique()
-            ->values()
-            ->all();
-
-        $this->filterTrainingTypes = $types;
-        $this->updateFilter('training_types', $types);
-    }
-
-    protected function updateFilter(string $key, $value): void
-    {
-        $state = $this->resolveFilterState();
-        $state[$key] = $value;
-
-        if ($key === 'year') {
-            $state['year'] = (int) $value ?: now()->year;
-        }
-
-        if ($key === 'month' && $value === null) {
-            $state['month'] = null;
-        }
-
-        $this->applyFilterState($state);
-    }
 
     protected function defaultFilterState(): array
     {
@@ -597,7 +442,7 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
-    protected function applyFilterState(array $state, bool $resetInputs = true): void
+    protected function applyFilterState(array $state): void
     {
         $data = [
             'year' => (string) $state['year'],
@@ -606,35 +451,28 @@ class ListHocVienHoanThanhs extends ListRecords
             'from_date' => $state['from_date'],
             'to_date' => $state['to_date'],
             'course_id' => $state['course_id'] ? (string) $state['course_id'] : null,
-            'training_types' => $state['training_types'],
+            'training_types' => collect($state['training_types'])->map(fn ($type) => (string) $type)->all(),
         ];
 
-        $this->tableFilters['bo_loc'] = [
-            'isActive' => (bool) collect($data)
+        $isActive = (bool) collect($data)
                 ->reject(fn ($value, $key) => in_array($key, ['year', 'month'], true))
                 ->reject(fn ($value) => $value === null || $value === '' || (is_array($value) && empty($value)))
-                ->count(),
-            'data' => $data,
-        ];
+                ->count();
 
-        if ($resetInputs) {
-            $this->syncFilterInputsFromState($state);
-        }
+        $this->tableFilters = array_merge($this->tableFilters ?? [], [
+            'bo_loc' => [
+                'isActive' => $isActive,
+                'data' => $data,
+            ],
+        ]);
 
         if (method_exists($this, 'resetTablePage')) {
             $this->resetTablePage();
         }
-    }
 
-    protected function syncFilterInputsFromState(array $state): void
-    {
-        $this->filterYear = (int) $state['year'];
-        $this->filterMonth = $state['month'] ? (int) $state['month'] : null;
-        $this->filterWeek = $state['week'] ? (int) $state['week'] : null;
-        $this->filterFromDate = $state['from_date'];
-        $this->filterToDate = $state['to_date'];
-        $this->filterCourseId = $state['course_id'];
-        $this->filterTrainingTypes = $state['training_types'];
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('refreshTable');
+        }
     }
 
     protected function normalizeDate(?string $value): ?string
@@ -655,5 +493,23 @@ class ListHocVienHoanThanhs extends ListRecords
         $query = clone $this->getTableQuery();
 
         return $query->get();
+    }
+    protected static function getImportTemplateHeadings(): array
+    {
+        return [
+            'MS',
+            'Họ & Tên',
+            'Tên khóa học',
+            'Mã khóa',
+            'ĐTB',
+            'Giờ thực học',
+            'Ngày hoàn thành',
+            'Chi phí đào tạo',
+            'Số chứng nhận',
+            'Link chứng nhận',
+            'Thời hạn chứng nhận (năm)',
+            'Ngày hết hạn chứng nhận',
+            'Ghi chú',
+        ];
     }
 }
