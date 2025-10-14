@@ -100,16 +100,7 @@
                                 <td class="px-3 py-2 font-medium text-gray-900">{{ $row['ma_khoa'] }}</td>
                                 <td class="px-3 py-2 text-gray-700">{{ $row['ten_khoa'] }}</td>
                                 <td class="px-3 py-2">
-                                    @php
-                                        $statusColor = match(Str::slug($row['trang_thai'] ?? '')) {
-                                            'tam-hoan' => 'bg-amber-100 text-amber-800',
-                                            'ket-thuc' => 'bg-rose-100 text-rose-700',
-                                            'dang-dao-tao' => 'bg-blue-100 text-blue-700',
-                                            'ban-hanh' => 'bg-emerald-100 text-emerald-700',
-                                            default => 'bg-gray-100 text-gray-700',
-                                        };
-                                    @endphp
-                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ $statusColor }} whitespace-nowrap">
+                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ $this->statusBadgeClass($row['trang_thai'] ?? null) }} whitespace-nowrap">
                                         {{ $row['trang_thai'] ?? '-' }}
                                     </span>
                                 </td>
