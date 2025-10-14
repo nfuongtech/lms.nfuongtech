@@ -2,6 +2,10 @@
     <div class="space-y-6">
         @once
             <style>
+                .fi-ta-header .fi-ta-search {
+                    display: none !important;
+                }
+
                 .fi-ta-filter-indicators > span:first-child {
                     display: none;
                 }
@@ -18,19 +22,54 @@
         @endonce
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
+        @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
+        @php($filters = $this->filterState)
 
         <div class="flex flex-wrap items-center justify-between gap-3">
-            @if($pageHeading !== '')
-                <div class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</div>
-            @endif
-            @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
-            @if(! empty($headerActions))
-                <div class="flex flex-wrap gap-2">
-                    @foreach($headerActions as $action)
-                        {{ $action }}
-                    @endforeach
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                @if($pageHeading !== '')
+                    <div class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</div>
+                @endif
+                <div class="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                    <span>Năm: <strong>{{ $filters['year'] }}</strong></span>
+                    <span>Tháng: <strong>{{ $filters['month'] ?? '-' }}</strong></span>
+                    @if(! empty($filters['week']))
+                        <span>Tuần: <strong>{{ $filters['week'] }}</strong></span>
+                    @endif
+                    @if(! empty($filters['from_date']))
+                        <span>Từ ngày: <strong>{{ \Illuminate\Support\Carbon::parse($filters['from_date'])->format('d/m/Y') }}</strong></span>
+                    @endif
+                    @if(! empty($filters['to_date']))
+                        <span>Đến ngày: <strong>{{ \Illuminate\Support\Carbon::parse($filters['to_date'])->format('d/m/Y') }}</strong></span>
+                    @endif
                 </div>
-            @endif
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                @if(property_exists($this, 'tableSearch'))
+                    <label class="relative flex items-center">
+                        <span class="pointer-events-none absolute left-3 text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18a7.5 7.5 0 006.15-3.35z" />
+                            </svg>
+                        </span>
+                        <input
+                            type="search"
+                            wire:model.debounce.500ms="tableSearch"
+                            placeholder="Tìm kiếm học viên..."
+                            class="fi-input block h-9 w-56 rounded-lg border border-gray-300 bg-white pl-9 pr-3 text-sm text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        />
+                    </label>
+                @endif
+
+                @if(! empty($headerActions))
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($headerActions as $action)
+                            {{ $action }}
+                        @endforeach
+                    </div>
+                @endif
+            </div>
         </div>
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)

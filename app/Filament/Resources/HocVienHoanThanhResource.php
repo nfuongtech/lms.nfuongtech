@@ -171,20 +171,11 @@ class HocVienHoanThanhResource extends Resource
                 Tables\Columns\TextColumn::make('ngay_het_han_chung_nhan')
                     ->label('Ngày hết hạn')
                     ->alignment(Alignment::Center)
+                    ->badge()
+                    ->color(fn ($state, HocVienHoanThanh $record) => $record->thoi_han_chung_nhan === 'khong_thoi_han'
+                        ? 'gray'
+                        : ($record->ngay_het_han_chung_nhan && Carbon::parse($record->ngay_het_han_chung_nhan)->isPast() ? 'danger' : 'gray'))
                     ->formatStateUsing(fn (HocVienHoanThanh $record, $state) => self::formatExpiry($record, $state))
-                    ->extraAttributes(function (HocVienHoanThanh $record) {
-                        if ($record->thoi_han_chung_nhan === 'khong_thoi_han') {
-                            return [];
-                        }
-
-                        if (! $record->ngay_het_han_chung_nhan) {
-                            return [];
-                        }
-
-                        return [
-                            'class' => 'bg-rose-50 text-rose-700 font-semibold',
-                        ];
-                    })
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('ketQua.danh_gia_ren_luyen')
                     ->label('Đánh giá rèn luyện')
