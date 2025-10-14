@@ -1,13 +1,23 @@
 <x-filament::page>
     <div class="space-y-6">
-        <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold text-gray-900">{{ $this->getHeading() }}</h1>
-            <div class="flex items-center gap-2 shrink-0">
-                @foreach ($this->getCachedHeaderActions() as $action)
-                    {{ $action }}
-                @endforeach
-            </div>
-        </div>
+        @once
+            <style>
+                .fi-ta-filter-indicators > span:first-child {
+                    display: none;
+                }
+
+                .fi-ta-filter-indicators::before {
+                    content: 'Đang áp dụng lọc';
+                    margin-right: 0.5rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    color: rgb(55 65 81);
+                }
+            </style>
+        @endonce
+
+        <h1 class="text-2xl font-semibold text-gray-900">{{ $this->getHeading() }}</h1>
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
         @php($totals = $this->summaryTotals)
