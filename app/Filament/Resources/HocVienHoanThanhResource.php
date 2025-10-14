@@ -64,8 +64,10 @@ class HocVienHoanThanhResource extends Resource
                     ->alignment(Alignment::Center)
                     ->toggleable(false)
                     ->extraCellAttributes([
-                        'class' => 'sticky left-0 z-30 bg-white dark:bg-gray-900',
-                        'style' => 'left:0;min-width:3.5rem;',
+                        'class' => 'hvht-table-sticky-tt',
+                    ])
+                    ->extraHeaderAttributes([
+                        'class' => 'hvht-table-sticky-tt',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.msnv')
                     ->label('MS')
@@ -74,8 +76,10 @@ class HocVienHoanThanhResource extends Resource
                     ->searchable()
                     ->toggleable(false)
                     ->extraCellAttributes([
-                        'class' => 'sticky z-30 bg-white dark:bg-gray-900',
-                        'style' => 'left:4.5rem;min-width:7rem;',
+                        'class' => 'hvht-table-sticky-ms',
+                    ])
+                    ->extraHeaderAttributes([
+                        'class' => 'hvht-table-sticky-ms',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.ho_ten')
                     ->label('Họ & Tên')
@@ -83,8 +87,10 @@ class HocVienHoanThanhResource extends Resource
                     ->searchable()
                     ->toggleable(false)
                     ->extraCellAttributes([
-                        'class' => 'sticky z-20 bg-white dark:bg-gray-900',
-                        'style' => 'left:11.5rem;min-width:16rem;',
+                        'class' => 'hvht-table-sticky-name',
+                    ])
+                    ->extraHeaderAttributes([
+                        'class' => 'hvht-table-sticky-name',
                     ]),
                 Tables\Columns\TextColumn::make('hocVien.nam_sinh')
                     ->label('Năm sinh')

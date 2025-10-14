@@ -610,10 +610,9 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
 
         $this->tableFilters['bo_loc'] = [
-            'isActive' => (bool) collect($data)
-                ->reject(fn ($value, $key) => in_array($key, ['year', 'month'], true))
+            'isActive' => collect($data)
                 ->reject(fn ($value) => $value === null || $value === '' || (is_array($value) && empty($value)))
-                ->count(),
+                ->isNotEmpty(),
             'data' => $data,
         ];
 
