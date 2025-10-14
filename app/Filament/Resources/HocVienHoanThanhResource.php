@@ -11,6 +11,7 @@ use App\Models\HocVienKhongHoanThanh;
 use App\Models\KetQuaKhoaHoc;
 use App\Models\KhoaHoc;
 use App\Models\LichHoc;
+use App\Models\QuyTacMaKhoa;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -37,6 +38,10 @@ class HocVienHoanThanhResource extends Resource
 
     protected static ?string $navigationLabel = 'Học viên hoàn thành';
 
+    protected static ?string $modelLabel = 'Học viên hoàn thành';
+
+    protected static ?string $pluralModelLabel = 'Học viên hoàn thành';
+
     public static function getSlug(): string
     {
         return 'hoc-vien-hoan-thanhs';
@@ -55,16 +60,19 @@ class HocVienHoanThanhResource extends Resource
                 Tables\Columns\TextColumn::make('index')
                     ->label('TT')
                     ->rowIndex()
-                    ->alignment(Alignment::Center),
+                    ->alignment(Alignment::Center)
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.msnv')
                     ->label('MS')
                     ->alignment(Alignment::Center)
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.ho_ten')
                     ->label('Họ & Tên')
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.nam_sinh')
                     ->label('Năm sinh')
                     ->alignment(Alignment::Center)
@@ -96,7 +104,7 @@ class HocVienHoanThanhResource extends Resource
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('hocVien.donViPhapNhan.ten_don_vi')
-                    ->label('Đơn vị trả lương')
+                    ->label('Đơn vị pháp nhân/trả lương')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
                     ->toggleable(),
@@ -107,6 +115,12 @@ class HocVienHoanThanhResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('khoaHoc.ma_khoa_hoc')
                     ->label('Mã khóa')
+                    ->alignment(Alignment::Center)
+                    ->formatStateUsing(fn ($state) => self::textOrDash($state))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('loai_hinh_dao_tao')
+                    ->label('Loại hình đào tạo')
+                    ->state(fn (HocVienHoanThanh $record) => self::resolveTrainingType($record))
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
                     ->toggleable(),
@@ -128,7 +142,13 @@ class HocVienHoanThanhResource extends Resource
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('chi_phi_dao_tao')
                     ->label('Chi phí đào tạo')
+                    ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::currencyOrDash($state))
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('so_chung_nhan')
+                    ->label('Số chứng nhận')
+                    ->alignment(Alignment::Center)
+                    ->formatStateUsing(fn ($state) => self::textOrDash($state))
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('certificate_links')
                     ->label('File/Link Chứng nhận')
@@ -136,9 +156,9 @@ class HocVienHoanThanhResource extends Resource
                     ->html()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('ngay_het_han_chung_nhan')
-                    ->label('Ngày hết hạn Chứng nhận')
+                    ->label('Ngày hết hạn')
                     ->alignment(Alignment::Center)
-                    ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state)->format('d/m/Y') : '-')
+                    ->formatStateUsing(fn (HocVienHoanThanh $record, $state) => self::formatExpiry($record, $state))
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('ketQua.danh_gia_ren_luyen')
                     ->label('Đánh giá rèn luyện')
@@ -170,26 +190,56 @@ class HocVienHoanThanhResource extends Resource
                             ->reactive()
                             ->afterStateUpdated(fn (callable $set) => $set('week', null))
                             ->searchable(),
+                        Forms\Components\Select::make('month')
+                            ->label('Tháng')
+                            ->options(fn (callable $get) => self::getMonthOptions($get('year')))
+                            ->default(now()->month)
+                            ->reactive()
+                            ->afterStateUpdated(fn (callable $set) => $set('week', null))
+                            ->searchable(),
                         Forms\Components\Select::make('week')
                             ->label('Tuần')
-                            ->options(fn (callable $get) => self::getWeekOptions($get('year')))
+                            ->options(fn (callable $get) => self::getWeekOptions($get('year'), $get('month')))
                             ->reactive()
                             ->afterStateUpdated(fn (callable $set) => $set('course_id', null))
                             ->searchable(),
+                        Forms\Components\DatePicker::make('from_date')
+                            ->label('Từ ngày')
+                            ->displayFormat('d/m/Y'),
+                        Forms\Components\DatePicker::make('to_date')
+                            ->label('Đến ngày')
+                            ->displayFormat('d/m/Y'),
+                        Forms\Components\Select::make('training_types')
+                            ->label('Loại hình đào tạo')
+                            ->options(fn () => self::getTrainingTypeOptions())
+                            ->multiple()
+                            ->searchable(),
                         Forms\Components\Select::make('course_id')
                             ->label('Khóa học')
-                            ->options(fn (callable $get) => self::getCourseOptions($get('year'), $get('week')))
+                            ->options(fn (callable $get) => self::getCourseOptions(
+                                $get('year'),
+                                $get('month'),
+                                $get('week'),
+                                $get('from_date'),
+                                $get('to_date'),
+                                $get('training_types') ?? []
+                            ))
                             ->searchable(),
                     ])
                     ->query(fn (Builder $query, array $data) => self::applyFilterConstraints($query, $data))
                     ->default([
                         'year' => now()->year,
+                        'month' => now()->month,
                     ])
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
 
                         if (! empty($data['year'])) {
                             $indicators['year'] = 'Năm: ' . $data['year'];
+                        }
+
+                        if (! empty($data['month'])) {
+                            $indicators['month'] = 'Tháng: ' . $data['month'];
                         }
 
                         if (! empty($data['week'])) {
@@ -199,12 +249,30 @@ class HocVienHoanThanhResource extends Resource
                         if (! empty($data['course_id'])) {
                             $course = KhoaHoc::find($data['course_id']);
                             if ($course) {
-                                $indicators['course_id'] = 'Khóa học: ' . $course->ma_khoa_hoc;
+                                $indicators['course_id'] = 'Khóa học: ' . ($course->ma_khoa_hoc ?? $course->ten_khoa_hoc);
                             }
+                        }
+
+                        if (! empty($data['training_types']) && is_array($data['training_types'])) {
+                            $indicators['training_types'] = 'Loại hình: ' . implode(', ', $data['training_types']);
+                        }
+
+                        if (! empty($data['from_date'])) {
+                            $indicators['from_date'] = 'Từ ngày: ' . Carbon::parse($data['from_date'])->format('d/m/Y');
+                        }
+
+                        if (! empty($data['to_date'])) {
+                            $indicators['to_date'] = 'Đến ngày: ' . Carbon::parse($data['to_date'])->format('d/m/Y');
                         }
 
                         return $indicators;
                     }),
+            ])
+            ->filtersTriggerAction(fn (Tables\Actions\Action $action) => $action->label('Chọn lọc thông tin'))
+            ->filtersFormHeading('Chọn lọc thông tin')
+            ->filtersActiveBadgeLabel('Đang áp dụng lọc')
+            ->stickyColumns([
+                'left' => ['index', 'hocVien.msnv', 'hocVien.ho_ten'],
             ])
             ->actions([
                 Tables\Actions\Action::make('cap_nhat')
@@ -228,16 +296,27 @@ class HocVienHoanThanhResource extends Resource
     public static function applyFilterConstraints(Builder $query, array $data): Builder
     {
         $year = (int) ($data['year'] ?? now()->year);
-        $week = $data['week'] ?? null;
+        $month = isset($data['month']) && $data['month'] !== '' ? (int) $data['month'] : null;
+        $week = isset($data['week']) && $data['week'] !== '' ? (int) $data['week'] : null;
         $courseId = $data['course_id'] ?? null;
+        $fromDate = $data['from_date'] ?? null;
+        $toDate = $data['to_date'] ?? null;
+        $trainingTypes = is_array($data['training_types'] ?? null) ? array_filter($data['training_types']) : [];
 
-        $query->whereHas('khoaHoc.lichHocs', function (Builder $lichHocQuery) use ($year, $week) {
-            $lichHocQuery->where('nam', $year);
-
-            if (! empty($week)) {
-                $lichHocQuery->where('tuan', $week);
-            }
+        $query->whereHas('khoaHoc.lichHocs', function (Builder $lichHocQuery) use ($year, $month, $week, $fromDate, $toDate) {
+            $lichHocQuery->where('nam', $year)
+                ->when($month, fn ($q) => $q->where('thang', $month))
+                ->when($week, fn ($q) => $q->where('tuan', $week))
+                ->when($fromDate, fn ($q) => $q->whereDate('ngay_hoc', '>=', $fromDate))
+                ->when($toDate, fn ($q) => $q->whereDate('ngay_hoc', '<=', $toDate));
         });
+
+        if (! empty($trainingTypes)) {
+            $query->whereHas('khoaHoc', function (Builder $courseQuery) use ($trainingTypes) {
+                $courseQuery->whereIn('loai_hinh_dao_tao', $trainingTypes)
+                    ->orWhereHas('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
+            });
+        }
 
         if (! empty($courseId)) {
             $query->where('khoa_hoc_id', $courseId);
@@ -256,7 +335,7 @@ class HocVienHoanThanhResource extends Resource
             ->toArray();
     }
 
-    public static function getWeekOptions(?int $year): array
+    public static function getMonthOptions(?int $year): array
     {
         if (! $year) {
             return [];
@@ -264,29 +343,63 @@ class HocVienHoanThanhResource extends Resource
 
         return LichHoc::query()
             ->where('nam', $year)
-            ->select('tuan')
+            ->select('thang')
+            ->distinct()
+            ->orderBy('thang')
+            ->pluck('thang', 'thang')
+            ->toArray();
+    }
+
+    public static function getWeekOptions(?int $year, ?int $month = null): array
+    {
+        if (! $year) {
+            return [];
+        }
+
+        $query = LichHoc::query()
+            ->where('nam', $year);
+
+        if ($month) {
+            $query->where('thang', $month);
+        }
+
+        return $query->select('tuan')
             ->distinct()
             ->orderBy('tuan')
             ->pluck('tuan', 'tuan')
             ->toArray();
     }
 
-    public static function getCourseOptions(?int $year, ?int $week): array
-    {
+    public static function getCourseOptions(
+        ?int $year,
+        ?int $month,
+        ?int $week,
+        ?string $fromDate,
+        ?string $toDate,
+        array $trainingTypes
+    ): array {
         if (! $year) {
             return [];
         }
 
         $courseQuery = KhoaHoc::query()
             ->with('chuongTrinh')
-            ->whereHas('lichHocs', function (Builder $lichHocQuery) use ($year, $week) {
-                $lichHocQuery->where('nam', $year);
-
-                if (! empty($week)) {
-                    $lichHocQuery->where('tuan', $week);
-                }
+            ->whereHas('lichHocs', function (Builder $lichHocQuery) use ($year, $month, $week, $fromDate, $toDate) {
+                $lichHocQuery->where('nam', $year)
+                    ->when($month, fn ($q) => $q->where('thang', $month))
+                    ->when($week, fn ($q) => $q->where('tuan', $week))
+                    ->when($fromDate, fn ($q) => $q->whereDate('ngay_hoc', '>=', $fromDate))
+                    ->when($toDate, fn ($q) => $q->whereDate('ngay_hoc', '<=', $toDate));
             })
+            ->whereIn('id', DangKy::query()->select('khoa_hoc_id')->distinct())
             ->orderBy('ma_khoa_hoc');
+
+        if (! empty($trainingTypes)) {
+            $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
+                $builder->whereIn('loai_hinh_dao_tao', $trainingTypes)
+                    ->orWhereHas('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
+            });
+        }
 
         return $courseQuery->get()
             ->mapWithKeys(function (KhoaHoc $course) {
@@ -295,8 +408,28 @@ class HocVienHoanThanhResource extends Resource
                     $course->ten_khoa_hoc,
                 ])));
 
-                return [$course->id => $label ?: $course->ma_khoa_hoc];
+                return [$course->id => $label ?: ($course->ma_khoa_hoc ?? (string) $course->id)];
             })
+            ->toArray();
+    }
+
+    public static function getTrainingTypeOptions(): array
+    {
+        $fromRules = QuyTacMaKhoa::pluck('loai_hinh_dao_tao', 'loai_hinh_dao_tao')->filter()->toArray();
+
+        $fromPrograms = KhoaHoc::query()
+            ->with('chuongTrinh')
+            ->whereHas('chuongTrinh')
+            ->get()
+            ->map(fn (KhoaHoc $course) => $course->chuongTrinh?->loai_hinh_dao_tao)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return collect($fromRules)
+            ->merge(array_combine($fromPrograms, $fromPrograms))
+            ->sort()
             ->toArray();
     }
 
@@ -307,6 +440,11 @@ class HocVienHoanThanhResource extends Resource
         }
 
         $float = (float) $value;
+
+        if (abs($float) < 0.0001) {
+            return '-';
+        }
+
         return number_format($float, 1, '.', '');
     }
 
@@ -317,6 +455,10 @@ class HocVienHoanThanhResource extends Resource
         }
 
         $float = (float) $value;
+
+        if (abs($float) < 0.0001) {
+            return '-';
+        }
 
         return number_format($float, 0, ',', '.');
     }
@@ -330,24 +472,41 @@ class HocVienHoanThanhResource extends Resource
 
     protected static function certificateState(HocVienHoanThanh $record): string
     {
-        $parts = [];
+        $labels = self::certificateLabels($record);
+
+        if (empty($labels)) {
+            return '-';
+        }
+
+        return implode('<br>', array_map(fn ($entry) => sprintf(
+            '<a href="%s" target="_blank" class="text-primary-600 underline">%s</a>',
+            e($entry['url']),
+            e($entry['label'])
+        ), $labels));
+    }
+
+    protected static function certificateLabels(HocVienHoanThanh $record): array
+    {
+        $entries = [];
 
         if ($record->chung_chi_tap_tin) {
             $url = self::resolveStorageUrl($record->chung_chi_tap_tin);
             if ($url) {
-                $parts[] = sprintf('<a href="%s" target="_blank" class="text-primary-600 underline">File</a>', e($url));
+                $entries[] = [
+                    'url' => $url,
+                    'label' => basename($record->chung_chi_tap_tin),
+                ];
             }
         }
 
         if ($record->chung_chi_link) {
-            $parts[] = sprintf('<a href="%s" target="_blank" class="text-primary-600 underline">Link</a>', e($record->chung_chi_link));
+            $entries[] = [
+                'url' => $record->chung_chi_link,
+                'label' => self::humanizeLink($record->chung_chi_link),
+            ];
         }
 
-        if (empty($parts)) {
-            return '-';
-        }
-
-        return implode('<br>', $parts);
+        return $entries;
     }
 
     protected static function resolveStorageUrl(string $path): ?string
@@ -361,6 +520,40 @@ class HocVienHoanThanhResource extends Resource
         }
 
         return Storage::disk('public')->url($path);
+    }
+
+    protected static function humanizeLink(string $url): string
+    {
+        $host = parse_url($url, PHP_URL_HOST) ?: $url;
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return $path ? $host . '/' . $path : $host;
+    }
+
+    protected static function resolveTrainingType(HocVienHoanThanh $record): ?string
+    {
+        $course = $record->khoaHoc;
+
+        if (! $course) {
+            return null;
+        }
+
+        return $course->loai_hinh_dao_tao
+            ?? $course->chuongTrinh?->loai_hinh_dao_tao
+            ?? null;
+    }
+
+    protected static function formatExpiry(HocVienHoanThanh $record, $state): string
+    {
+        if ($record->thoi_han_chung_nhan === 'khong_thoi_han') {
+            return 'Không thời hạn';
+        }
+
+        if ($state) {
+            return Carbon::parse($state)->format('d/m/Y');
+        }
+
+        return '-';
     }
 
     protected static function getUpdateFormSchema(): array
@@ -388,19 +581,20 @@ class HocVienHoanThanhResource extends Resource
                 Forms\Components\TextInput::make('chi_phi_dao_tao')
                     ->label('Chi phí đào tạo')
                     ->numeric()
+                    ->step('1')
                     ->prefix('VND')
                     ->nullable(),
                 Forms\Components\Toggle::make('chung_chi_da_cap')
                     ->label('Đã cấp chứng nhận'),
             ]),
-            Forms\Components\Grid::make()->columns(3)->schema([
+            Forms\Components\Grid::make(2)->schema([
                 Forms\Components\TextInput::make('so_chung_nhan')
                     ->label('Số chứng nhận')
-                    ->maxLength(120)
-                    ->nullable(),
+                    ->maxLength(255),
                 Forms\Components\Select::make('thoi_han_chung_nhan')
                     ->label('Thời hạn Chứng nhận')
                     ->options([
+                        'khong_thoi_han' => 'Không thời hạn',
                         '1' => '1 năm',
                         '2' => '2 năm',
                         '3' => '3 năm',
@@ -411,30 +605,38 @@ class HocVienHoanThanhResource extends Resource
                     ->reactive()
                     ->afterStateUpdated(function ($state, callable $get, callable $set) {
                         $completionDate = $get('ngay_hoan_thanh');
+
+                        if ($state === 'khong_thoi_han') {
+                            $set('ngay_het_han_chung_nhan', null);
+                            return;
+                        }
+
                         if ($state && $completionDate) {
                             $expiry = Carbon::parse($completionDate)->addYears((int) $state)->format('Y-m-d');
                             $set('ngay_het_han_chung_nhan', $expiry);
                         }
                     })
                     ->helperText('Chọn gợi ý để tự động tính thời hạn hoặc nhập thủ công bên dưới.'),
-                Forms\Components\DatePicker::make('ngay_het_han_chung_nhan')
-                    ->label('Thời hạn chứng nhận đến')
-                    ->closeOnDateSelection()
-                    ->nullable(),
             ]),
-            Forms\Components\TextInput::make('chung_chi_link')
-                ->label('Link chứng nhận')
-                ->url()
-                ->maxLength(255),
-            Forms\Components\FileUpload::make('chung_chi_tap_tin')
-                ->label('Tập tin chứng nhận (PDF)')
-                ->directory('chung-chi')
-                ->disk('public')
-                ->visibility('public')
-                ->acceptedFileTypes(['application/pdf'])
-                ->maxSize(5120)
-                ->nullable()
-                ->preserveFilenames(),
+            Forms\Components\DatePicker::make('ngay_het_han_chung_nhan')
+                ->label('Thời hạn chứng nhận đến')
+                ->closeOnDateSelection()
+                ->nullable(),
+            Forms\Components\Grid::make(2)->schema([
+                Forms\Components\TextInput::make('chung_chi_link')
+                    ->label('Link chứng nhận')
+                    ->url()
+                    ->maxLength(255),
+                Forms\Components\FileUpload::make('chung_chi_tap_tin')
+                    ->label('Tập tin chứng nhận (PDF)')
+                    ->directory('chung-chi')
+                    ->disk('public')
+                    ->visibility('public')
+                    ->acceptedFileTypes(['application/pdf'])
+                    ->maxSize(5120)
+                    ->nullable()
+                    ->preserveFilenames(),
+            ]),
             Forms\Components\Textarea::make('danh_gia_ren_luyen')
                 ->label('Đánh giá rèn luyện')
                 ->rows(3),
@@ -493,6 +695,11 @@ class HocVienHoanThanhResource extends Resource
             'ngay_het_han_chung_nhan' => $data['ngay_het_han_chung_nhan'] ?? null,
             'ghi_chu' => $data['ghi_chu'] ?? null,
         ];
+
+        if (($data['thoi_han_chung_nhan'] ?? null) === 'khong_thoi_han') {
+            $updateData['thoi_han_chung_nhan'] = 'khong_thoi_han';
+            $updateData['ngay_het_han_chung_nhan'] = null;
+        }
 
         $record->update($updateData);
 
@@ -565,24 +772,9 @@ class HocVienHoanThanhResource extends Resource
             $ketQua = $record->ketQua;
             $course = $record->khoaHoc;
 
-            $sessions = $ketQua?->dangKy?->diemDanhs ?? collect();
-            $sessionSummary = $sessions->map(function ($item) {
-                $ngay = $item->lichHoc?->ngay_hoc ? Carbon::parse($item->lichHoc->ngay_hoc)->format('d/m/Y') : null;
-                $status = match ($item->trang_thai) {
-                    'vang_phep' => 'Vắng P',
-                    'vang_khong_phep' => 'Vắng KP',
-                    default => 'Có mặt',
-                };
-                $gio = $item->so_gio_hoc !== null ? number_format((float) $item->so_gio_hoc, 1, '.', '') : '-';
-                $diem = $item->diem_buoi_hoc !== null ? number_format((float) $item->diem_buoi_hoc, 1, '.', '') : '-';
-
-                return trim(implode(' - ', array_filter([
-                    $ngay,
-                    $status,
-                    $gio !== '-' ? ($gio . ' giờ') : null,
-                    $diem !== '-' ? ('Điểm: ' . $diem) : null,
-                ])));
-            })->filter()->implode("\n");
+            $certificates = collect(self::certificateLabels($record))
+                ->map(fn ($entry) => $entry['label'])
+                ->implode('\n');
 
             return [
                 $index + 1,
@@ -590,17 +782,21 @@ class HocVienHoanThanhResource extends Resource
                 $hocVien?->ho_ten ?? '-',
                 optional($hocVien?->nam_sinh)->format('d/m/Y') ?? '-',
                 self::textOrDash($hocVien?->gioi_tinh),
-                self::textOrDash($hocVien?->donVi?->ten_hien_thi),
+                self::textOrDash($hocVien?->chuc_vu),
+                self::textOrDash($hocVien?->donVi?->phong_bo_phan),
+                self::textOrDash($hocVien?->donVi?->cong_ty_ban_nvqt),
+                self::textOrDash($hocVien?->donVi?->thaco_tdtv),
                 self::textOrDash($hocVien?->donViPhapNhan?->ten_don_vi),
                 self::textOrDash($course?->ten_khoa_hoc),
                 self::textOrDash($course?->ma_khoa_hoc),
+                self::textOrDash(self::resolveTrainingType($record)),
                 $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
                 $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
                 $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : '-',
                 self::currencyOrDash($record->chi_phi_dao_tao),
                 self::textOrDash($record->so_chung_nhan),
-                $record->ngay_het_han_chung_nhan ? Carbon::parse($record->ngay_het_han_chung_nhan)->format('d/m/Y') : '-',
-                $sessionSummary ?: '-',
+                $certificates !== '' ? $certificates : '-',
+                self::formatExpiry($record, $record->ngay_het_han_chung_nhan),
                 self::textOrDash($ketQua?->danh_gia_ren_luyen),
                 $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
                 self::textOrDash($record->ghi_chu),
@@ -658,20 +854,24 @@ class HocVienHoanThanhResource extends Resource
             'Họ & Tên',
             'Ngày tháng năm sinh',
             'Giới tính',
-            'Đơn vị',
-            'Đơn vị trả lương',
+            'Chức vụ',
+            'Phòng/Bộ phận',
+            'Công ty/Ban NVQT',
+            'THACO/TĐTV',
+            'Đơn vị pháp nhân/trả lương',
             'Tên khóa học',
             'Mã khóa',
+            'Loại hình đào tạo',
             'ĐTB',
             'Giờ thực học',
             'Ngày hoàn thành',
             'Chi phí đào tạo',
             'Số chứng nhận',
-            'Ngày hết hạn chứng nhận',
-            'Buổi học',
+            'File/Link Chứng nhận',
+            'Ngày hết hạn',
             'Đánh giá rèn luyện',
             'Kết quả',
-            'Ghi chú hành động',
+            'Ghi chú',
         ];
 
         return Excel::download(new SimpleArrayExport(array_merge($headings, $rows)), $filename);
