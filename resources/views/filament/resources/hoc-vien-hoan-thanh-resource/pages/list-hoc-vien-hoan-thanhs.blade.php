@@ -27,6 +27,113 @@
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
         @php($totals = $this->summaryTotals)
+        @php($yearOptions = $this->yearOptions)
+        @php($monthOptions = $this->monthOptions)
+        @php($weekOptions = $this->weekOptions)
+        @php($courseOptions = $this->courseOptions)
+        @php($trainingTypeOptions = $this->trainingTypeOptions)
+
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-4 border-b">
+                <h2 class="text-base font-semibold text-gray-900">Bộ lọc</h2>
+            </div>
+
+            <div class="px-4 py-4">
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+                    <div class="space-y-2">
+                        <label for="filter-year" class="text-sm font-medium text-gray-700">Năm</label>
+                        <select
+                            id="filter-year"
+                            wire:model.live="filterYear"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        >
+                            @foreach($yearOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="filter-month" class="text-sm font-medium text-gray-700">Tháng</label>
+                        <select
+                            id="filter-month"
+                            wire:model.live="filterMonth"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        >
+                            <option value="">Tất cả</option>
+                            @foreach($monthOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="filter-week" class="text-sm font-medium text-gray-700">Tuần</label>
+                        <select
+                            id="filter-week"
+                            wire:model.live="filterWeek"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        >
+                            <option value="">Tất cả</option>
+                            @foreach($weekOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="filter-from-date" class="text-sm font-medium text-gray-700">Từ ngày</label>
+                        <input
+                            id="filter-from-date"
+                            type="date"
+                            wire:model.live="filterFromDate"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        />
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="filter-to-date" class="text-sm font-medium text-gray-700">Đến ngày</label>
+                        <input
+                            id="filter-to-date"
+                            type="date"
+                            wire:model.live="filterToDate"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        />
+                    </div>
+
+                    <div class="space-y-2 xl:col-span-2">
+                        <label for="filter-training-types" class="text-sm font-medium text-gray-700">Loại hình đào tạo</label>
+                        <select
+                            id="filter-training-types"
+                            multiple
+                            size="4"
+                            wire:model.live="filterTrainingTypes"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        >
+                            @forelse($trainingTypeOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @empty
+                                <option value="" disabled>Không có dữ liệu</option>
+                            @endforelse
+                        </select>
+                    </div>
+
+                    <div class="space-y-2 xl:col-span-2">
+                        <label for="filter-course" class="text-sm font-medium text-gray-700">Khóa học</label>
+                        <select
+                            id="filter-course"
+                            wire:model.live="filterCourseId"
+                            class="fi-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                        >
+                            <option value="">Tất cả</option>
+                            @foreach($courseOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">

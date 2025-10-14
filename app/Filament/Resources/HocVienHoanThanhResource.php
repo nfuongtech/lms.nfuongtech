@@ -62,30 +62,18 @@ class HocVienHoanThanhResource extends Resource
                     ->label('TT')
                     ->rowIndex()
                     ->alignment(Alignment::Center)
-                    ->toggleable(false)
-                    ->extraCellAttributes([
-                        'class' => 'sticky left-0 z-30 bg-white dark:bg-gray-900',
-                        'style' => 'left:0;min-width:3.5rem;',
-                    ]),
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.msnv')
                     ->label('MS')
                     ->alignment(Alignment::Center)
                     ->sortable()
                     ->searchable()
-                    ->toggleable(false)
-                    ->extraCellAttributes([
-                        'class' => 'sticky z-30 bg-white dark:bg-gray-900',
-                        'style' => 'left:4.5rem;min-width:7rem;',
-                    ]),
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.ho_ten')
                     ->label('Họ & Tên')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(false)
-                    ->extraCellAttributes([
-                        'class' => 'sticky z-20 bg-white dark:bg-gray-900',
-                        'style' => 'left:11.5rem;min-width:16rem;',
-                    ]),
+                    ->toggleable(false),
                 Tables\Columns\TextColumn::make('hocVien.nam_sinh')
                     ->label('Năm sinh')
                     ->alignment(Alignment::Center)
@@ -120,12 +108,12 @@ class HocVienHoanThanhResource extends Resource
                     ->label('Đơn vị pháp nhân/trả lương')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('khoaHoc.ten_khoa_hoc')
                     ->label('Tên khóa học')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('khoaHoc.ma_khoa_hoc')
                     ->label('Mã khóa')
                     ->alignment(Alignment::Center)
@@ -136,23 +124,23 @@ class HocVienHoanThanhResource extends Resource
                     ->state(fn (HocVienHoanThanh $record) => self::resolveTrainingType($record))
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ketQua.diem_trung_binh')
                     ->label('ĐTB')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::decimalOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ketQua.tong_so_gio_thuc_te')
                     ->label('Giờ thực học')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::decimalOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ngay_hoan_thanh')
                     ->label('Ngày hoàn thành')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state)->format('d/m/Y') : '-')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('chi_phi_dao_tao')
                     ->label('Chi phí đào tạo')
                     ->alignment(Alignment::Center)
@@ -162,12 +150,12 @@ class HocVienHoanThanhResource extends Resource
                     ->label('Số chứng nhận')
                     ->alignment(Alignment::Center)
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('certificate_links')
                     ->label('File/Link Chứng nhận')
                     ->state(fn (HocVienHoanThanh $record) => self::certificateState($record))
                     ->html()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ngay_het_han_chung_nhan')
                     ->label('Ngày hết hạn')
                     ->alignment(Alignment::Center)
@@ -185,13 +173,13 @@ class HocVienHoanThanhResource extends Resource
                             'class' => 'bg-rose-50 text-rose-700 font-semibold',
                         ];
                     })
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('ketQua.danh_gia_ren_luyen')
                     ->label('Đánh giá rèn luyện')
                     ->alignment(Alignment::Center)
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
                 BadgeColumn::make('ketQua.ket_qua')
                     ->label('Kết quả')
                     ->alignment(Alignment::Center)
@@ -205,7 +193,7 @@ class HocVienHoanThanhResource extends Resource
                     ->label('Ghi chú')
                     ->wrap()
                     ->formatStateUsing(fn ($state) => self::textOrDash($state))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
             ])
             ->defaultPaginationPageOption(50)
             ->filters([
@@ -822,116 +810,267 @@ class HocVienHoanThanhResource extends Resource
         return $normalized === 'khong_hoan_thanh' ? 'khong_hoan_thanh' : 'hoan_thanh';
     }
 
-    public static function buildExportRows(Collection $records): array
+    public static function getExportColumnDefinitions(): array
     {
-        return $records->map(function (HocVienHoanThanh $record, int $index) {
-            $hocVien = $record->hocVien;
-            $ketQua = $record->ketQua;
-            $course = $record->khoaHoc;
+        return [
+            'index' => [
+                'heading' => 'TT',
+                'format' => fn (HocVienHoanThanh $record, int $index) => $index + 1,
+            ],
+            'hocVien.msnv' => [
+                'heading' => 'Mã số',
+                'format' => fn (HocVienHoanThanh $record, int $index) => $record->hocVien?->msnv ?? '-',
+            ],
+            'hocVien.ho_ten' => [
+                'heading' => 'Họ & Tên',
+                'format' => fn (HocVienHoanThanh $record, int $index) => $record->hocVien?->ho_ten ?? '-',
+            ],
+            'hocVien.nam_sinh' => [
+                'heading' => 'Ngày tháng năm sinh',
+                'format' => function (HocVienHoanThanh $record, int $index = 0) {
+                    $value = $record->hocVien?->nam_sinh;
 
-            $certificates = collect(self::certificateLabels($record))
-                ->map(fn ($entry) => $entry['label'])
-                ->implode('\n');
+                    if (! $value) {
+                        return '-';
+                    }
 
-            return [
-                $index + 1,
-                $hocVien?->msnv ?? '-',
-                $hocVien?->ho_ten ?? '-',
-                optional($hocVien?->nam_sinh)->format('d/m/Y') ?? '-',
-                self::textOrDash($hocVien?->gioi_tinh),
-                self::textOrDash($hocVien?->chuc_vu),
-                self::textOrDash($hocVien?->donVi?->phong_bo_phan),
-                self::textOrDash($hocVien?->donVi?->cong_ty_ban_nvqt),
-                self::textOrDash($hocVien?->donVi?->thaco_tdtv),
-                self::textOrDash($hocVien?->donViPhapNhan?->ten_don_vi),
-                self::textOrDash($course?->ten_khoa_hoc),
-                self::textOrDash($course?->ma_khoa_hoc),
-                self::textOrDash(self::resolveTrainingType($record)),
-                $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
-                $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
-                $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : '-',
-                self::currencyOrDash($record->chi_phi_dao_tao),
-                self::textOrDash($record->so_chung_nhan),
-                $certificates !== '' ? $certificates : '-',
-                self::formatExpiry($record, $record->ngay_het_han_chung_nhan),
-                self::textOrDash($ketQua?->danh_gia_ren_luyen),
-                $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
-                self::textOrDash($record->ghi_chu),
-            ];
+                    try {
+                        return Carbon::parse($value)->format('d/m/Y');
+                    } catch (\Throwable $e) {
+                        return '-';
+                    }
+                },
+            ],
+            'hocVien.gioi_tinh' => [
+                'heading' => 'Giới tính',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->gioi_tinh),
+            ],
+            'hocVien.chuc_vu' => [
+                'heading' => 'Chức vụ',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->chuc_vu),
+            ],
+            'hocVien.donVi.phong_bo_phan' => [
+                'heading' => 'Phòng/Bộ phận',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->donVi?->phong_bo_phan),
+            ],
+            'hocVien.donVi.cong_ty_ban_nvqt' => [
+                'heading' => 'Công ty/Ban NVQT',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->donVi?->cong_ty_ban_nvqt),
+            ],
+            'hocVien.donVi.thaco_tdtv' => [
+                'heading' => 'THACO/TĐTV',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->donVi?->thaco_tdtv),
+            ],
+            'hocVien.donViPhapNhan.ten_don_vi' => [
+                'heading' => 'Đơn vị pháp nhân/trả lương',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->hocVien?->donViPhapNhan?->ten_don_vi),
+            ],
+            'khoaHoc.ten_khoa_hoc' => [
+                'heading' => 'Tên khóa học',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->khoaHoc?->ten_khoa_hoc),
+            ],
+            'khoaHoc.ma_khoa_hoc' => [
+                'heading' => 'Mã khóa',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->khoaHoc?->ma_khoa_hoc),
+            ],
+            'loai_hinh_dao_tao' => [
+                'heading' => 'Loại hình đào tạo',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash(self::resolveTrainingType($record)),
+            ],
+            'ketQua.diem_trung_binh' => [
+                'heading' => 'ĐTB',
+                'format' => function (HocVienHoanThanh $record, int $index = 0) {
+                    $value = $record->ketQua?->diem_trung_binh;
+
+                    return $value !== null ? number_format((float) $value, 1, '.', '') : '-';
+                },
+            ],
+            'ketQua.tong_so_gio_thuc_te' => [
+                'heading' => 'Giờ thực học',
+                'format' => function (HocVienHoanThanh $record, int $index = 0) {
+                    $value = $record->ketQua?->tong_so_gio_thuc_te;
+
+                    return $value !== null ? number_format((float) $value, 1, '.', '') : '-';
+                },
+            ],
+            'ngay_hoan_thanh' => [
+                'heading' => 'Ngày hoàn thành',
+                'format' => function (HocVienHoanThanh $record, int $index = 0) {
+                    if (! $record->ngay_hoan_thanh) {
+                        return '-';
+                    }
+
+                    try {
+                        return Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y');
+                    } catch (\Throwable $e) {
+                        return '-';
+                    }
+                },
+            ],
+            'chi_phi_dao_tao' => [
+                'heading' => 'Chi phí đào tạo',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::currencyOrDash($record->chi_phi_dao_tao),
+            ],
+            'so_chung_nhan' => [
+                'heading' => 'Số chứng nhận',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->so_chung_nhan),
+            ],
+            'certificate_links' => [
+                'heading' => 'File/Link Chứng nhận',
+                'format' => function (HocVienHoanThanh $record, int $index = 0) {
+                    $certificates = collect(self::certificateLabels($record))
+                        ->map(fn ($entry) => $entry['label'])
+                        ->implode('\n');
+
+                    return $certificates !== '' ? $certificates : '-';
+                },
+            ],
+            'ngay_het_han_chung_nhan' => [
+                'heading' => 'Ngày hết hạn',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::formatExpiry($record, $record->ngay_het_han_chung_nhan),
+            ],
+            'ketQua.danh_gia_ren_luyen' => [
+                'heading' => 'Đánh giá rèn luyện',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->ketQua?->danh_gia_ren_luyen),
+            ],
+            'ketQua.ket_qua' => [
+                'heading' => 'Kết quả',
+                'format' => fn (HocVienHoanThanh $record, int $index) => $record->ketQua && $record->ketQua->ket_qua === 'khong_hoan_thanh'
+                    ? 'Không hoàn thành'
+                    : 'Hoàn thành',
+            ],
+            'ghi_chu' => [
+                'heading' => 'Ghi chú',
+                'format' => fn (HocVienHoanThanh $record, int $index) => self::textOrDash($record->ghi_chu),
+            ],
+        ];
+    }
+
+    public static function getExportHeadings(array $columnKeys): array
+    {
+        $definitions = self::getExportColumnDefinitions();
+
+        return collect($columnKeys)
+            ->filter(fn ($key) => isset($definitions[$key]))
+            ->map(fn ($key) => $definitions[$key]['heading'])
+            ->values()
+            ->all();
+    }
+
+    public static function buildExportRows(Collection $records, array $columnKeys): array
+    {
+        $definitions = self::getExportColumnDefinitions();
+
+        $keys = collect($columnKeys)
+            ->filter(fn ($key) => isset($definitions[$key]))
+            ->values();
+
+        return $records->values()->map(function (HocVienHoanThanh $record, int $index) use ($keys, $definitions) {
+            return $keys->map(function (string $key) use ($definitions, $record, $index) {
+                $formatter = $definitions[$key]['format'];
+
+                return $formatter($record, $index);
+            })->all();
         })->toArray();
     }
 
-    public static function export(Collection $records, string $filename)
+    public static function buildSummaryExportRows(Collection $summaryRows, array $totals): array
     {
-        $rows = self::buildExportRows($records);
+        if ($summaryRows->isEmpty()) {
+            return [];
+        }
 
-        $headings = [
-            ['TRƯỜNG CAO ĐẲNG THACO'],
-            [''],
-            ['CHUYÊN CẦN & KẾT QUẢ HỌC VIÊN'],
-            [''],
+        $rows = [
+            ['Danh sách khóa học'],
+            [],
+            [
+                'TT',
+                'Mã khóa',
+                'Tên khóa học',
+                'Trạng thái',
+                'Tổng số giờ',
+                'Giảng viên',
+                'Thời gian đào tạo',
+                'Số lượng HV',
+                'Hoàn thành',
+                'Không hoàn thành',
+                'Tổng thu',
+                'Ghi chú',
+            ],
         ];
 
-        $firstRecord = $records->first();
-        $course = $firstRecord?->khoaHoc;
-        $lecturerNames = $course?->lichHocs?->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
-        $dates = $course?->lichHocs?->pluck('ngay_hoc')->filter()->unique()->map(fn ($date) => Carbon::parse($date)->format('d/m/Y'))->implode("\n");
-        $weeks = $course?->lichHocs?->pluck('tuan')->filter()->unique()->implode(', ');
-        $status = $course?->trang_thai_hien_thi ?? '-';
+        foreach ($summaryRows as $row) {
+            $rows[] = [
+                $row['index'] ?? '-',
+                $row['ma_khoa'] ?? '-',
+                $row['ten_khoa'] ?? '-',
+                $row['trang_thai'] ?? '-',
+                $row['tong_gio'] ?? '-',
+                $row['giang_vien'] ?? '-',
+                $row['thoi_gian'] ?? '-',
+                number_format((int) ($row['so_luong_hv'] ?? 0), 0, ',', '.'),
+                number_format((int) ($row['hoan_thanh'] ?? 0), 0, ',', '.'),
+                number_format((int) ($row['khong_hoan_thanh'] ?? 0), 0, ',', '.'),
+                ($row['tong_thu'] ?? 0) > 0
+                    ? number_format((float) $row['tong_thu'], 0, ',', '.')
+                    : '-',
+                $row['ghi_chu'] ?? '-',
+            ];
+        }
 
-        $headings[] = [
-            'Tên khóa học: ' . ($course?->ten_khoa_hoc ?? '-'),
+        $rows[] = [
+            'Tổng cộng',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            number_format((int) ($totals['so_luong_hv'] ?? 0), 0, ',', '.'),
+            number_format((int) ($totals['hoan_thanh'] ?? 0), 0, ',', '.'),
+            number_format((int) ($totals['khong_hoan_thanh'] ?? 0), 0, ',', '.'),
+            ($totals['tong_thu'] ?? 0) > 0
+                ? number_format((float) $totals['tong_thu'], 0, ',', '.')
+                : '-',
+            '',
         ];
 
-        $headings[] = [
-            'Mã khóa: ' . ($course?->ma_khoa_hoc ?? '-'),
-        ];
+        $rows[] = [];
 
-        $headings[] = [
-            'Giảng viên: ' . ($lecturerNames ?: '-'),
-        ];
+        return $rows;
+    }
 
-        $headings[] = [
-            'Ngày giờ đào tạo: ' . ($dates ?: '-'),
-        ];
+    public static function export(
+        Collection $records,
+        array $columnKeys,
+        Collection $summaryRows,
+        array $summaryTotals,
+        string $filename
+    ) {
+        $columnKeys = collect($columnKeys)
+            ->filter(fn ($key) => isset(self::getExportColumnDefinitions()[$key]))
+            ->values()
+            ->all();
 
-        $headings[] = [
-            'Tuần: ' . ($weeks ?: '-'),
-        ];
+        $rows = [];
 
-        $headings[] = [
-            'Trạng thái: ' . $status,
-        ];
+        $summaryBlock = self::buildSummaryExportRows($summaryRows, $summaryTotals);
+        if (! empty($summaryBlock)) {
+            $rows = array_merge($rows, $summaryBlock);
+        }
 
-        $headings[] = ['Danh sách học viên'];
-        $headings[] = [''];
-        $headings[] = [
-            'TT',
-            'Mã số',
-            'Họ & Tên',
-            'Ngày tháng năm sinh',
-            'Giới tính',
-            'Chức vụ',
-            'Phòng/Bộ phận',
-            'Công ty/Ban NVQT',
-            'THACO/TĐTV',
-            'Đơn vị pháp nhân/trả lương',
-            'Tên khóa học',
-            'Mã khóa',
-            'Loại hình đào tạo',
-            'ĐTB',
-            'Giờ thực học',
-            'Ngày hoàn thành',
-            'Chi phí đào tạo',
-            'Số chứng nhận',
-            'File/Link Chứng nhận',
-            'Ngày hết hạn',
-            'Đánh giá rèn luyện',
-            'Kết quả',
-            'Ghi chú',
-        ];
+        if (! empty($columnKeys)) {
+            $rows[] = ['Danh sách học viên'];
+            $rows[] = [];
+            $rows[] = self::getExportHeadings($columnKeys);
+            $rows = array_merge($rows, self::buildExportRows($records, $columnKeys));
+        }
 
-        return Excel::download(new SimpleArrayExport(array_merge($headings, $rows)), $filename);
+        if (empty($rows)) {
+            $rows[] = ['Không có dữ liệu phù hợp với bộ lọc hiện tại.'];
+        }
+
+        return Excel::download(new SimpleArrayExport($rows), $filename);
     }
 
     public static function parseImportRows(string $filePath): array
