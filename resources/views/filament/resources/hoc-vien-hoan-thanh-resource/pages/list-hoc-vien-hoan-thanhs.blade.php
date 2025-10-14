@@ -29,23 +29,6 @@
         @php($totals = $this->summaryTotals)
 
         <div class="bg-white shadow rounded-lg">
-            <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                    <div class="space-y-1">
-                        <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                        <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
-                    </div>
-
-                    @if(! empty($headerActions))
-                        <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                            @foreach($headerActions as $action)
-                                {{ $action }}
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-            </div>
-
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-100 text-gray-700">
@@ -111,7 +94,17 @@
         </div>
 
         <div class="space-y-3">
-            <h2 class="text-lg font-semibold text-gray-900">Danh sách học viên hoàn thành</h2>
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <h2 class="text-lg font-semibold text-gray-900">Danh sách học viên hoàn thành</h2>
+
+                @if(! empty($headerActions))
+                    <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                        @foreach($headerActions as $action)
+                            {{ $action }}
+                        @endforeach
+                    </div>
+                @endif
+            </div>
             {{ $this->table }}
         </div>
     </div>
