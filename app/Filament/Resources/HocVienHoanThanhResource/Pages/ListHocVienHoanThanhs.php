@@ -455,16 +455,6 @@ class ListHocVienHoanThanhs extends ListRecords
         return $query->get();
     }
 
-    protected function getTableFiltersFormHeading(): ?string
-    {
-        return 'Chọn lọc thông tin';
-    }
-
-    protected function getTableFiltersActiveBadgeLabel(): ?string
-    {
-        return 'Đang áp dụng lọc';
-    }
-
     public function getYearOptionsProperty(): array
     {
         return HocVienHoanThanhResource::getYearOptions();
