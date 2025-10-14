@@ -269,7 +269,6 @@ class HocVienHoanThanhResource extends Resource
                     }),
             ])
             ->filtersTriggerAction(fn (Tables\Actions\Action $action) => $action->label('Chọn lọc thông tin'))
-            ->filtersActiveBadgeLabel('Đang áp dụng lọc')
             ->stickyColumns([
                 'left' => ['index', 'hocVien.msnv', 'hocVien.ho_ten'],
             ])
