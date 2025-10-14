@@ -38,20 +38,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public ?array $tableFilters = [];
 
-    public int $filterYear;
-
-    public ?int $filterMonth = null;
-
-    public ?int $filterWeek = null;
-
-    public ?string $filterFromDate = null;
-
-    public ?string $filterToDate = null;
-
-    public ?int $filterCourseId = null;
-
-    public array $filterTrainingTypes = [];
-
     protected function getHeaderActions(): array
     {
         return [
@@ -99,6 +85,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (! $file instanceof TemporaryUploadedFile) {
                         Notification::make()->title('Không tìm thấy file tải lên')->danger()->send();
+
                         return;
                     }
 
@@ -106,6 +93,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (empty($rows)) {
                         Notification::make()->title('File không có dữ liệu hợp lệ')->warning()->send();
+
                         return;
                     }
 
@@ -119,6 +107,7 @@ class ListHocVienHoanThanhs extends ListRecords
                             foreach ($result['errors'] as $message) {
                                 $errors[] = 'Dòng ' . ($index + 2) . ': ' . $message;
                             }
+
                             continue;
                         }
 
@@ -147,14 +136,7 @@ class ListHocVienHoanThanhs extends ListRecords
                     'class' => 'fi-btn fi-btn-sm border border-gray-200',
                 ])
                 ->action(function () {
-                    $records = $this->getExportCollection();
-
-                    if ($records->isEmpty()) {
-                        Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
-                        return null;
-                    }
-
-                    return HocVienHoanThanhResource::export($records, 'hoc_vien_hoan_thanh.xlsx');
+                    return $this->exportCurrentView();
                 }),
 
             Actions\Action::make('send_email')
@@ -180,6 +162,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if ($records->isEmpty()) {
                         Notification::make()->title('Không có học viên để gửi email')->warning()->send();
+
                         return;
                     }
 
@@ -188,6 +171,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (! $template || ! $account) {
                         Notification::make()->title('Thiếu thông tin gửi email')->danger()->send();
+
                         return;
                     }
 
@@ -224,6 +208,7 @@ class ListHocVienHoanThanhs extends ListRecords
                                 'status' => 'failed',
                                 'error_message' => 'Học viên không có email.',
                             ]);
+
                             continue;
                         }
 
@@ -275,13 +260,35 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         parent::mount();
 
-        $state = $this->defaultFilterState();
-        $this->applyFilterState($state, false);
+        $this->applyFilterState($this->defaultFilterState());
     }
 
-    public function hydrate(): void
+    public function exportCurrentView()
     {
-        $this->syncFilterInputsFromState($this->resolveFilterState());
+        $records = $this->getExportCollection();
+
+        if ($records->isEmpty()) {
+            Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
+
+            return null;
+        }
+
+        $visibleColumns = collect($this->getVisibleTableColumns())
+            ->map(fn ($column) => [
+                'name' => $column->getName(),
+                'label' => $column->getLabel(),
+            ])
+            ->values()
+            ->all();
+
+        return HocVienHoanThanhResource::exportWithSummary(
+            $this->summaryRows,
+            $records,
+            $visibleColumns,
+            $this->resolveFilterState(),
+            $this->summaryTotals,
+            'hoc_vien_hoan_thanh.xlsx'
+        );
     }
 
     public function getSummaryRowsProperty(): Collection
@@ -388,7 +395,6 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $current = $this->filterState['course_id'] ?? null;
         $newCourse = $current === $courseId ? null : $courseId;
-        $this->filterCourseId = $newCourse;
         $this->setCourseFilter($newCourse);
     }
 
@@ -463,125 +469,6 @@ class ListHocVienHoanThanhs extends ListRecords
         };
     }
 
-    public function getYearOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getYearOptions();
-    }
-
-    public function getMonthOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getMonthOptions($this->filterYear ?? now()->year);
-    }
-
-    public function getWeekOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getWeekOptions($this->filterYear ?? now()->year, $this->filterMonth);
-    }
-
-    public function getCourseOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getCourseOptions(
-            $this->filterYear ?? now()->year,
-            $this->filterMonth,
-            $this->filterWeek,
-            $this->filterFromDate,
-            $this->filterToDate,
-            $this->filterTrainingTypes
-        );
-    }
-
-    public function getTrainingTypeOptionsProperty(): array
-    {
-        return HocVienHoanThanhResource::getTrainingTypeOptions();
-    }
-
-    public function updatedFilterYear($value): void
-    {
-        $year = (int) ($value ?: now()->year);
-        $this->filterYear = $year;
-        $this->filterWeek = null;
-        if ($this->filterMonth === null) {
-            $this->filterMonth = now()->month;
-        }
-
-        $this->updateFilter('year', $year);
-    }
-
-    public function updatedFilterMonth($value): void
-    {
-        $month = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterMonth = $month;
-        $this->filterWeek = null;
-        $this->updateFilter('month', $month);
-    }
-
-    public function updatedFilterWeek($value): void
-    {
-        $week = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterWeek = $week;
-        $this->updateFilter('week', $week);
-    }
-
-    public function updatedFilterFromDate($value): void
-    {
-        $from = $this->normalizeDate($value);
-        $this->filterFromDate = $from;
-
-        if ($from && $this->filterToDate && $from > $this->filterToDate) {
-            $this->filterToDate = $from;
-        }
-
-        $this->updateFilter('from_date', $from);
-    }
-
-    public function updatedFilterToDate($value): void
-    {
-        $to = $this->normalizeDate($value);
-        $this->filterToDate = $to;
-
-        if ($to && $this->filterFromDate && $to < $this->filterFromDate) {
-            $this->filterFromDate = $to;
-        }
-
-        $this->updateFilter('to_date', $to);
-    }
-
-    public function updatedFilterCourseId($value): void
-    {
-        $course = $value !== '' && $value !== null ? (int) $value : null;
-        $this->filterCourseId = $course;
-        $this->updateFilter('course_id', $course);
-    }
-
-    public function updatedFilterTrainingTypes($value): void
-    {
-        $types = collect($value ?? [])
-            ->filter(fn ($item) => $item !== null && $item !== '')
-            ->map(fn ($item) => (string) $item)
-            ->unique()
-            ->values()
-            ->all();
-
-        $this->filterTrainingTypes = $types;
-        $this->updateFilter('training_types', $types);
-    }
-
-    protected function updateFilter(string $key, $value): void
-    {
-        $state = $this->resolveFilterState();
-        $state[$key] = $value;
-
-        if ($key === 'year') {
-            $state['year'] = (int) $value ?: now()->year;
-        }
-
-        if ($key === 'month' && $value === null) {
-            $state['month'] = null;
-        }
-
-        $this->applyFilterState($state);
-    }
-
     protected function defaultFilterState(): array
     {
         $now = now();
@@ -597,7 +484,7 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
-    protected function applyFilterState(array $state, bool $resetInputs = true): void
+    protected function applyFilterState(array $state): void
     {
         $data = [
             'year' => (string) $state['year'],
@@ -617,24 +504,9 @@ class ListHocVienHoanThanhs extends ListRecords
             'data' => $data,
         ];
 
-        if ($resetInputs) {
-            $this->syncFilterInputsFromState($state);
-        }
-
         if (method_exists($this, 'resetTablePage')) {
             $this->resetTablePage();
         }
-    }
-
-    protected function syncFilterInputsFromState(array $state): void
-    {
-        $this->filterYear = (int) $state['year'];
-        $this->filterMonth = $state['month'] ? (int) $state['month'] : null;
-        $this->filterWeek = $state['week'] ? (int) $state['week'] : null;
-        $this->filterFromDate = $state['from_date'];
-        $this->filterToDate = $state['to_date'];
-        $this->filterCourseId = $state['course_id'];
-        $this->filterTrainingTypes = $state['training_types'];
     }
 
     protected function normalizeDate(?string $value): ?string

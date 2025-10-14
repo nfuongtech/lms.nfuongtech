@@ -18,7 +18,6 @@
         @endonce
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
-
         @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
 
         @if($pageHeading !== '')
