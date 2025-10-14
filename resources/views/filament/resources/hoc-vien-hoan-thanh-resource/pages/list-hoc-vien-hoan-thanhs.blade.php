@@ -19,8 +19,6 @@
 
         @php($pageHeading = trim($this->getHeading() ?? $this->getTitle() ?? ''))
 
-        @php($headerActions = method_exists($this, 'getCachedHeaderActions') ? $this->getCachedHeaderActions() : [])
-
         @if($pageHeading !== '')
             <h1 class="text-2xl font-semibold text-gray-900">{{ $pageHeading }}</h1>
         @endif
@@ -30,19 +28,117 @@
 
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div class="space-y-1">
+                    <h2 class="text-base font-semibold text-gray-900">Bộ lọc dữ liệu</h2>
+                    <p class="text-xs text-gray-500">Chọn thông tin bên dưới để lọc danh sách khóa học và học viên.</p>
+                </div>
+            </div>
+
+            <div class="px-4 py-4 space-y-4">
+                <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                     <div class="space-y-1">
-                        <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
-                        <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
+                        <label class="text-sm font-medium text-gray-700">Năm</label>
+                        <select
+                            wire:model.live="filterYear"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            @foreach($this->yearOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
 
-                    @if(! empty($headerActions))
-                        <div class="flex flex-wrap items-center gap-2 xl:justify-end">
-                            @foreach($headerActions as $action)
-                                {{ $action }}
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-gray-700">Tháng</label>
+                        <select
+                            wire:model.live="filterMonth"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            <option value="">Tất cả</option>
+                            @foreach($this->monthOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
-                        </div>
-                    @endif
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-gray-700">Tuần</label>
+                        <select
+                            wire:model.live="filterWeek"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            <option value="">Tất cả</option>
+                            @foreach($this->weekOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-gray-700">Từ ngày</label>
+                        <input
+                            type="date"
+                            wire:model.live="filterFromDate"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        />
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-gray-700">Đến ngày</label>
+                        <input
+                            type="date"
+                            wire:model.live="filterToDate"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        />
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-sm font-medium text-gray-700">Khóa học</label>
+                        <select
+                            wire:model.live="filterCourseId"
+                            class="fi-input block w-full rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            <option value="">Tất cả khóa học</option>
+                            @foreach($this->courseOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-1 xl:col-span-2">
+                        <label class="text-sm font-medium text-gray-700">Loại hình đào tạo</label>
+                        <select
+                            multiple
+                            wire:model.live="filterTrainingTypes"
+                            class="fi-input block w-full min-h-[2.875rem] rounded-lg border-gray-300 text-sm focus:border-primary-500 focus:ring-primary-500"
+                        >
+                            @foreach($this->trainingTypeOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-500">Giữ Ctrl (Windows) hoặc Command (Mac) để chọn nhiều giá trị.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end">
+                    <x-filament::button
+                        color="success"
+                        icon="heroicon-o-arrow-down-tray"
+                        wire:click="exportCurrentView"
+                        wire:loading.attr="disabled"
+                        wire:target="exportCurrentView"
+                    >
+                        Xuất Excel
+                    </x-filament::button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-4 border-b">
+                <div class="space-y-1">
+                    <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
+                    <p class="text-xs text-gray-500">Nhấn vào hàng trong bảng bên dưới để xem chi tiết danh sách học viên hoàn thành theo từng khóa học.</p>
                 </div>
             </div>
 
