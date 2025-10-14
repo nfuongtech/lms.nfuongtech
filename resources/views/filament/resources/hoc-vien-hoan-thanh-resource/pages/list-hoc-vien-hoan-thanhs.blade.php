@@ -1,6 +1,8 @@
 <x-filament::page>
     <div class="space-y-6">
-        {{ $this->header }}
+        <h1 class="text-2xl font-semibold text-gray-900">
+            {{ $this->getHeading() }}
+        </h1>
 
         @php($selectedCourse = $this->filterState['course_id'] ?? null)
 
