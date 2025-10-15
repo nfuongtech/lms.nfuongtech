@@ -24,7 +24,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Schema;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -349,54 +348,21 @@ class ListHocVienHoanThanhs extends ListRecords
         }
     }
 
-    /** Tự động lấy từ lich_hocs.loai_hinh (nếu có) và QUY TẮC mã khóa (prefix từ ma_khoa_hoc) */
     public function getTrainingTypeOptions(): array
     {
-        $options = [];
+        $options = HocVienHoanThanhResource::getTrainingTypeOptions();
 
-        // 1) Thử đọc trực tiếp từ lich_hocs.loai_hinh nếu có cột
-        try {
-            if (Schema::hasColumn('lich_hocs', 'loai_hinh')) {
-                $types = DB::table('lich_hocs')->distinct()->whereNotNull('loai_hinh')->pluck('loai_hinh')->toArray();
-                foreach ($types as $t) {
-                    $key = Str::slug((string)$t, '_');
-                    $options[$key] = (string)$t;
-                }
-            }
-        } catch (\Throwable $e) {
-            // ignore
-        }
+        return collect($options)
+            ->filter(fn ($label, $value) => ($label ?? '') !== '')
+            ->mapWithKeys(function ($label, $value) {
+                $label = trim((string) $label);
+                $value = trim((string) $value);
 
-        // 2) Ghép thêm theo quy tắc mã khóa (prefix trước số/dấu)
-        try {
-            $codes = DB::table('khoa_hocs')->select('ma_khoa_hoc')->whereNotNull('ma_khoa_hoc')->distinct()->pluck('ma_khoa_hoc');
-            foreach ($codes as $code) {
-                $c = (string)$code;
-                // Lấy prefix chữ/ghạch dưới trước khi gặp số hoặc dấu ngăn cách '-', '_', '/'
-                if (preg_match('/^([A-Za-zÀ-ỹ_]+)(?:[\d\-\_\/].*)?$/u', $c, $m)) {
-                    $label = strtoupper($m[1]);
-                    $key   = Str::slug($label, '_');
-                    if (!isset($options[$key])) {
-                        $options[$key] = $label;
-                    }
-                }
-            }
-        } catch (\Throwable $e) {
-            // ignore
-        }
-
-        // fallback tối thiểu
-        if (empty($options)) {
-            $options = [
-                'noi_bo'    => 'Nội bộ',
-                'ben_ngoai' => 'Bên ngoài',
-                'online'    => 'Online',
-                'offline'   => 'Offline',
-            ];
-        }
-
-        ksort($options);
-        return $options;
+                return [$value => $label];
+            })
+            ->unique()
+            ->sort()
+            ->toArray();
     }
 
     /* ===================== TÓM TẮT (bảng trên) ===================== */
@@ -439,16 +405,14 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function getSummaryCourseOptionsProperty(): array
     {
-        $filters = $this->resolveFilterState();
-
-        return $this->makeSummaryCourseQuery($filters, false)
-            ->orderBy('ma_khoa_hoc')
-            ->get(['id', 'ma_khoa_hoc', 'ten_khoa_hoc'])
-            ->map(fn (KhoaHoc $course) => [
-                'id'   => $course->id,
-                'code' => $course->ma_khoa_hoc ?? '-',
-                'name' => $course->ten_khoa_hoc ?? '-',
+        return $this->summaryRows
+            ->filter(fn (array $row) => ($row['hoan_thanh'] ?? 0) > 0)
+            ->map(fn (array $row) => [
+                'id'   => (int) $row['id'],
+                'code' => $row['ma_khoa'] ?? '-',
+                'name' => $row['ten_khoa'] ?? '-',
             ])
+            ->unique('id')
             ->values()
             ->all();
     }

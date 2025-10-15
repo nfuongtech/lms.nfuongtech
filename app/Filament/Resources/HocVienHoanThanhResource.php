@@ -288,7 +288,7 @@ class HocVienHoanThanhResource extends Resource
             ->filtersLayout(FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(3)
             ->filtersFormWidth('4xl')
-            ->filtersTriggerAction(fn (Tables\Actions\Action $action) => $action->label('Chọn lọc thông tin'))
+            ->filtersTriggerAction(null)
             ->actions([
                 Tables\Actions\Action::make('cap_nhat')
                     ->label('Cập nhật')
@@ -426,7 +426,7 @@ class HocVienHoanThanhResource extends Resource
             ->toArray();
     }
 
-    protected static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
+    public static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
     {
         $trainingTypes = collect($trainingTypes)
             ->filter(fn ($value) => $value !== null && $value !== '')
