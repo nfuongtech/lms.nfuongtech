@@ -20,9 +20,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -32,15 +34,40 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected static ?string $title = 'Học viên hoàn thành';
 
+    /** Không render heading trên Blade để tránh trùng title */
     protected ?string $heading = null;
 
     protected static string $view = 'filament.resources.hoc-vien-hoan-thanh-resource.pages.list-hoc-vien-hoan-thanhs';
 
+    /** Trạng thái filter của bảng */
     public ?array $tableFilters = [];
 
+    /** Danh sách ID khóa học đã chọn (multi-select) */
+    public array $selectedCourseIds = [];
+
+    /* ==========================================================
+     |  ACTIONS
+     |  - Đăng ký actions qua getHeaderActions() để Filament mount
+     |  - Trên Blade, render lại đúng thứ tự và ẩn header mặc định
+     * ========================================================== */
+
+    /** Mount actions vào Page (để action chạy được) */
     protected function getHeaderActions(): array
     {
+        return $this->makePageActions();
+    }
+
+    /** (Giữ lại) Cho phép component khác đọc được mảng actions nếu cần */
+    public function getActions(): array
+    {
+        return $this->makePageActions();
+    }
+
+    /** Sắp xếp đúng thứ tự theo yêu cầu */
+    protected function makePageActions(): array
+    {
         return [
+            // 1) Tải mẫu import
             Actions\Action::make('download_template')
                 ->label('Tải mẫu import')
                 ->extraAttributes([
@@ -48,21 +75,12 @@ class ListHocVienHoanThanhs extends ListRecords
                     'style' => 'color:#000000;',
                 ])
                 ->action(fn () => Excel::download(new SimpleArrayExport([], [
-                    'MS',
-                    'Họ & Tên',
-                    'Tên khóa học',
-                    'Mã khóa',
-                    'ĐTB',
-                    'Giờ thực học',
-                    'Ngày hoàn thành',
-                    'Chi phí đào tạo',
-                    'Số chứng nhận',
-                    'Link chứng nhận',
-                    'Thời hạn chứng nhận (năm)',
-                    'Ngày hết hạn chứng nhận',
-                    'Ghi chú',
+                    'MS','Họ & Tên','Tên khóa học','Mã khóa','ĐTB','Giờ thực học','Ngày hoàn thành',
+                    'Chi phí đào tạo','Số chứng nhận','Link chứng nhận','Thời hạn chứng nhận (năm)',
+                    'Ngày hết hạn chứng nhận','Ghi chú',
                 ]), 'mau_hoc_vien_hoan_thanh.xlsx')),
 
+            // 2) Import
             Actions\Action::make('import_excel')
                 ->label('Import')
                 ->extraAttributes([
@@ -81,7 +99,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (! $file instanceof TemporaryUploadedFile) {
                         Notification::make()->title('Không tìm thấy file tải lên')->danger()->send();
-
                         return;
                     }
 
@@ -89,7 +106,6 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if (empty($rows)) {
                         Notification::make()->title('File không có dữ liệu hợp lệ')->warning()->send();
-
                         return;
                     }
 
@@ -103,7 +119,6 @@ class ListHocVienHoanThanhs extends ListRecords
                             foreach ($result['errors'] as $message) {
                                 $errors[] = 'Dòng ' . ($index + 2) . ': ' . $message;
                             }
-
                             continue;
                         }
 
@@ -125,6 +140,7 @@ class ListHocVienHoanThanhs extends ListRecords
                         ->send();
                 }),
 
+            // 3) Xuất Excel
             Actions\Action::make('export_excel')
                 ->label('Xuất Excel')
                 ->extraAttributes([
@@ -133,6 +149,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 ])
                 ->action(fn () => $this->exportCurrentView()),
 
+            // 4) Gửi Email
             Actions\Action::make('send_email')
                 ->label('Gửi Email')
                 ->extraAttributes([
@@ -156,16 +173,14 @@ class ListHocVienHoanThanhs extends ListRecords
 
                     if ($records->isEmpty()) {
                         Notification::make()->title('Không có học viên để gửi email')->warning()->send();
-
                         return;
                     }
 
                     $template = EmailTemplate::find($data['email_template_id'] ?? null);
-                    $account = EmailAccount::find($data['email_account_id'] ?? null);
+                    $account  = EmailAccount::find($data['email_account_id'] ?? null);
 
                     if (! $template || ! $account) {
                         Notification::make()->title('Thiếu thông tin gửi email')->danger()->send();
-
                         return;
                     }
 
@@ -184,62 +199,55 @@ class ListHocVienHoanThanhs extends ListRecords
                     ]);
 
                     $success = 0;
-                    $failed = 0;
+                    $failed  = 0;
 
                     foreach ($records as $record) {
-                        $hocVien = $record->hocVien;
-                        $ketQua = $record->ketQua;
-                        $course = $record->khoaHoc;
-
+                        $hocVien   = $record->hocVien;
+                        $ketQua    = $record->ketQua;
+                        $course    = $record->khoaHoc;
                         $recipient = $hocVien?->email;
 
                         if (! $recipient) {
                             $failed++;
-
                             EmailLog::create([
                                 'email_account_id' => $account->id,
-                                'recipient_email' => 'N/A',
-                                'subject' => 'Không gửi (thiếu email học viên)',
-                                'content' => '',
-                                'status' => 'failed',
-                                'error_message' => 'Học viên không có email.',
+                                'recipient_email'  => 'N/A',
+                                'subject'          => 'Không gửi (thiếu email học viên)',
+                                'content'          => '',
+                                'status'           => 'failed',
+                                'error_message'    => 'Học viên không có email.',
                             ]);
-
                             continue;
                         }
 
                         $placeholders = [
-                            '{ten_hoc_vien}' => $hocVien?->ho_ten ?? 'N/A',
-                            '{msnv}' => $hocVien?->msnv ?? 'N/A',
-                            '{ten_khoa_hoc}' => $course?->ten_khoa_hoc ?? 'N/A',
-                            '{ma_khoa_hoc}' => $course?->ma_khoa_hoc ?? 'N/A',
-                            '{diem_tb}' => $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
-                            '{gio_thuc_hoc}' => $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
-                            '{ket_qua}' => $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
+                            '{ten_hoc_vien}'  => $hocVien?->ho_ten ?? 'N/A',
+                            '{msnv}'          => $hocVien?->msnv ?? 'N/A',
+                            '{ten_khoa_hoc}'  => $course?->ten_khoa_hoc ?? 'N/A',
+                            '{ma_khoa_hoc}'   => $course?->ma_khoa_hoc ?? 'N/A',
+                            '{diem_tb}'       => $ketQua?->diem_trung_binh ? number_format((float) $ketQua->diem_trung_binh, 1, '.', '') : '-',
+                            '{gio_thuc_hoc}'  => $ketQua?->tong_so_gio_thuc_te ? number_format((float) $ketQua->tong_so_gio_thuc_te, 1, '.', '') : '-',
+                            '{ket_qua}'       => $ketQua && $ketQua->ket_qua === 'hoan_thanh' ? 'Hoàn thành' : 'Không hoàn thành',
                         ];
 
                         $subject = strtr($template->tieu_de, $placeholders);
-                        $body = strtr($template->noi_dung, $placeholders);
+                        $body    = strtr($template->noi_dung, $placeholders);
 
                         try {
                             Mail::mailer('dynamic')->to($recipient)->send(new PlanNotificationMail($subject, $body));
-                            $success++;
-                            $status = 'success';
-                            $error = null;
+                            $success++; $status = 'success'; $error = null;
                         } catch (\Throwable $exception) {
-                            $failed++;
-                            $status = 'failed';
-                            $error = $exception->getMessage();
+                            $failed++; $status = 'failed'; $error = $exception->getMessage();
                             Log::error('Lỗi gửi email học viên hoàn thành: ' . $exception->getMessage());
                         }
 
                         EmailLog::create([
                             'email_account_id' => $account->id,
-                            'recipient_email' => $recipient,
-                            'subject' => $subject,
-                            'content' => $body,
-                            'status' => $status,
-                            'error_message' => $error,
+                            'recipient_email'  => $recipient,
+                            'subject'          => $subject,
+                            'content'          => $body,
+                            'status'           => $status,
+                            'error_message'    => $error,
                         ]);
                     }
 
@@ -252,13 +260,36 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
+    /** Trả mảng actions theo đúng thứ tự để Blade render (dùng chính header actions) */
+    public function getOverviewActions(): array
+    {
+        // dùng chính getHeaderActions() để đảm bảo cùng instance đã mount
+        $actions = $this->getHeaderActions();
+
+        // đảm bảo thứ tự: download_template, import_excel, export_excel, send_email
+        $map = [];
+        foreach ($actions as $a) {
+            $map[$a->getName()] = $a;
+        }
+
+        return array_values(array_filter([
+            $map['download_template'] ?? null,
+            $map['import_excel'] ?? null,
+            $map['export_excel'] ?? null,
+            $map['send_email'] ?? null,
+        ]));
+    }
+
+    /* ===================== LIFECYCLE ===================== */
+
     public function mount(): void
     {
         parent::mount();
-
-        $state = $this->defaultFilterState();
-        $this->applyFilterState($state);
+        $this->selectedCourseIds = [];
+        $this->applyFilterState($this->defaultFilterState());
     }
+
+    /* ===================== EXPORT ===================== */
 
     public function exportCurrentView()
     {
@@ -266,17 +297,33 @@ class ListHocVienHoanThanhs extends ListRecords
 
         if ($records->isEmpty()) {
             Notification::make()->title('Không có dữ liệu để xuất')->warning()->send();
-
             return null;
         }
 
-        $visibleColumns = collect($this->getVisibleTableColumns())
-            ->map(fn ($column) => [
-                'name' => $column->getName(),
-                'label' => $column->getLabel(),
-            ])
-            ->values()
-            ->all();
+        $columns = [];
+
+        if (method_exists($this, 'getVisibleTableColumns')) {
+            $columns = $this->getVisibleTableColumns();
+        } elseif (method_exists($this, 'getCachedTableColumns')) {
+            $columns = $this->getCachedTableColumns();
+        } elseif (method_exists($this, 'getTableColumns')) {
+            $columns = $this->getTableColumns();
+        }
+
+        $visibleColumns = collect($columns)
+            ->filter(function ($column) {
+                if (method_exists($column, 'isHidden') && $column->isHidden()) return false;
+                if (method_exists($column, 'isVisible')) return $column->isVisible();
+                return true;
+            })
+            ->map(function ($column) {
+                $name  = method_exists($column, 'getName') ? $column->getName()
+                    : (method_exists($column, 'getColumn') ? $column->getColumn() : null);
+                $label = method_exists($column, 'getLabel') ? $column->getLabel()
+                    : ($name ? Str::of($name)->headline()->toString() : '');
+                return ['name' => $name, 'label' => $label];
+            })
+            ->values()->all();
 
         return HocVienHoanThanhResource::exportWithSummary(
             $this->summaryRows,
@@ -287,6 +334,92 @@ class ListHocVienHoanThanhs extends ListRecords
             'hoc_vien_hoan_thanh.xlsx'
         );
     }
+
+    /* ====== OPTION LISTS TỪ KẾ HOẠCH ĐÀO TẠO / QUY TẮC MÃ KHÓA ====== */
+
+    public function getAvailableYearsProperty(): array
+    {
+        try {
+            return DB::table('lich_hocs')->distinct()->orderByDesc('nam')->pluck('nam')->map(fn($v)=>(int)$v)->toArray();
+        } catch (\Throwable $e) {
+            return [now()->year];
+        }
+    }
+
+    public function getAvailableMonthsProperty(): array
+    {
+        $year = $this->resolveFilterState()['year'] ?? now()->year;
+        try {
+            return DB::table('lich_hocs')->where('nam', $year)->distinct()->orderBy('thang')->pluck('thang')->map(fn($v)=>(int)$v)->toArray();
+        } catch (\Throwable $e) {
+            return range(1, 12);
+        }
+    }
+
+    public function getAvailableWeeksProperty(): array
+    {
+        $state = $this->resolveFilterState();
+        $q = DB::table('lich_hocs')->where('nam', $state['year']);
+        if (!empty($state['month'])) $q->where('thang', $state['month']);
+
+        try {
+            return $q->distinct()->orderBy('tuan')->pluck('tuan')->map(fn($v)=>(int)$v)->toArray();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /** Tự động lấy từ lich_hocs.loai_hinh (nếu có) và QUY TẮC mã khóa (prefix từ ma_khoa_hoc) */
+    public function getTrainingTypeOptions(): array
+    {
+        $options = [];
+
+        // 1) Thử đọc trực tiếp từ lich_hocs.loai_hinh nếu có cột
+        try {
+            if (Schema::hasColumn('lich_hocs', 'loai_hinh')) {
+                $types = DB::table('lich_hocs')->distinct()->whereNotNull('loai_hinh')->pluck('loai_hinh')->toArray();
+                foreach ($types as $t) {
+                    $key = Str::slug((string)$t, '_');
+                    $options[$key] = (string)$t;
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 2) Ghép thêm theo quy tắc mã khóa (prefix trước số/dấu)
+        try {
+            $codes = DB::table('khoa_hocs')->select('ma_khoa_hoc')->whereNotNull('ma_khoa_hoc')->distinct()->pluck('ma_khoa_hoc');
+            foreach ($codes as $code) {
+                $c = (string)$code;
+                // Lấy prefix chữ/ghạch dưới trước khi gặp số hoặc dấu ngăn cách '-', '_', '/'
+                if (preg_match('/^([A-Za-zÀ-ỹ_]+)(?:[\d\-\_\/].*)?$/u', $c, $m)) {
+                    $label = strtoupper($m[1]);
+                    $key   = Str::slug($label, '_');
+                    if (!isset($options[$key])) {
+                        $options[$key] = $label;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // fallback tối thiểu
+        if (empty($options)) {
+            $options = [
+                'noi_bo'    => 'Nội bộ',
+                'ben_ngoai' => 'Bên ngoài',
+                'online'    => 'Online',
+                'offline'   => 'Offline',
+            ];
+        }
+
+        ksort($options);
+        return $options;
+    }
+
+    /* ===================== TÓM TẮT (bảng trên) ===================== */
 
     public function getSummaryRowsProperty(): Collection
     {
@@ -310,17 +443,22 @@ class ListHocVienHoanThanhs extends ListRecords
                     ->when($filters['to_date'], fn ($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']));
             });
 
-        if (! empty($filters['training_types'])) {
-            $courseQuery->where(function (Builder $builder) use ($filters) {
-                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $filters['training_types']);
+        // Áp dụng loại hình đào tạo
+        $trainingTypes = $filters['training_types'] ?? [];
+        if (! empty($trainingTypes)) {
+            $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
+                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $trainingTypes);
             });
         }
 
-        if ($filters['course_id']) {
+        // Áp dụng danh sách khóa đã chọn
+        if (!empty($filters['course_ids'])) {
+            $courseQuery->whereIn('id', $filters['course_ids']);
+        } elseif ($filters['course_id']) {
             $courseQuery->where('id', $filters['course_id']);
         }
 
-        $courses = $courseQuery->orderBy('ma_khoa_hoc')->get();
+        $courses   = $courseQuery->orderBy('ma_khoa_hoc')->get();
         $courseIds = $courses->pluck('id');
 
         if ($courseIds->isEmpty()) {
@@ -349,29 +487,28 @@ class ListHocVienHoanThanhs extends ListRecords
             ->pluck('total', 'khoa_hoc_id');
 
         $rows = $courses->map(function (KhoaHoc $course) use ($registrations, $completed, $failed) {
-            $lichHocs = $course->lichHocs;
+            $lichHocs   = $course->lichHocs;
             $totalHours = $lichHocs->sum(fn ($lich) => (float) ($lich->so_gio_giang ?? 0));
-            $giangVien = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
-            $dates = $lichHocs->pluck('ngay_hoc')->filter()->unique()->sort()->map(fn ($date) => Carbon::parse($date)->format('d/m/Y'))->implode("\n");
+            $giangVien  = $lichHocs->pluck('giangVien.ho_ten')->filter()->unique()->implode(', ');
+            $dates      = $lichHocs->pluck('ngay_hoc')->filter()->unique()->sort()
+                ->map(fn ($d) => Carbon::parse($d)->format('d/m/Y'))->implode("\n");
 
             return [
-                'id' => $course->id,
-                'ma_khoa' => $course->ma_khoa_hoc ?? '-',
-                'ten_khoa' => $course->ten_khoa_hoc ?? '-',
-                'trang_thai' => $course->trang_thai_hien_thi ?? '-',
-                'tong_gio' => $totalHours > 0 ? number_format($totalHours, 1, '.', '') : '-',
-                'giang_vien' => $giangVien ?: '-',
-                'thoi_gian' => $dates ?: '-',
-                'so_luong_hv' => (int) ($registrations[$course->id] ?? 0),
-                'hoan_thanh' => (int) data_get($completed, $course->id . '.total', 0),
-                'khong_hoan_thanh' => (int) ($failed[$course->id] ?? 0),
-                'tong_thu' => (float) data_get($completed, $course->id . '.total_cost', 0),
-                'ghi_chu' => $course->da_chuyen_ket_qua ? 'Đã khóa' : '-',
+                'id'                => $course->id,
+                'ma_khoa'           => $course->ma_khoa_hoc ?? '-',
+                'ten_khoa'          => $course->ten_khoa_hoc ?? '-',
+                'trang_thai'        => $course->trang_thai_hien_thi ?? '-',
+                'tong_gio'          => $totalHours > 0 ? number_format($totalHours, 1, '.', '') : '-',
+                'giang_vien'        => $giangVien ?: '-',
+                'thoi_gian'         => $dates ?: '-',
+                'so_luong_hv'       => (int) ($registrations[$course->id] ?? 0),
+                'hoan_thanh'        => (int) data_get($completed, $course->id . '.total', 0),
+                'khong_hoan_thanh'  => (int) ($failed[$course->id] ?? 0),
+                'tong_thu'          => (float) data_get($completed, $course->id . '.total_cost', 0),
+                'ghi_chu'           => $course->da_chuyen_ket_qua ? 'Đã khóa' : '-',
             ];
-        })->filter(fn (array $row) => $row['so_luong_hv'] > 0)->values()->map(function (array $row, int $index) {
-            $row['index'] = $index + 1;
-            return $row;
-        });
+        })->filter(fn (array $row) => $row['so_luong_hv'] > 0)->values()
+          ->map(function (array $row, int $index) { $row['index'] = $index + 1; return $row; });
 
         return $rows;
     }
@@ -381,24 +518,41 @@ class ListHocVienHoanThanhs extends ListRecords
         $rows = $this->summaryRows;
 
         return [
-            'so_luong_hv' => $rows->sum('so_luong_hv'),
-            'hoan_thanh' => $rows->sum('hoan_thanh'),
+            'so_luong_hv'      => $rows->sum('so_luong_hv'),
+            'hoan_thanh'       => $rows->sum('hoan_thanh'),
             'khong_hoan_thanh' => $rows->sum('khong_hoan_thanh'),
-            'tong_thu' => $rows->sum('tong_thu'),
+            'tong_thu'         => $rows->sum('tong_thu'),
         ];
     }
 
+    /* ===================== UI EVENTS ===================== */
+
     public function selectCourseFromSummary(int $courseId): void
     {
-        $current = $this->filterState['course_id'] ?? null;
-        $newCourse = $current === $courseId ? null : $courseId;
-        $this->setCourseFilter($newCourse);
+        $ids = collect($this->selectedCourseIds)->map(fn($i)=>(int)$i)->values()->all();
+
+        if (in_array($courseId, $ids, true)) {
+            $ids = array_values(array_diff($ids, [$courseId]));
+        } else {
+            $ids[] = $courseId;
+        }
+
+        $this->selectedCourseIds = array_values(array_unique($ids));
+        $this->applyQuickFilters();
     }
 
-    public function getFilterStateProperty(): array
+    public function applyQuickFilters(): void
     {
-        return $this->resolveFilterState();
+        $this->applyFilterState($this->resolveFilterState());
     }
+
+    public function clearQuickCourseFilter(): void
+    {
+        $this->selectedCourseIds = [];
+        $this->applyQuickFilters();
+    }
+
+    /* ===================== STATE HELPERS ===================== */
 
     protected function resolveFilterState(): array
     {
@@ -410,24 +564,31 @@ class ListHocVienHoanThanhs extends ListRecords
 
         $defaults = $this->defaultFilterState();
 
-        $year = (int) ($filters['year'] ?? $defaults['year']);
+        $year  = (int) ($filters['year'] ?? $defaults['year']);
         $month = isset($filters['month']) && $filters['month'] !== '' ? (int) $filters['month'] : $defaults['month'];
-        $week = isset($filters['week']) && $filters['week'] !== '' ? (int) $filters['week'] : null;
-        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
-        $fromDate = $this->normalizeDate($filters['from_date'] ?? $defaults['from_date']);
-        $toDate = $this->normalizeDate($filters['to_date'] ?? $defaults['to_date']);
+        $week  = isset($filters['week']) && $filters['week'] !== '' ? (int) $filters['week'] : null;
 
+        $courseIdSingle = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+
+        $courseIds = $filters['course_ids'] ?? [];
+        if (is_string($courseIds) || is_int($courseIds)) $courseIds = [$courseIds];
+
+        $courseIds = collect($courseIds)
+            ->merge($this->selectedCourseIds)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->when($courseIdSingle, fn ($c) => $c->push($courseIdSingle))
+            ->unique()->values()->all();
+
+        $fromDate = $this->normalizeDate($filters['from_date'] ?? $defaults['from_date']);
+        $toDate   = $this->normalizeDate($filters['to_date'] ?? $defaults['to_date']);
         if ($fromDate && $toDate && $fromDate > $toDate) {
             $toDate = $fromDate;
         }
 
         $trainingTypes = $filters['training_types'] ?? $defaults['training_types'];
-        if (is_string($trainingTypes)) {
-            $trainingTypes = [$trainingTypes];
-        }
-        if (! is_array($trainingTypes)) {
-            $trainingTypes = [];
-        }
+        if (is_string($trainingTypes)) $trainingTypes = [$trainingTypes];
+        if (! is_array($trainingTypes)) $trainingTypes = [];
         $trainingTypes = collect($trainingTypes)
             ->filter(fn ($type) => $type !== null && $type !== '')
             ->map(fn ($type) => (string) $type)
@@ -436,34 +597,15 @@ class ListHocVienHoanThanhs extends ListRecords
             ->all();
 
         return [
-            'year' => $year,
-            'month' => $month,
-            'week' => $week,
-            'from_date' => $fromDate,
-            'to_date' => $toDate,
-            'course_id' => $courseId,
+            'year'           => $year,
+            'month'          => $month,
+            'week'           => $week,
+            'from_date'      => $fromDate,
+            'to_date'        => $toDate,
+            'course_id'      => $courseIdSingle,
+            'course_ids'     => $courseIds,
             'training_types' => $trainingTypes,
         ];
-    }
-
-    protected function setCourseFilter(?int $courseId): void
-    {
-        $state = $this->resolveFilterState();
-        $state['course_id'] = $courseId;
-        $this->applyFilterState($state);
-    }
-
-    public function statusBadgeClass(?string $status): string
-    {
-        $slug = Str::slug($status ?? '');
-
-        return match ($slug) {
-            'tam-hoan' => 'bg-amber-100 text-amber-800',
-            'ket-thuc' => 'bg-rose-100 text-rose-700',
-            'dang-dao-tao' => 'bg-blue-100 text-blue-700',
-            'ban-hanh' => 'bg-emerald-100 text-emerald-700',
-            default => 'bg-gray-100 text-gray-700',
-        };
     }
 
     protected function defaultFilterState(): array
@@ -471,12 +613,13 @@ class ListHocVienHoanThanhs extends ListRecords
         $now = now();
 
         return [
-            'year' => $now->year,
-            'month' => $now->month,
-            'week' => null,
-            'from_date' => null,
-            'to_date' => null,
-            'course_id' => null,
+            'year'           => $now->year,
+            'month'          => $now->month,
+            'week'           => null,
+            'from_date'      => null,
+            'to_date'        => null,
+            'course_id'      => null,
+            'course_ids'     => [],
             'training_types' => [],
         ];
     }
@@ -484,12 +627,13 @@ class ListHocVienHoanThanhs extends ListRecords
     protected function applyFilterState(array $state): void
     {
         $data = [
-            'year' => (string) $state['year'],
-            'month' => $state['month'] ? (string) $state['month'] : null,
-            'week' => $state['week'] ? (string) $state['week'] : null,
-            'from_date' => $state['from_date'],
-            'to_date' => $state['to_date'],
-            'course_id' => $state['course_id'] ? (string) $state['course_id'] : null,
+            'year'           => (string) $state['year'],
+            'month'          => $state['month'] ? (string) $state['month'] : null,
+            'week'           => $state['week'] ? (string) $state['week'] : null,
+            'from_date'      => $state['from_date'],
+            'to_date'        => $state['to_date'],
+            'course_id'      => $state['course_id'] ? (string) $state['course_id'] : null,
+            'course_ids'     => array_values(array_unique(array_map('intval', $this->selectedCourseIds))),
             'training_types' => $state['training_types'],
         ];
 
@@ -524,5 +668,43 @@ class ListHocVienHoanThanhs extends ListRecords
         $query = clone $this->getTableQuery();
 
         return $query->get();
+    }
+
+    /** Lọc bảng dưới theo các course đã chọn */
+    protected function getTableQuery(): Builder
+    {
+        $query = static::getResource()::getEloquentQuery();
+
+        $filters = $this->resolveFilterState();
+
+        if (! empty($filters['course_ids'])) {
+            $query->whereIn('khoa_hoc_id', $filters['course_ids']);
+        } elseif (! empty($filters['course_id'])) {
+            $query->where('khoa_hoc_id', $filters['course_id']);
+        }
+
+        // Áp dụng phạm vi thời gian vào bảng dưới nếu cần:
+        if (!empty($filters['from_date']) || !empty($filters['to_date'])) {
+            $from = $filters['from_date'];
+            $to   = $filters['to_date'];
+            $query->when($from, fn($q)=>$q->whereDate('ngay_hoan_thanh','>=',$from))
+                  ->when($to,   fn($q)=>$q->whereDate('ngay_hoan_thanh','<=',$to));
+        }
+
+        return $query;
+    }
+
+    /** Badge trạng thái cho Tổng quan */
+    public function statusBadgeClass(?string $status): string
+    {
+        $slug = Str::slug($status ?? '');
+
+        return match ($slug) {
+            'tam-hoan'      => 'bg-amber-100 text-amber-800',
+            'ket-thuc'      => 'bg-rose-100 text-rose-700',
+            'dang-dao-tao'  => 'bg-blue-100 text-blue-700',
+            'ban-hanh'      => 'bg-emerald-100 text-emerald-700',
+            default         => 'bg-gray-100 text-gray-700',
+        };
     }
 }
