@@ -200,28 +200,30 @@
                             wire:change="applyQuickFilters" />
                     </div>
 
-                    {{-- Loại hình đào tạo (từ Quy tắc mã khóa / lich_hocs.loai_hinh) --}}
-                    <div class="flex items-center gap-2">
+                </div>
+
+                <div class="mt-3 flex flex-row flex-wrap gap-4 items-start">
+                    {{-- Loại hình đào tạo (từ Quy tắc mã khóa / kế hoạch đào tạo) --}}
+                    <div class="flex flex-col gap-2">
                         <label class="text-xs font-semibold text-gray-600">Loại hình đào tạo</label>
                         <div class="flex items-center flex-wrap gap-3">
-                            @foreach($trainingOptions as $key => $label)
+                            @foreach($trainingOptions as $value => $label)
                                 <label class="inline-flex items-center gap-1 text-xs text-gray-700">
                                     <input type="checkbox"
                                         wire:model.defer="tableFilters.bo_loc.data.training_types"
                                         wire:change="applyQuickFilters"
-                                        value="{{ $key }}"
+                                        value="{{ $value }}"
                                         class="border-gray-300 rounded" />
                                     <span>{{ $label }}</span>
                                 </label>
                             @endforeach
                         </div>
                     </div>
-                </div>
 
-                {{-- Khóa học: token multi-select (entangle với selectedCourseIds) --}}
-                <div class="mt-3">
-                    <label class="text-xs font-semibold text-gray-600">Khóa học</label>
-                    <div
+                    {{-- Khóa học: token multi-select (entangle với selectedCourseIds) --}}
+                    <div class="flex-1 min-w-[18rem] flex flex-col gap-2">
+                        <label class="text-xs font-semibold text-gray-600">Khóa học</label>
+                        <div
                         x-data="courseTokens({
                             allOptions: @js($this->summaryCourseOptions ?? []),
                             selected: @entangle('selectedCourseIds').live,
