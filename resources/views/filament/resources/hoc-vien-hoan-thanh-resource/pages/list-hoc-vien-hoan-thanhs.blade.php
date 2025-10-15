@@ -11,12 +11,6 @@
                     color: rgb(55 65 81);
                 }
 
-                /* Ẩn hoàn toàn actions ở header mặc định để tránh lặp (actions vẫn mount để chạy được) */
-                .fi-page-header .fi-actions,
-                .fi-header .fi-actions,
-                .fi-page-header-actions,
-                .fi-header-actions { display:none !important; }
-
                 /* Ẩn nút Filters của bảng dưới (đa ngôn ngữ) */
                 .fi-ta-header .fi-ta-filters-trigger,
                 .fi-ta-header [data-fi-action="open-filters"],
@@ -55,22 +49,12 @@
         {{-- =================== KHỐI TỔNG QUAN + NÚT LỆNH =================== --}}
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div class="space-y-1">
                         <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
                         <p class="text-xs text-gray-500">
                             Nhấn vào hàng trong bảng để chọn/bỏ chọn khóa học. Bảng "Danh sách học viên hoàn thành" sẽ tự lọc theo các khóa đã chọn.
                         </p>
-                    </div>
-
-                    {{-- Render đúng thứ tự bằng chính header actions đã mount (bảo đảm click chạy) --}}
-                    <div class="flex flex-wrap items-center justify-end gap-2">
-                        <x-filament-actions::actions
-                            :actions="$this->getOverviewActions()"
-                            :alignment="'end'"
-                            :full-width="false"
-                            class="gap-2"
-                        />
                     </div>
                 </div>
             </div>
@@ -217,122 +201,124 @@
                     </div>
 
                     {{-- Loại hình đào tạo (từ Quy tắc mã khóa / lich_hocs.loai_hinh) --}}
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs font-semibold text-gray-600">Loại hình đào tạo</label>
-                        <div class="flex items-center flex-wrap gap-3">
-                            @foreach($trainingOptions as $key => $label)
-                                <label class="inline-flex items-center gap-1 text-xs text-gray-700">
-                                    <input type="checkbox"
-                                        wire:model.defer="tableFilters.bo_loc.data.training_types"
-                                        wire:change="applyQuickFilters"
-                                        value="{{ $key }}"
-                                        class="border-gray-300 rounded" />
-                                    <span>{{ $label }}</span>
-                                </label>
-                            @endforeach
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Khóa học: token multi-select (entangle với selectedCourseIds) --}}
-                <div class="mt-3">
-                    <label class="text-xs font-semibold text-gray-600">Khóa học</label>
-                    <div
-                        x-data="courseTokens({
-                            allOptions: @js(($this->summaryRows ?? collect())->map(fn($r)=>['id'=>$r['id'],'code'=>$r['ma_khoa'],'name'=>$r['ten_khoa']])->values()),
-                            selected: @entangle('selectedCourseIds').live,
-                            apply: () => { $wire.applyQuickFilters(); }
-                        })"
-                        class="relative"
-                    >
-                        <div class="token-input" @click="$refs.search.focus()">
-                            <template x-for="opt in tokenState.selectedObjects" :key="opt.id">
-                                <span class="token-chip">
-                                    <span x-text="opt.code"></span>
-                                    <button type="button" @click.stop="remove(opt.id)" aria-label="Remove">×</button>
-                                </span>
-                            </template>
-
-                            <input x-ref="search" class="token-search" type="text" placeholder="Tìm khóa học..."
-                                   x-model="tokenState.query"
-                                   @keydown.down.prevent="move(1)"
-                                   @keydown.up.prevent="move(-1)"
-                                   @keydown.enter.prevent="pickActive()"
-                                   @focus="open=true" @blur="closeLater()" />
+                    <div class="flex flex-col gap-2 flex-1 min-w-[18rem]">
+                        <div class="flex items-start gap-2">
+                            <label class="text-xs font-semibold text-gray-600 leading-5">Loại hình đào tạo</label>
+                            <div class="flex items-center flex-wrap gap-3">
+                                @foreach($trainingOptions as $key => $label)
+                                    <label class="inline-flex items-center gap-1 text-xs text-gray-700">
+                                        <input type="checkbox"
+                                            wire:model.defer="tableFilters.bo_loc.data.training_types"
+                                            wire:change="applyQuickFilters"
+                                            value="{{ $key }}"
+                                            class="border-gray-300 rounded" />
+                                        <span>{{ $label }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
                         </div>
 
-                        <div class="token-dropdown" x-show="open" x-transition @mousedown.prevent>
-                            <template x-for="(opt,idx) in filtered()" :key="opt.id">
-                                <div class="token-item" :class="{'active': idx===activeIndex}" @mousemove="activeIndex=idx" @click="toggle(opt.id)">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div>
-                                            <div class="text-sm font-medium" x-text="opt.code"></div>
-                                            <div class="text-xs text-gray-500 truncate" x-text="opt.name"></div>
-                                        </div>
-                                        <div class="text-xs" x-text="isSelected(opt.id)?'Đã chọn':''"></div>
-                                    </div>
+                        {{-- Khóa học: token multi-select (entangle với selectedCourseIds) --}}
+                        <div>
+                            <label class="text-xs font-semibold text-gray-600">Tên khóa học</label>
+                            <div
+                                x-data="courseTokens({
+                                    allOptions: @js($this->summaryCourseOptions ?? []),
+                                    selected: @entangle('selectedCourseIds').live,
+                                    apply: () => { $wire.applyQuickFilters(); }
+                                })"
+                                class="relative"
+                            >
+                                <div class="token-input" @click="$refs.search.focus()">
+                                    <template x-for="opt in tokenState.selectedObjects" :key="opt.id">
+                                        <span class="token-chip">
+                                            <span x-text="opt.code"></span>
+                                            <button type="button" @click.stop="remove(opt.id)" aria-label="Remove">×</button>
+                                        </span>
+                                    </template>
+
+                                    <input x-ref="search" class="token-search" type="text" placeholder="Tìm khóa học..."
+                                           x-model="tokenState.query"
+                                           @keydown.down.prevent="move(1)"
+                                           @keydown.up.prevent="move(-1)"
+                                           @keydown.enter.prevent="pickActive()"
+                                           @focus="open=true" @blur="closeLater()" />
                                 </div>
-                            </template>
-                            <div class="token-item text-gray-500" x-show="filtered().length===0">Không có khóa học phù hợp</div>
-                        </div>
 
-                        <div class="mt-2 flex items-center gap-2">
-                            <button type="button" class="fi-btn fi-btn-sm border border-gray-300 bg-white hover:bg-gray-50" @click="apply()">
-                                Áp dụng
-                            </button>
-                            <button type="button" class="fi-btn fi-btn-sm border border-gray-200" style="background-color:#FFF0F0;color:#8B0000;" @click="clear(); apply()">
-                                Xóa chọn khóa
-                            </button>
-                        </div>
+                                <div class="token-dropdown" x-show="open" x-transition @mousedown.prevent>
+                                    <template x-for="(opt,idx) in filtered()" :key="opt.id">
+                                        <div class="token-item" :class="{'active': idx===activeIndex}" @mousemove="activeIndex=idx" @click="toggle(opt.id)">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <div class="text-sm font-medium" x-text="opt.code"></div>
+                                                    <div class="text-xs text-gray-500 truncate" x-text="opt.name"></div>
+                                                </div>
+                                                <div class="text-xs" x-text="isSelected(opt.id)?'Đã chọn':''"></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div class="token-item text-gray-500" x-show="filtered().length===0">Không có khóa học phù hợp</div>
+                                </div>
 
-                        <script>
-                            function courseTokens(cfg){
-                                return {
-                                    tokenState: {
-                                        allOptions: (cfg.allOptions || []).map(o=>({id:Number(o.id), code:o.code, name:o.name})),
-                                        get selected(){ return cfg.selected },
-                                        set selected(v){ cfg.selected = v },
-                                        get selectedObjects(){
-                                            const ids = (cfg.selected || []).map(Number);
-                                            return this.allOptions.filter(o => ids.includes(o.id));
-                                        },
-                                        query: '',
-                                    },
-                                    open:false, activeIndex:0,
-                                    filtered(){
-                                        const q = this.tokenState.query.toLowerCase().trim();
-                                        let list = this.tokenState.allOptions;
-                                        if(q){
-                                            list = list.filter(o => (o.code||'').toLowerCase().includes(q) || (o.name||'').toLowerCase().includes(q));
+                                <div class="mt-2 flex items-center gap-2">
+                                    <button type="button" class="fi-btn fi-btn-sm border border-gray-300 bg-white hover:bg-gray-50" @click="apply()">
+                                        Áp dụng
+                                    </button>
+                                    <button type="button" class="fi-btn fi-btn-sm border border-gray-200" style="background-color:#FFF0F0;color:#8B0000;" @click="clear(); apply()">
+                                        Xóa chọn khóa
+                                    </button>
+                                </div>
+
+                                <script>
+                                    function courseTokens(cfg){
+                                        return {
+                                            tokenState: {
+                                                allOptions: (cfg.allOptions || []).map(o=>({id:Number(o.id), code:o.code, name:o.name})),
+                                                get selected(){ return cfg.selected },
+                                                set selected(v){ cfg.selected = v },
+                                                get selectedObjects(){
+                                                    const ids = (cfg.selected || []).map(Number);
+                                                    return this.allOptions.filter(o => ids.includes(o.id));
+                                                },
+                                                query: '',
+                                            },
+                                            open:false, activeIndex:0,
+                                            filtered(){
+                                                const q = this.tokenState.query.toLowerCase().trim();
+                                                let list = this.tokenState.allOptions;
+                                                if(q){
+                                                    list = list.filter(o => (o.code||'').toLowerCase().includes(q) || (o.name||'').toLowerCase().includes(q));
+                                                }
+                                                return list.slice(0,100);
+                                            },
+                                            isSelected(id){ return (cfg.selected || []).map(Number).includes(Number(id)); },
+                                            toggle(id){
+                                                id = Number(id);
+                                                let arr = (cfg.selected || []).map(Number);
+                                                if (arr.includes(id)) arr = arr.filter(i=>i!==id); else arr.push(id);
+                                                cfg.selected = arr;
+                                                this.$refs.search.focus();
+                                            },
+                                            remove(id){
+                                                id = Number(id);
+                                                cfg.selected = (cfg.selected || []).map(Number).filter(i=>i!==id);
+                                            },
+                                            clear(){ cfg.selected = []; },
+                                            move(step){
+                                                const len=this.filtered().length;
+                                                if(!len) return;
+                                                this.activeIndex = (this.activeIndex + step + len) % len;
+                                            },
+                                            pickActive(){
+                                                const item=this.filtered()[this.activeIndex]; if(!item) return; this.toggle(item.id);
+                                            },
+                                            closeLater(){ setTimeout(()=>this.open=false, 120); },
+                                            apply: cfg.apply
                                         }
-                                        return list.slice(0,100);
-                                    },
-                                    isSelected(id){ return (cfg.selected || []).map(Number).includes(Number(id)); },
-                                    toggle(id){
-                                        id = Number(id);
-                                        let arr = (cfg.selected || []).map(Number);
-                                        if (arr.includes(id)) arr = arr.filter(i=>i!==id); else arr.push(id);
-                                        cfg.selected = arr;
-                                        this.$refs.search.focus();
-                                    },
-                                    remove(id){
-                                        id = Number(id);
-                                        cfg.selected = (cfg.selected || []).map(Number).filter(i=>i!==id);
-                                    },
-                                    clear(){ cfg.selected = []; },
-                                    move(step){
-                                        const len=this.filtered().length;
-                                        if(!len) return;
-                                        this.activeIndex = (this.activeIndex + step + len) % len;
-                                    },
-                                    pickActive(){
-                                        const item=this.filtered()[this.activeIndex]; if(!item) return; this.toggle(item.id);
-                                    },
-                                    closeLater(){ setTimeout(()=>this.open=false, 120); },
-                                    apply: cfg.apply
-                                }
-                            }
-                        </script>
+                                    }
+                                </script>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

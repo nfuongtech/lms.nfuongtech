@@ -317,6 +317,12 @@ class HocVienHoanThanhResource extends Resource
         $fromDate = $data['from_date'] ?? null;
         $toDate = $data['to_date'] ?? null;
         $trainingTypes = is_array($data['training_types'] ?? null) ? array_filter($data['training_types']) : [];
+        $courseIds = collect($data['course_ids'] ?? [])
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
         $query->whereHas('khoaHoc.lichHocs', function (Builder $lichHocQuery) use ($year, $month, $week, $fromDate, $toDate) {
             $lichHocQuery->where('nam', $year)
@@ -332,7 +338,9 @@ class HocVienHoanThanhResource extends Resource
             });
         }
 
-        if (! empty($courseId)) {
+        if (! empty($courseIds)) {
+            $query->whereIn('khoa_hoc_id', $courseIds);
+        } elseif (! empty($courseId)) {
             $query->where('khoa_hoc_id', $courseId);
         }
 
@@ -426,7 +434,7 @@ class HocVienHoanThanhResource extends Resource
             ->toArray();
     }
 
-    protected static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
+    public static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
     {
         $trainingTypes = collect($trainingTypes)
             ->filter(fn ($value) => $value !== null && $value !== '')
@@ -466,6 +474,14 @@ class HocVienHoanThanhResource extends Resource
     {
         $fromRules = QuyTacMaKhoa::pluck('loai_hinh_dao_tao', 'loai_hinh_dao_tao')->filter()->toArray();
 
+        $fromCourses = KhoaHoc::query()
+            ->whereNotNull('loai_hinh_dao_tao')
+            ->pluck('loai_hinh_dao_tao')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         $fromPrograms = KhoaHoc::query()
             ->with('chuongTrinh')
             ->whereHas('chuongTrinh')
@@ -477,7 +493,10 @@ class HocVienHoanThanhResource extends Resource
             ->all();
 
         return collect($fromRules)
-            ->merge(array_combine($fromPrograms, $fromPrograms))
+            ->merge(collect($fromCourses)->mapWithKeys(fn ($value) => [$value => $value]))
+            ->merge(collect($fromPrograms)->mapWithKeys(fn ($value) => [$value => $value]))
+            ->filter()
+            ->unique()
             ->sort()
             ->toArray();
     }
