@@ -11,12 +11,6 @@
                     color: rgb(55 65 81);
                 }
 
-                /* Ẩn hoàn toàn actions ở header mặc định để tránh lặp (actions vẫn mount để chạy được) */
-                .fi-page-header .fi-actions,
-                .fi-header .fi-actions,
-                .fi-page-header-actions,
-                .fi-header-actions { display:none !important; }
-
                 /* Ẩn nút Filters của bảng dưới (đa ngôn ngữ) */
                 .fi-ta-header .fi-ta-filters-trigger,
                 .fi-ta-header [data-fi-action="open-filters"],
@@ -55,22 +49,12 @@
         {{-- =================== KHỐI TỔNG QUAN + NÚT LỆNH =================== --}}
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-4 border-b">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div class="space-y-1">
                         <h2 class="text-base font-semibold text-gray-900">Tổng quan khóa học</h2>
                         <p class="text-xs text-gray-500">
                             Nhấn vào hàng trong bảng để chọn/bỏ chọn khóa học. Bảng "Danh sách học viên hoàn thành" sẽ tự lọc theo các khóa đã chọn.
                         </p>
-                    </div>
-
-                    {{-- Render đúng thứ tự bằng chính header actions đã mount (bảo đảm click chạy) --}}
-                    <div class="flex flex-wrap items-center justify-end gap-2">
-                        <x-filament-actions::actions
-                            :actions="$this->getOverviewActions()"
-                            :alignment="'end'"
-                            :full-width="false"
-                            class="gap-2"
-                        />
                     </div>
                 </div>
             </div>
@@ -239,7 +223,7 @@
                     <label class="text-xs font-semibold text-gray-600">Khóa học</label>
                     <div
                         x-data="courseTokens({
-                            allOptions: @js(($this->summaryRows ?? collect())->map(fn($r)=>['id'=>$r['id'],'code'=>$r['ma_khoa'],'name'=>$r['ten_khoa']])->values()),
+                            allOptions: @js($this->summaryCourseOptions ?? []),
                             selected: @entangle('selectedCourseIds').live,
                             apply: () => { $wire.applyQuickFilters(); }
                         })"

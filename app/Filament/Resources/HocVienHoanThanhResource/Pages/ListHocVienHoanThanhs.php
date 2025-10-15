@@ -260,26 +260,6 @@ class ListHocVienHoanThanhs extends ListRecords
         ];
     }
 
-    /** Trả mảng actions theo đúng thứ tự để Blade render (dùng chính header actions) */
-    public function getOverviewActions(): array
-    {
-        // dùng chính getHeaderActions() để đảm bảo cùng instance đã mount
-        $actions = $this->getHeaderActions();
-
-        // đảm bảo thứ tự: download_template, import_excel, export_excel, send_email
-        $map = [];
-        foreach ($actions as $a) {
-            $map[$a->getName()] = $a;
-        }
-
-        return array_values(array_filter([
-            $map['download_template'] ?? null,
-            $map['import_excel'] ?? null,
-            $map['export_excel'] ?? null,
-            $map['send_email'] ?? null,
-        ]));
-    }
-
     /* ===================== LIFECYCLE ===================== */
 
     public function mount(): void
@@ -421,10 +401,8 @@ class ListHocVienHoanThanhs extends ListRecords
 
     /* ===================== TÓM TẮT (bảng trên) ===================== */
 
-    public function getSummaryRowsProperty(): Collection
+    protected function makeSummaryCourseQuery(array $filters, bool $respectSelectedCourses = true): Builder
     {
-        $filters = $this->resolveFilterState();
-
         $courseQuery = KhoaHoc::query()
             ->with(['lichHocs' => function ($query) use ($filters) {
                 $query->where('nam', $filters['year'])
@@ -443,7 +421,6 @@ class ListHocVienHoanThanhs extends ListRecords
                     ->when($filters['to_date'], fn ($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']));
             });
 
-        // Áp dụng loại hình đào tạo
         $trainingTypes = $filters['training_types'] ?? [];
         if (! empty($trainingTypes)) {
             $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
@@ -451,14 +428,38 @@ class ListHocVienHoanThanhs extends ListRecords
             });
         }
 
-        // Áp dụng danh sách khóa đã chọn
-        if (!empty($filters['course_ids'])) {
-            $courseQuery->whereIn('id', $filters['course_ids']);
-        } elseif ($filters['course_id']) {
+        if ($filters['course_id']) {
             $courseQuery->where('id', $filters['course_id']);
+        } elseif ($respectSelectedCourses && ! empty($filters['course_ids'])) {
+            $courseQuery->whereIn('id', $filters['course_ids']);
         }
 
-        $courses   = $courseQuery->orderBy('ma_khoa_hoc')->get();
+        return $courseQuery;
+    }
+
+    public function getSummaryCourseOptionsProperty(): array
+    {
+        $filters = $this->resolveFilterState();
+
+        return $this->makeSummaryCourseQuery($filters, false)
+            ->orderBy('ma_khoa_hoc')
+            ->get(['id', 'ma_khoa_hoc', 'ten_khoa_hoc'])
+            ->map(fn (KhoaHoc $course) => [
+                'id'   => $course->id,
+                'code' => $course->ma_khoa_hoc ?? '-',
+                'name' => $course->ten_khoa_hoc ?? '-',
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function getSummaryRowsProperty(): Collection
+    {
+        $filters = $this->resolveFilterState();
+
+        $courses = $this->makeSummaryCourseQuery($filters)
+            ->orderBy('ma_khoa_hoc')
+            ->get();
         $courseIds = $courses->pluck('id');
 
         if ($courseIds->isEmpty()) {
@@ -577,7 +578,6 @@ class ListHocVienHoanThanhs extends ListRecords
             ->merge($this->selectedCourseIds)
             ->filter(fn ($id) => $id !== null && $id !== '')
             ->map(fn ($id) => (int) $id)
-            ->when($courseIdSingle, fn ($c) => $c->push($courseIdSingle))
             ->unique()->values()->all();
 
         $fromDate = $this->normalizeDate($filters['from_date'] ?? $defaults['from_date']);
