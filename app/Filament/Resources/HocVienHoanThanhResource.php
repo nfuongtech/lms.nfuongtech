@@ -17,6 +17,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Support\Enums\Alignment;
 use Filament\Tables;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -284,6 +285,9 @@ class HocVienHoanThanhResource extends Resource
                         return $indicators;
                     }),
             ])
+            ->filtersLayout(FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
+            ->filtersFormWidth('4xl')
             ->filtersTriggerAction(fn (Tables\Actions\Action $action) => $action->label('Chọn lọc thông tin'))
             ->actions([
                 Tables\Actions\Action::make('cap_nhat')
