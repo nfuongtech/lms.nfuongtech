@@ -158,7 +158,17 @@ class HomeController extends Controller
             $years = [now()->year];
         }
         $months = range(1, 12);
-        $weeks  = $this->buildWeekOptions($year);
+
+        $weekOptionsMonth = $month;
+        if ($weekOptionsMonth === null) {
+            if ($mode === 'week' && $week) {
+                $weekOptionsMonth = $this->resolveMonthFromWeek($year, $week);
+            } else {
+                $weekOptionsMonth = now()->month;
+            }
+        }
+
+        $weeks  = $this->buildWeekOptions($year, (int) $weekOptionsMonth);
 
         $now = Carbon::now();
         $featuredYear   = $this->buildFeaturedStudents($now->copy()->startOfYear(), $now);
@@ -313,22 +323,69 @@ class HomeController extends Controller
         ]);
     }
 
-    protected function buildWeekOptions(int $year): array
+    protected function buildWeekOptions(int $year, ?int $month = null): array
     {
-        $weeksInYear = Carbon::create($year, 12, 28)->isoWeek();
+        $month = $month ?: now()->month;
+        $month = max(1, min(12, (int) $month));
 
-        return collect(range(1, $weeksInYear))->map(function ($week) use ($year) {
-            $start = Carbon::now()->setISODate($year, $week, 1)->startOfDay();
-            $end   = (clone $start)->addDays(6);
+        try {
+            $monthStart = Carbon::create($year, $month, 1)->startOfDay();
+        } catch (\Exception $exception) {
+            $fallbackNow = now();
+            $monthStart  = Carbon::create($fallbackNow->year, $fallbackNow->month, 1)->startOfDay();
+        }
 
-            $startText = $start->format('d/m');
-            $endText   = $end->format('d/m/Y');
+        $monthEnd = $monthStart->copy()->endOfMonth();
 
-            return [
-                'value' => $week,
-                'label' => sprintf('%d (%s - %s)', $week, $startText, $endText),
+        $weeks = [];
+
+        $weekStart = $monthStart->copy()->startOfWeek(Carbon::MONDAY);
+        while ($weekStart->month !== $month && $weekStart->lte($monthEnd)) {
+            $weekStart->addWeek();
+        }
+
+        while ($weekStart->lte($monthEnd) && $weekStart->month === $month) {
+            $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
+
+            $weeks[] = [
+                'value' => $weekStart->isoWeek,
+                'label' => sprintf(
+                    '%d (%s - %s)',
+                    $weekStart->isoWeek,
+                    $weekStart->format('d/m'),
+                    $weekEnd->format('d/m/Y')
+                ),
             ];
-        })->all();
+
+            $weekStart->addWeek();
+        }
+
+        if (empty($weeks)) {
+            $weeksInYear = Carbon::create($year, 12, 28)->isoWeek();
+
+            return collect(range(1, $weeksInYear))->map(function ($week) use ($year) {
+                $start = Carbon::now()->setISODate($year, $week, 1)->startOfDay();
+                $end   = (clone $start)->addDays(6);
+
+                return [
+                    'value' => $week,
+                    'label' => sprintf('%d (%s - %s)', $week, $start->format('d/m'), $end->format('d/m/Y')),
+                ];
+            })->all();
+        }
+
+        return array_values($weeks);
+    }
+
+    protected function resolveMonthFromWeek(int $year, int $week): int
+    {
+        $week = max(1, min(53, $week));
+
+        try {
+            return (int) Carbon::now()->setISODate($year, $week, 1)->month;
+        } catch (\Exception $exception) {
+            return now()->month;
+        }
     }
 
     protected function formatDate($value): ?string

@@ -176,6 +176,10 @@
       background:#fff;
     }
 
+    #week option:not([value=""]) {
+      font-weight:600;
+    }
+
     .table-wrap {
       width:100%;
       overflow-x:auto;
@@ -501,6 +505,7 @@
       display:flex;
       flex-direction:column;
       gap:8px;
+      align-items:flex-start;
     }
 
     .print-brand {
@@ -517,6 +522,7 @@
       font-weight:600;
       font-size:20px;
       line-height:1.4;
+      width:100%;
     }
 
     .print-heading > div {
@@ -590,7 +596,7 @@
         max-height:none;
         box-shadow:none;
         border-radius:0;
-        padding:0 40px 40px;
+        padding:0 40px 40px 0;
       }
       body.print-modal .modal-card .table-wrap {
         box-shadow:none;
@@ -605,11 +611,11 @@
       body.print-lookup .print-only { display:block !important; }
 
       .print-banner {
-        padding:32px 40px 16px;
+        padding:0 0 16px;
       }
 
       .print-footer {
-        padding:0 40px;
+        padding:0 40px 0 0;
       }
 
       body.print-lookup .print-footer {
@@ -619,11 +625,9 @@
       body.print-lookup .content > :not(#lookupSection) { display:none !important; }
 
       .print-banner {
-        padding:32px 40px 16px;
-        align-items:center;
+        align-items:flex-start;
       }
 
-      .print-brand { align-self:flex-start; }
       .print-heading { align-self:stretch; }
       .print-footer { align-self:flex-end; }
 
@@ -780,13 +784,6 @@
       <div class="lookup-actions no-print" id="lookupActions" hidden>
         <button type="button" class="btn btn-secondary no-print" id="lookupPrint">In</button>
       </div>
-      <div class="print-only print-banner" id="lookupPrintBanner">
-        <div class="print-brand">TRƯỜNG CAO ĐẲNG THACO</div>
-        <div class="print-heading">
-          <div>KẾT QUẢ HỌC TẬP</div>
-          <div id="lookupPrintProfile"></div>
-        </div>
-      </div>
       <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
           <h3>Khóa học đã hoàn thành</h3>
@@ -828,7 +825,7 @@
               </thead>
               <tbody></tbody>
             </table>
-            <div class="modal-empty" id="incompletedEmpty" hidden>Chưa có dữ liệu phù hợp.</div>
+            <div class="modal-empty" id="incompletedEmpty" hidden>Không có Khóa học chưa hoàn thành.</div>
           </div>
         </div>
       </div>
@@ -949,7 +946,6 @@
           </thead>
           <tbody id="modalBody"></tbody>
         </table>
-        <div class="modal-loader" id="modalLoader" hidden>Đang tải danh sách học viên...</div>
         <div class="modal-empty" id="modalEmpty" hidden>Chưa có học viên đăng ký.</div>
       </div>
       <div class="print-only print-footer" aria-hidden="true">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
@@ -968,7 +964,6 @@
 
     const modal = document.getElementById('registrationsModal');
     const modalBody = document.getElementById('modalBody');
-    const modalLoader = document.getElementById('modalLoader');
     const modalEmpty = document.getElementById('modalEmpty');
     const modalTitle = document.getElementById('modalTitle');
     const modalPrintTitle = document.getElementById('modalPrintTitle');
@@ -979,7 +974,6 @@
     const modalPrintButton = document.getElementById('modalPrint');
     const lookupActions = document.getElementById('lookupActions');
     const lookupPrintButton = document.getElementById('lookupPrint');
-    const lookupPrintProfile = document.getElementById('lookupPrintProfile');
 
     const afterPrintCleanup = () => {
       document.body.classList.remove('print-modal');
@@ -1058,7 +1052,6 @@
         modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
       }
       modalBody.innerHTML = '';
-      modalLoader.hidden = false;
       modalEmpty.hidden = true;
       modalEmpty.textContent = 'Chưa có học viên đăng ký.';
 
@@ -1070,7 +1063,6 @@
           return res.json();
         })
         .then(data => {
-          modalLoader.hidden = true;
           const registrations = Array.isArray(data.registrations) ? data.registrations : [];
           if(!registrations.length){
             modalEmpty.hidden = false;
@@ -1105,7 +1097,6 @@
           modalBody.appendChild(fragment);
         })
         .catch(async error => {
-          modalLoader.hidden = true;
           modalEmpty.hidden = false;
           modalEmpty.textContent = 'Không thể tải danh sách học viên.';
           if(error && typeof error.json === 'function'){
@@ -1153,7 +1144,6 @@
     }
 
     setLookupMessage('');
-    updateLookupProfile(null);
 
     lookupForm.addEventListener('submit', event => {
       event.preventDefault();
@@ -1166,7 +1156,6 @@
         if(lookupActions){
           lookupActions.hidden = true;
         }
-        updateLookupProfile(null);
         return;
       }
 
@@ -1181,7 +1170,6 @@
       if(lookupActions){
         lookupActions.hidden = true;
       }
-      updateLookupProfile(null);
 
       fetch(lookupUrl + '?q=' + encodeURIComponent(query))
         .then(res => {
@@ -1202,7 +1190,6 @@
           setLookupMessage(hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
           renderLookupTable(completedBody, completedEmpty, completed, true);
           renderLookupTable(incompletedBody, incompletedEmpty, incompleted, false);
-          updateLookupProfile(hasResult ? (data.profile || null) : null);
           if(lookupActions){
             lookupActions.hidden = !hasResult;
           }
@@ -1214,7 +1201,6 @@
           if(lookupActions){
             lookupActions.hidden = true;
           }
-          updateLookupProfile(null);
         });
     });
 
@@ -1276,24 +1262,6 @@
         td.textContent = (cell !== undefined && cell !== null && cell !== '') ? cell : '—';
       }
       return td;
-    }
-
-    function updateLookupProfile(profile){
-      if(!lookupPrintProfile) return;
-      if(profile){
-        const parts = [];
-        parts.push(`Mã số: ${profile.ms && profile.ms !== '' ? profile.ms : '—'}`);
-        parts.push(`Họ & Tên: ${profile.ho_ten && profile.ho_ten !== '' ? profile.ho_ten : '—'}`);
-        parts.push(`Ngày tháng năm sinh: ${profile.ngay_sinh && profile.ngay_sinh !== '' ? profile.ngay_sinh : '—'}`);
-        parts.push(`Giới tính: ${profile.gioi_tinh && profile.gioi_tinh !== '' ? profile.gioi_tinh : '—'}`);
-        parts.push(`Công ty/Ban NVQT: ${profile.cong_ty && profile.cong_ty !== '' ? profile.cong_ty : '—'}`);
-        parts.push(`THACO/TĐTV: ${profile.thaco && profile.thaco !== '' ? profile.thaco : '—'}`);
-        lookupPrintProfile.textContent = parts.join(', ');
-        lookupPrintProfile.style.display = 'block';
-      } else {
-        lookupPrintProfile.textContent = '';
-        lookupPrintProfile.style.display = 'none';
-      }
     }
 
     function formatCourseTitle(name, code){
