@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="utf-8">
-  <title>Kế hoạch đào tạo</title>
+  <title>Quản lý Đào tạo & Học viên</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -26,6 +26,8 @@
     *, *::before, *::after { box-sizing:border-box; }
 
     [hidden] { display:none !important; }
+    .no-print { }
+    .print-only { display:none; }
 
     html, body { height:100%; }
 
@@ -127,6 +129,17 @@
       border-color:var(--accent);
     }
 
+    .btn-secondary {
+      background:#e5e7eb;
+      border-color:#d1d5db;
+      color:#111827;
+    }
+
+    .btn-secondary:hover {
+      background:#dbe0e9;
+      border-color:#cbd5e1;
+    }
+
     .content {
       flex:1;
       display:flex;
@@ -161,6 +174,10 @@
       border-radius:8px;
       border:1px solid var(--border);
       background:#fff;
+    }
+
+    #week option:not([value=""]) {
+      font-weight:600;
     }
 
     .table-wrap {
@@ -220,7 +237,7 @@
       margin-top:6px;
       font-size:13px;
       color:#b91c1c;
-      text-align:left;
+      text-align:center;
       line-height:1.4;
       white-space:pre-wrap;
     }
@@ -273,6 +290,13 @@
       font-size:14px;
       color:var(--muted);
       margin-bottom:16px;
+    }
+
+    .lookup-actions {
+      display:flex;
+      justify-content:flex-end;
+      margin-bottom:12px;
+      gap:12px;
     }
 
     .lookup-results {
@@ -446,13 +470,25 @@
     .modal-header {
       display:flex;
       justify-content:space-between;
-      align-items:center;
+      align-items:flex-start;
       gap:12px;
+    }
+
+    .modal-heading {
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      flex:1;
     }
 
     .modal-title {
       font-size:20px;
-      margin:0;
+      font-weight:700;
+      text-transform:uppercase;
+    }
+
+    .modal-meta {
+      font-size:calc(20px - 2pt);
     }
 
     .modal-actions {
@@ -477,7 +513,17 @@
     }
 
     .print-banner {
-      display:none;
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-start;
+    }
+
+    .print-brand {
+      font-weight:600;
+      font-size:14px;
+      text-align:left;
     }
 
     .print-heading {
@@ -485,10 +531,31 @@
       display:flex;
       flex-direction:column;
       gap:4px;
+      font-weight:600;
+      font-size:20px;
+      line-height:1.4;
+      width:100%;
     }
 
     .print-heading > div {
       line-height:1.4;
+    }
+
+    .print-heading [data-print-main] {
+      font-weight:700;
+    }
+
+    .print-heading [data-print-meta] {
+      font-size:18px;
+      font-weight:500;
+    }
+
+    .print-footer {
+      width:100%;
+      text-align:right;
+      font-weight:600;
+      font-size:12px;
+      margin-top:24px;
     }
 
     .modal-loader,
@@ -531,56 +598,59 @@
         color:#000;
       }
 
-      .topbar,
-      .content,
-      footer,
-      .modal-backdrop,
-      .modal-close,
-      .modal-actions,
-      .modal-header { display:none !important; }
+      .no-print { display:none !important; }
 
-      .modal {
+      .topbar,
+      footer { display:none !important; }
+
+      .modal { display:none !important; }
+
+      body.print-modal .content { display:none !important; }
+      body.print-modal .modal {
+        display:block !important;
         position:static;
         inset:auto;
-        display:block;
         padding:0;
       }
-
-      .modal-card {
+      body.print-modal .modal-card {
         width:100%;
         max-height:none;
         box-shadow:none;
         border-radius:0;
-        padding:0 40px 40px;
+        padding:0 40px 40px 0;
       }
-
-      .modal-card .table-wrap {
+      body.print-modal .modal-card .table-wrap {
         box-shadow:none;
         border-radius:0;
       }
+      body.print-modal .modal-header,
+      body.print-modal .modal-close,
+      body.print-modal .modal-actions { display:none !important; }
+      body.print-modal .print-only { display:block !important; }
+
+      body.print-lookup .modal { display:none !important; }
+      body.print-lookup .print-only { display:block !important; }
 
       .print-banner {
-        display:grid !important;
-        grid-template-columns:auto 1fr auto;
-        align-items:flex-end;
-        gap:16px;
-        padding:32px 40px 16px;
+        padding:0 0 16px;
       }
 
-      .print-brand {
-        font-weight:600;
-        font-size:14px;
+      .print-footer {
+        padding:0 40px 0 0;
       }
 
-      .print-heading {
-        font-weight:600;
-        font-size:20px;
-        text-align:center;
+      body.print-lookup .print-footer {
+        margin-top:16px;
       }
 
-      .print-spacer {
-        visibility:hidden;
+      body.print-lookup .content > :not(#lookupSection) { display:none !important; }
+
+      .print-banner {
+        align-items:flex-start;
       }
+
+      .print-heading { align-self:stretch; }
+      .print-footer { align-self:flex-end; }
 
       .modal-table {
         width:100%;
@@ -638,8 +708,8 @@
         <label>Tuần:
           <select id="week" name="week" onchange="onWeekChange()">
             <option value="">— Không lọc theo tuần —</option>
-            @foreach($weeks as $w)
-              <option value="{{ $w }}" {{ $filterMode==='week' && (int)$week===(int)$w ? 'selected' : '' }}>{{ $w }}</option>
+            @foreach($weeks as $opt)
+              <option value="{{ $opt['value'] }}" {{ $filterMode==='week' && (int)$week===(int)$opt['value'] ? 'selected' : '' }}>{{ $opt['label'] }}</option>
             @endforeach
           </select>
         </label>
@@ -732,6 +802,9 @@
         <button type="submit" class="btn btn-primary">Tra cứu</button>
       </form>
       <div class="lookup-message" id="lookupMessage" hidden></div>
+      <div class="lookup-actions no-print" id="lookupActions" hidden>
+        <button type="button" class="btn btn-secondary no-print" id="lookupPrint">In kết quả</button>
+      </div>
       <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
           <h3>Khóa học đã hoàn thành</h3>
@@ -745,11 +818,9 @@
                   <th>Công ty/Ban NVQT</th>
                   <th>THACO/TĐTV</th>
                   <th>Tên khóa học</th>
-                  <th>Mã khóa</th>
                   <th>ĐTB</th>
                   <th>Giờ thực học</th>
                   <th>Ngày hoàn thành</th>
-                  <th>Chi phí đào tạo</th>
                   <th>Chứng nhận</th>
                 </tr>
               </thead>
@@ -770,16 +841,16 @@
                   <th>Công ty/Ban NVQT</th>
                   <th>THACO/TĐTV</th>
                   <th>Tên khóa học</th>
-                  <th>Mã khóa</th>
                   <th>Lý do không hoàn thành</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div class="modal-empty" id="incompletedEmpty" hidden>Chưa có dữ liệu phù hợp.</div>
+            <div class="modal-empty" id="incompletedEmpty" hidden>Không có Khóa học chưa hoàn thành.</div>
           </div>
         </div>
       </div>
+      <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
     </section>
 
     <section class="featured">
@@ -868,19 +939,18 @@
   <div class="modal" id="registrationsModal" hidden>
     <div class="modal-backdrop" data-modal-close></div>
     <div class="modal-card">
-      <div class="print-banner" aria-hidden="true">
+      <div class="print-only print-banner" aria-hidden="true">
         <div class="print-brand">TRƯỜNG CAO ĐẲNG THACO</div>
         <div class="print-heading" id="modalPrintTitle">
           <div data-print-main>Danh sách học viên</div>
-          <div data-print-schedule hidden></div>
-          <div data-print-location hidden></div>
+          <div data-print-meta></div>
         </div>
-        <div class="print-spacer">TRƯỜNG CAO ĐẲNG THACO</div>
       </div>
       <div class="modal-header">
-        <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
+        <div class="modal-heading no-print">
+        </div>
         <div class="modal-actions">
-          <button type="button" class="btn btn-print" id="modalPrint">In</button>
+          <button type="button" class="btn btn-print no-print" id="modalPrint">In danh sách</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
         </div>
       </div>
@@ -898,9 +968,9 @@
           </thead>
           <tbody id="modalBody"></tbody>
         </table>
-        <div class="modal-loader" id="modalLoader" hidden>Đang tải danh sách học viên...</div>
         <div class="modal-empty" id="modalEmpty" hidden>Chưa có học viên đăng ký.</div>
       </div>
+      <div class="print-only print-footer" aria-hidden="true">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
     </div>
   </div>
 
@@ -916,19 +986,59 @@
 
     const modal = document.getElementById('registrationsModal');
     const modalBody = document.getElementById('modalBody');
-    const modalLoader = document.getElementById('modalLoader');
     const modalEmpty = document.getElementById('modalEmpty');
     const modalTitle = document.getElementById('modalTitle');
+    const modalMeta = document.getElementById('modalMeta');
     const modalPrintTitle = document.getElementById('modalPrintTitle');
     const modalPrintMain = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-main]') : null;
-    const modalPrintSchedule = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-schedule]') : null;
-    const modalPrintLocation = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-location]') : null;
+    const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
     const registrationButtons = document.querySelectorAll('[data-course]');
     const modalPrintButton = document.getElementById('modalPrint');
+    const lookupActions = document.getElementById('lookupActions');
+    const lookupPrintButton = document.getElementById('lookupPrint');
+
+    const afterPrintCleanup = () => {
+      document.body.classList.remove('print-modal');
+      document.body.classList.remove('print-lookup');
+    };
+
+    window.addEventListener('afterprint', afterPrintCleanup);
+    if(window.matchMedia){
+      try {
+        const mediaQuery = window.matchMedia('print');
+        if(mediaQuery){
+          if(typeof mediaQuery.addEventListener === 'function'){
+            mediaQuery.addEventListener('change', event => {
+              if(!event.matches){
+                afterPrintCleanup();
+              }
+            });
+          } else if(typeof mediaQuery.addListener === 'function'){
+            mediaQuery.addListener(event => {
+              if(!event.matches){
+                afterPrintCleanup();
+              }
+            });
+          }
+        }
+      } catch(_) {}
+    }
 
     if(modalPrintButton){
-      modalPrintButton.addEventListener('click', () => window.print());
+      modalPrintButton.addEventListener('click', () => {
+        document.body.classList.remove('print-lookup');
+        document.body.classList.add('print-modal');
+        window.print();
+      });
+    }
+
+    if(lookupPrintButton){
+      lookupPrintButton.addEventListener('click', () => {
+        document.body.classList.remove('print-modal');
+        document.body.classList.add('print-lookup');
+        window.print();
+      });
     }
 
     registrationButtons.forEach(btn => {
@@ -953,35 +1063,25 @@
       const metaParts = [];
       if(courseSchedule){ metaParts.push(courseSchedule); }
       if(courseLocation){ metaParts.push(courseLocation); }
-      const fullTitle = metaParts.length ? `${baseTitle} - ${metaParts.join(', ')}` : baseTitle;
-      modalTitle.textContent = fullTitle;
+      if(modalTitle){
+        modalTitle.textContent = baseTitle;
+      }
       if(modalPrintMain){
         modalPrintMain.textContent = baseTitle;
       }
-      if(modalPrintSchedule){
-        if(courseSchedule){
-          let scheduleLine = courseSchedule;
-          if(courseLocation){
-            scheduleLine = `${scheduleLine}, ${courseLocation}`;
-          }
-          modalPrintSchedule.textContent = scheduleLine;
-          modalPrintSchedule.hidden = false;
-        } else {
-          modalPrintSchedule.textContent = '';
-          modalPrintSchedule.hidden = true;
-        }
+      if(modalPrintMeta){
+        modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
       }
-      if(modalPrintLocation){
-        if(!courseSchedule && courseLocation){
-          modalPrintLocation.textContent = courseLocation;
-          modalPrintLocation.hidden = false;
+      if(modalMeta){
+        const metaText = metaParts.length ? metaParts.join(', ') : '';
+        modalMeta.textContent = metaText;
+        if(metaText){
+          modalMeta.removeAttribute('hidden');
         } else {
-          modalPrintLocation.textContent = '';
-          modalPrintLocation.hidden = true;
+          modalMeta.setAttribute('hidden', '');
         }
       }
       modalBody.innerHTML = '';
-      modalLoader.hidden = false;
       modalEmpty.hidden = true;
       modalEmpty.textContent = 'Chưa có học viên đăng ký.';
 
@@ -993,7 +1093,6 @@
           return res.json();
         })
         .then(data => {
-          modalLoader.hidden = true;
           const registrations = Array.isArray(data.registrations) ? data.registrations : [];
           if(!registrations.length){
             modalEmpty.hidden = false;
@@ -1028,7 +1127,6 @@
           modalBody.appendChild(fragment);
         })
         .catch(async error => {
-          modalLoader.hidden = true;
           modalEmpty.hidden = false;
           modalEmpty.textContent = 'Không thể tải danh sách học viên.';
           if(error && typeof error.json === 'function'){
@@ -1085,6 +1183,9 @@
         if(lookupResults){
           lookupResults.hidden = true;
         }
+        if(lookupActions){
+          lookupActions.hidden = true;
+        }
         return;
       }
 
@@ -1095,6 +1196,9 @@
       incompletedEmpty.hidden = true;
       if(lookupResults){
         lookupResults.hidden = false;
+      }
+      if(lookupActions){
+        lookupActions.hidden = true;
       }
 
       fetch(lookupUrl + '?q=' + encodeURIComponent(query))
@@ -1116,11 +1220,17 @@
           setLookupMessage(hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
           renderLookupTable(completedBody, completedEmpty, completed, true);
           renderLookupTable(incompletedBody, incompletedEmpty, incompleted, false);
+          if(lookupActions){
+            lookupActions.hidden = !hasResult;
+          }
         })
         .catch(error => {
           setLookupMessage(error.message || 'Không thể tra cứu kết quả.');
           completedEmpty.hidden = false;
           incompletedEmpty.hidden = false;
+          if(lookupActions){
+            lookupActions.hidden = true;
+          }
         });
     });
 
@@ -1136,30 +1246,30 @@
       items.forEach(item => {
         const tr = document.createElement('tr');
         if(isCompleted){
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
+          const certificateCell = formatCertificateCell(item.chung_nhan, item.chung_nhan_ten);
           const cells = [
             item.stt ?? '',
             item.ms ?? '—',
             item.ho_ten ?? '—',
             item.cong_ty ?? '—',
             item.thaco ?? '—',
-            item.ten_khoa_hoc ?? '—',
-            item.ma_khoa ?? '—',
+            courseTitle,
             formatScore(item.dtb),
             formatHours(item.gio_thuc_hoc),
             item.ngay_hoan_thanh ?? '—',
-            formatCurrency(item.chi_phi),
-            item.chung_nhan ? { href: item.chung_nhan, label: 'Chứng nhận' } : '—'
+            certificateCell,
           ];
           cells.forEach(cell => tr.appendChild(createCell(cell)));
         } else {
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
           const cells = [
             item.stt ?? '',
             item.ms ?? '—',
             item.ho_ten ?? '—',
             item.cong_ty ?? '—',
             item.thaco ?? '—',
-            item.ten_khoa_hoc ?? '—',
-            item.ma_khoa ?? '—',
+            courseTitle,
             item.ly_do ?? '—'
           ];
           cells.forEach(cell => tr.appendChild(createCell(cell)));
@@ -1182,6 +1292,44 @@
         td.textContent = (cell !== undefined && cell !== null && cell !== '') ? cell : '—';
       }
       return td;
+    }
+
+    function formatCourseTitle(name, code){
+      const title = (name ?? '').toString().trim();
+      const courseCode = (code ?? '').toString().trim();
+      if(title && courseCode){
+        return `${title}, ${courseCode}`;
+      }
+      if(title){
+        return title;
+      }
+      if(courseCode){
+        return courseCode;
+      }
+      return '—';
+    }
+
+    function formatCertificateCell(url, label){
+      if(!url){
+        return '—';
+      }
+      const text = (label ?? '').toString().trim() || extractFileName(url) || 'Chứng nhận';
+      return { href: url, label: text };
+    }
+
+    function extractFileName(value){
+      if(!value){
+        return '';
+      }
+      try {
+        const parsed = new URL(value, window.location.origin);
+        const pathname = decodeURIComponent(parsed.pathname || '');
+        const parts = pathname.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : '';
+      } catch(_) {
+        const segments = decodeURIComponent(String(value)).split('/').filter(Boolean);
+        return segments.length ? segments[segments.length - 1] : '';
+      }
     }
 
     function normalizeUnitText(value){
@@ -1213,14 +1361,6 @@
       if(Number.isFinite(number)){
         const options = number % 1 === 0 ? { minimumFractionDigits:0, maximumFractionDigits:0 } : { minimumFractionDigits:1, maximumFractionDigits:1 };
         return number.toLocaleString('vi-VN', options);
-      }
-      return '—';
-    }
-
-    function formatCurrency(value){
-      const number = parseFloat(value);
-      if(Number.isFinite(number)){
-        return number.toLocaleString('vi-VN') + ' đ';
       }
       return '—';
     }
