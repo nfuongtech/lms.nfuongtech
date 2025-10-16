@@ -461,6 +461,14 @@
       gap:10px;
     }
 
+    .modal-print-brand {
+      display:none;
+      font-weight:700;
+      font-size:14px;
+      color:#0f172a;
+      text-transform:uppercase;
+    }
+
     .btn-print { white-space:nowrap; }
 
     .modal-close {
@@ -543,9 +551,24 @@
         border-radius:0;
       }
 
+      .modal-header {
+        display:block;
+        text-align:center;
+        padding:40px 24px 16px;
+        position:relative;
+      }
+
+      .modal-print-brand {
+        display:block !important;
+        position:absolute;
+        top:0;
+        left:24px;
+      }
+
       .modal-title {
-        font-size:18px;
-        padding:16px 16px 0;
+        font-size:20px;
+        margin:0;
+        text-align:center;
       }
 
       .modal-table {
@@ -835,6 +858,7 @@
     <div class="modal-backdrop" data-modal-close></div>
     <div class="modal-card">
       <div class="modal-header">
+        <div class="modal-print-brand" aria-hidden="true">TRƯỜNG CAO ĐẲNG THACO</div>
         <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
         <div class="modal-actions">
           <button type="button" class="btn btn-print" id="modalPrint">In</button>
@@ -849,6 +873,7 @@
               <th>Mã số</th>
               <th class="left">Họ &amp; Tên</th>
               <th>Năm sinh</th>
+              <th class="left">Chức vụ</th>
               <th class="left">Đơn vị</th>
             </tr>
           </thead>
@@ -934,6 +959,7 @@
               { value: item.ms ?? '—' },
               { value: item.ho_ten ?? '—', align: 'left' },
               { value: item.nam_sinh ?? '—' },
+              { value: item.chuc_vu ?? '—', align: 'left' },
               { value: normalizeUnitText(item.don_vi), align: 'left' },
             ];
 

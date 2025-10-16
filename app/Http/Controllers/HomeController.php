@@ -410,11 +410,23 @@ class HomeController extends Controller
             }, null, false);
         }
 
-        $time = null;
+        $startTime = null;
         if (! empty($first->gio_bat_dau)) {
-            $time = substr($first->gio_bat_dau, 0, 5);
-        } elseif (! empty($first->gio_ket_thuc)) {
-            $time = substr($first->gio_ket_thuc, 0, 5);
+            $startTime = substr($first->gio_bat_dau, 0, 5);
+        }
+
+        $endTime = null;
+        if (! empty($first->gio_ket_thuc)) {
+            $endTime = substr($first->gio_ket_thuc, 0, 5);
+        }
+
+        $time = null;
+        if ($startTime && $endTime) {
+            $time = $startTime . ' - ' . $endTime;
+        } elseif ($startTime) {
+            $time = $startTime;
+        } elseif ($endTime) {
+            $time = $endTime;
         }
 
         $schedule = null;
