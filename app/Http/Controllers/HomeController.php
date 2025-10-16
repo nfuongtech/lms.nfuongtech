@@ -411,6 +411,8 @@ class HomeController extends Controller
                 DB::raw('SUM(COALESCE(ket_qua_khoa_hocs.tong_so_gio_thuc_te, 0)) as total_hours'),
             ])
             ->whereNotNull('hoc_vien_hoan_thanhs.hoc_vien_id')
+            ->join('hoc_viens', 'hoc_viens.id', '=', 'hoc_vien_hoan_thanhs.hoc_vien_id')
+            ->where('hoc_viens.tinh_trang', 'Đang làm việc')
             ->when($from, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '>=', $from->toDateString()))
             ->when($to, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '<=', $to->toDateString()))
             ->leftJoin('ket_qua_khoa_hocs', 'ket_qua_khoa_hocs.id', '=', 'hoc_vien_hoan_thanhs.ket_qua_khoa_hoc_id')
@@ -429,6 +431,7 @@ class HomeController extends Controller
         $hocViens = HocVien::query()
             ->with('donVi')
             ->whereIn('id', $hocVienIds)
+            ->where('tinh_trang', 'Đang làm việc')
             ->get()
             ->keyBy('id');
 

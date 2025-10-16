@@ -530,6 +530,15 @@
       line-height:1.4;
     }
 
+    .print-heading [data-print-main] {
+      font-weight:700;
+    }
+
+    .print-heading [data-print-meta] {
+      font-size:18px;
+      font-weight:500;
+    }
+
     .print-footer {
       width:100%;
       text-align:right;
@@ -927,7 +936,7 @@
         </div>
       </div>
       <div class="modal-header">
-        <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
+        <h3 class="modal-title no-print" id="modalTitle">Danh sách học viên</h3>
         <div class="modal-actions">
           <button type="button" class="btn btn-print no-print" id="modalPrint">In</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
