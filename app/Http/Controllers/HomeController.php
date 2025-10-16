@@ -158,7 +158,7 @@ class HomeController extends Controller
             $years = [now()->year];
         }
         $months = range(1, 12);
-        $weeks  = range(1, 53);
+        $weeks  = $this->buildWeekOptions($year);
 
         $now = Carbon::now();
         $featuredYear   = $this->buildFeaturedStudents($now->copy()->startOfYear(), $now);
@@ -242,17 +242,19 @@ class HomeController extends Controller
                     'stt'            => $index + 1,
                     'ms'             => $hocVien?->msnv ?? '—',
                     'ho_ten'         => $hocVien?->ho_ten ?? '—',
+                    'ngay_sinh'      => $this->formatDate($hocVien?->ngay_sinh),
                     'nam_sinh'       => $this->formatYear($hocVien?->nam_sinh),
                     'cong_ty'        => $hocVien?->donVi?->cong_ty_ban_nvqt ?? '—',
                     'thaco'          => $hocVien?->donVi?->thaco_tdtv ?? '—',
                     'chuc_vu'        => $hocVien?->chuc_vu ?? '—',
+                    'gioi_tinh'      => $this->formatGender($hocVien?->gioi_tinh),
                     'ten_khoa_hoc'   => $khoaHoc?->ten_khoa_hoc ?? '—',
                     'ma_khoa'        => $khoaHoc?->ma_khoa_hoc ?? '—',
                     'dtb'            => $ketQua?->diem_trung_binh,
                     'gio_thuc_hoc'   => $ketQua?->tong_so_gio_thuc_te,
                     'ngay_hoan_thanh'=> $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : null,
-                    'chi_phi'        => $record->chi_phi_dao_tao,
                     'chung_nhan'     => $this->resolveCertificateUrl($record),
+                    'chung_nhan_ten' => $this->resolveCertificateLabel($record),
                 ];
             })
             ->values();
@@ -277,10 +279,12 @@ class HomeController extends Controller
                     'stt'          => $index + 1,
                     'ms'           => $hocVien?->msnv ?? '—',
                     'ho_ten'       => $hocVien?->ho_ten ?? '—',
+                    'ngay_sinh'    => $this->formatDate($hocVien?->ngay_sinh),
                     'nam_sinh'     => $this->formatYear($hocVien?->nam_sinh),
                     'cong_ty'      => $hocVien?->donVi?->cong_ty_ban_nvqt ?? '—',
                     'thaco'        => $hocVien?->donVi?->thaco_tdtv ?? '—',
                     'chuc_vu'      => $hocVien?->chuc_vu ?? '—',
+                    'gioi_tinh'    => $this->formatGender($hocVien?->gioi_tinh),
                     'ten_khoa_hoc' => $khoaHoc?->ten_khoa_hoc ?? '—',
                     'ma_khoa'      => $khoaHoc?->ma_khoa_hoc ?? '—',
                     'ly_do'        => $this->formatIncompleteReason($record),
@@ -288,10 +292,56 @@ class HomeController extends Controller
             })
             ->values();
 
+        $profileSource = $completed->first() ?? $incompleted->first();
+        $profile = null;
+
+        if ($profileSource) {
+            $profile = [
+                'ms'        => $profileSource['ms'] ?? '—',
+                'ho_ten'    => $profileSource['ho_ten'] ?? '—',
+                'ngay_sinh' => $profileSource['ngay_sinh'] ?? null,
+                'gioi_tinh' => $profileSource['gioi_tinh'] ?? null,
+                'cong_ty'   => $profileSource['cong_ty'] ?? '—',
+                'thaco'     => $profileSource['thaco'] ?? '—',
+            ];
+        }
+
         return response()->json([
             'completed'   => $completed,
             'incompleted' => $incompleted,
+            'profile'     => $profile,
         ]);
+    }
+
+    protected function buildWeekOptions(int $year): array
+    {
+        $weeksInYear = Carbon::create($year, 12, 28)->isoWeek();
+
+        return collect(range(1, $weeksInYear))->map(function ($week) use ($year) {
+            $start = Carbon::now()->setISODate($year, $week, 1)->startOfDay();
+            $end   = (clone $start)->addDays(6);
+
+            $startText = $start->format('d/m');
+            $endText   = $end->format('d/m/Y');
+
+            return [
+                'value' => $week,
+                'label' => sprintf('%d (%s - %s)', $week, $startText, $endText),
+            ];
+        })->all();
+    }
+
+    protected function formatDate($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        if ($value instanceof Carbon) {
+            return $value->format('d/m/Y');
+        }
+
+        return rescue(fn () => Carbon::parse($value)->format('d/m/Y'), null, false);
     }
 
     protected function buildFeaturedStudents(Carbon $from, Carbon $to, int $limit = 3): array
@@ -364,6 +414,30 @@ class HomeController extends Controller
         return rescue(fn () => Carbon::parse($value)->format('Y'), function () use ($value) {
             return substr((string) $value, 0, 4) ?: null;
         }, false);
+    }
+
+    protected function formatGender($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $string = trim((string) $value);
+        if ($string === '') {
+            return null;
+        }
+
+        $normalized = Str::lower($string);
+
+        if (in_array($normalized, ['1', 'nam', 'male', 'm'], true)) {
+            return 'Nam';
+        }
+
+        if (in_array($normalized, ['0', 'nu', 'nữ', 'female', 'f'], true)) {
+            return 'Nữ';
+        }
+
+        return ucfirst($string);
     }
 
     protected function formatDonVi($donVi): string
@@ -511,6 +585,26 @@ class HomeController extends Controller
         }
 
         return null;
+    }
+
+    protected function resolveCertificateLabel(HocVienHoanThanh $record): ?string
+    {
+        $file = trim((string) ($record->chung_chi_tap_tin ?? ''));
+        if ($file !== '') {
+            $basename = basename($file);
+            return $basename !== '' ? $basename : null;
+        }
+
+        $link = trim((string) ($record->chung_chi_link ?? ''));
+        if ($link === '') {
+            return null;
+        }
+
+        $path = parse_url($link, PHP_URL_PATH) ?: '';
+        $decoded = urldecode($path);
+        $basename = basename($decoded);
+
+        return $basename !== '' ? $basename : null;
     }
 
     protected function resolveAvatarUrl(?string $path): ?string

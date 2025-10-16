@@ -26,6 +26,8 @@
     *, *::before, *::after { box-sizing:border-box; }
 
     [hidden] { display:none !important; }
+    .no-print { }
+    .print-only { display:none; }
 
     html, body { height:100%; }
 
@@ -127,6 +129,17 @@
       border-color:var(--accent);
     }
 
+    .btn-secondary {
+      background:#e5e7eb;
+      border-color:#d1d5db;
+      color:#111827;
+    }
+
+    .btn-secondary:hover {
+      background:#dbe0e9;
+      border-color:#cbd5e1;
+    }
+
     .content {
       flex:1;
       display:flex;
@@ -220,7 +233,7 @@
       margin-top:6px;
       font-size:13px;
       color:#b91c1c;
-      text-align:left;
+      text-align:center;
       line-height:1.4;
       white-space:pre-wrap;
     }
@@ -273,6 +286,13 @@
       font-size:14px;
       color:var(--muted);
       margin-bottom:16px;
+    }
+
+    .lookup-actions {
+      display:flex;
+      justify-content:flex-end;
+      margin-bottom:12px;
+      gap:12px;
     }
 
     .lookup-results {
@@ -477,7 +497,16 @@
     }
 
     .print-banner {
-      display:none;
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .print-brand {
+      font-weight:600;
+      font-size:14px;
+      text-align:left;
     }
 
     .print-heading {
@@ -485,10 +514,21 @@
       display:flex;
       flex-direction:column;
       gap:4px;
+      font-weight:600;
+      font-size:20px;
+      line-height:1.4;
     }
 
     .print-heading > div {
       line-height:1.4;
+    }
+
+    .print-footer {
+      width:100%;
+      text-align:right;
+      font-weight:600;
+      font-size:12px;
+      margin-top:24px;
     }
 
     .modal-loader,
@@ -531,56 +571,61 @@
         color:#000;
       }
 
-      .topbar,
-      .content,
-      footer,
-      .modal-backdrop,
-      .modal-close,
-      .modal-actions,
-      .modal-header { display:none !important; }
+      .no-print { display:none !important; }
 
-      .modal {
+      .topbar,
+      footer { display:none !important; }
+
+      .modal { display:none !important; }
+
+      body.print-modal .content { display:none !important; }
+      body.print-modal .modal {
+        display:block !important;
         position:static;
         inset:auto;
-        display:block;
         padding:0;
       }
-
-      .modal-card {
+      body.print-modal .modal-card {
         width:100%;
         max-height:none;
         box-shadow:none;
         border-radius:0;
         padding:0 40px 40px;
       }
-
-      .modal-card .table-wrap {
+      body.print-modal .modal-card .table-wrap {
         box-shadow:none;
         border-radius:0;
       }
+      body.print-modal .modal-header,
+      body.print-modal .modal-close,
+      body.print-modal .modal-actions { display:none !important; }
+      body.print-modal .print-only { display:block !important; }
+
+      body.print-lookup .modal { display:none !important; }
+      body.print-lookup .print-only { display:block !important; }
 
       .print-banner {
-        display:grid !important;
-        grid-template-columns:auto 1fr auto;
-        align-items:flex-end;
-        gap:16px;
         padding:32px 40px 16px;
       }
 
-      .print-brand {
-        font-weight:600;
-        font-size:14px;
+      .print-footer {
+        padding:0 40px;
       }
 
-      .print-heading {
-        font-weight:600;
-        font-size:20px;
-        text-align:center;
+      body.print-lookup .print-footer {
+        margin-top:16px;
       }
 
-      .print-spacer {
-        visibility:hidden;
+      body.print-lookup .content > :not(#lookupSection) { display:none !important; }
+
+      .print-banner {
+        padding:32px 40px 16px;
+        align-items:center;
       }
+
+      .print-brand { align-self:flex-start; }
+      .print-heading { align-self:stretch; }
+      .print-footer { align-self:flex-end; }
 
       .modal-table {
         width:100%;
@@ -638,8 +683,8 @@
         <label>Tuần:
           <select id="week" name="week" onchange="onWeekChange()">
             <option value="">— Không lọc theo tuần —</option>
-            @foreach($weeks as $w)
-              <option value="{{ $w }}" {{ $filterMode==='week' && (int)$week===(int)$w ? 'selected' : '' }}>{{ $w }}</option>
+            @foreach($weeks as $opt)
+              <option value="{{ $opt['value'] }}" {{ $filterMode==='week' && (int)$week===(int)$opt['value'] ? 'selected' : '' }}>{{ $opt['label'] }}</option>
             @endforeach
           </select>
         </label>
@@ -732,6 +777,16 @@
         <button type="submit" class="btn btn-primary">Tra cứu</button>
       </form>
       <div class="lookup-message" id="lookupMessage" hidden></div>
+      <div class="lookup-actions no-print" id="lookupActions" hidden>
+        <button type="button" class="btn btn-secondary no-print" id="lookupPrint">In</button>
+      </div>
+      <div class="print-only print-banner" id="lookupPrintBanner">
+        <div class="print-brand">TRƯỜNG CAO ĐẲNG THACO</div>
+        <div class="print-heading">
+          <div>KẾT QUẢ HỌC TẬP</div>
+          <div id="lookupPrintProfile"></div>
+        </div>
+      </div>
       <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
           <h3>Khóa học đã hoàn thành</h3>
@@ -745,11 +800,9 @@
                   <th>Công ty/Ban NVQT</th>
                   <th>THACO/TĐTV</th>
                   <th>Tên khóa học</th>
-                  <th>Mã khóa</th>
                   <th>ĐTB</th>
                   <th>Giờ thực học</th>
                   <th>Ngày hoàn thành</th>
-                  <th>Chi phí đào tạo</th>
                   <th>Chứng nhận</th>
                 </tr>
               </thead>
@@ -770,7 +823,6 @@
                   <th>Công ty/Ban NVQT</th>
                   <th>THACO/TĐTV</th>
                   <th>Tên khóa học</th>
-                  <th>Mã khóa</th>
                   <th>Lý do không hoàn thành</th>
                 </tr>
               </thead>
@@ -780,6 +832,7 @@
           </div>
         </div>
       </div>
+      <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
     </section>
 
     <section class="featured">
@@ -868,19 +921,17 @@
   <div class="modal" id="registrationsModal" hidden>
     <div class="modal-backdrop" data-modal-close></div>
     <div class="modal-card">
-      <div class="print-banner" aria-hidden="true">
+      <div class="print-only print-banner" aria-hidden="true">
         <div class="print-brand">TRƯỜNG CAO ĐẲNG THACO</div>
         <div class="print-heading" id="modalPrintTitle">
           <div data-print-main>Danh sách học viên</div>
-          <div data-print-schedule hidden></div>
-          <div data-print-location hidden></div>
+          <div data-print-meta></div>
         </div>
-        <div class="print-spacer">TRƯỜNG CAO ĐẲNG THACO</div>
       </div>
       <div class="modal-header">
         <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
         <div class="modal-actions">
-          <button type="button" class="btn btn-print" id="modalPrint">In</button>
+          <button type="button" class="btn btn-print no-print" id="modalPrint">In</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
         </div>
       </div>
@@ -901,6 +952,7 @@
         <div class="modal-loader" id="modalLoader" hidden>Đang tải danh sách học viên...</div>
         <div class="modal-empty" id="modalEmpty" hidden>Chưa có học viên đăng ký.</div>
       </div>
+      <div class="print-only print-footer" aria-hidden="true">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
     </div>
   </div>
 
@@ -921,14 +973,55 @@
     const modalTitle = document.getElementById('modalTitle');
     const modalPrintTitle = document.getElementById('modalPrintTitle');
     const modalPrintMain = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-main]') : null;
-    const modalPrintSchedule = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-schedule]') : null;
-    const modalPrintLocation = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-location]') : null;
+    const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
     const registrationButtons = document.querySelectorAll('[data-course]');
     const modalPrintButton = document.getElementById('modalPrint');
+    const lookupActions = document.getElementById('lookupActions');
+    const lookupPrintButton = document.getElementById('lookupPrint');
+    const lookupPrintProfile = document.getElementById('lookupPrintProfile');
+
+    const afterPrintCleanup = () => {
+      document.body.classList.remove('print-modal');
+      document.body.classList.remove('print-lookup');
+    };
+
+    window.addEventListener('afterprint', afterPrintCleanup);
+    if(window.matchMedia){
+      try {
+        const mediaQuery = window.matchMedia('print');
+        if(mediaQuery){
+          if(typeof mediaQuery.addEventListener === 'function'){
+            mediaQuery.addEventListener('change', event => {
+              if(!event.matches){
+                afterPrintCleanup();
+              }
+            });
+          } else if(typeof mediaQuery.addListener === 'function'){
+            mediaQuery.addListener(event => {
+              if(!event.matches){
+                afterPrintCleanup();
+              }
+            });
+          }
+        }
+      } catch(_) {}
+    }
 
     if(modalPrintButton){
-      modalPrintButton.addEventListener('click', () => window.print());
+      modalPrintButton.addEventListener('click', () => {
+        document.body.classList.remove('print-lookup');
+        document.body.classList.add('print-modal');
+        window.print();
+      });
+    }
+
+    if(lookupPrintButton){
+      lookupPrintButton.addEventListener('click', () => {
+        document.body.classList.remove('print-modal');
+        document.body.classList.add('print-lookup');
+        window.print();
+      });
     }
 
     registrationButtons.forEach(btn => {
@@ -958,27 +1051,11 @@
       if(modalPrintMain){
         modalPrintMain.textContent = baseTitle;
       }
-      if(modalPrintSchedule){
-        if(courseSchedule){
-          let scheduleLine = courseSchedule;
-          if(courseLocation){
-            scheduleLine = `${scheduleLine}, ${courseLocation}`;
-          }
-          modalPrintSchedule.textContent = scheduleLine;
-          modalPrintSchedule.hidden = false;
-        } else {
-          modalPrintSchedule.textContent = '';
-          modalPrintSchedule.hidden = true;
-        }
-      }
-      if(modalPrintLocation){
-        if(!courseSchedule && courseLocation){
-          modalPrintLocation.textContent = courseLocation;
-          modalPrintLocation.hidden = false;
-        } else {
-          modalPrintLocation.textContent = '';
-          modalPrintLocation.hidden = true;
-        }
+      if(modalPrintMeta){
+        const metaParts = [];
+        if(courseSchedule){ metaParts.push(courseSchedule); }
+        if(courseLocation){ metaParts.push(courseLocation); }
+        modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
       }
       modalBody.innerHTML = '';
       modalLoader.hidden = false;
@@ -1076,6 +1153,7 @@
     }
 
     setLookupMessage('');
+    updateLookupProfile(null);
 
     lookupForm.addEventListener('submit', event => {
       event.preventDefault();
@@ -1085,6 +1163,10 @@
         if(lookupResults){
           lookupResults.hidden = true;
         }
+        if(lookupActions){
+          lookupActions.hidden = true;
+        }
+        updateLookupProfile(null);
         return;
       }
 
@@ -1096,6 +1178,10 @@
       if(lookupResults){
         lookupResults.hidden = false;
       }
+      if(lookupActions){
+        lookupActions.hidden = true;
+      }
+      updateLookupProfile(null);
 
       fetch(lookupUrl + '?q=' + encodeURIComponent(query))
         .then(res => {
@@ -1116,11 +1202,19 @@
           setLookupMessage(hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
           renderLookupTable(completedBody, completedEmpty, completed, true);
           renderLookupTable(incompletedBody, incompletedEmpty, incompleted, false);
+          updateLookupProfile(hasResult ? (data.profile || null) : null);
+          if(lookupActions){
+            lookupActions.hidden = !hasResult;
+          }
         })
         .catch(error => {
           setLookupMessage(error.message || 'Không thể tra cứu kết quả.');
           completedEmpty.hidden = false;
           incompletedEmpty.hidden = false;
+          if(lookupActions){
+            lookupActions.hidden = true;
+          }
+          updateLookupProfile(null);
         });
     });
 
@@ -1136,30 +1230,30 @@
       items.forEach(item => {
         const tr = document.createElement('tr');
         if(isCompleted){
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
+          const certificateCell = formatCertificateCell(item.chung_nhan, item.chung_nhan_ten);
           const cells = [
             item.stt ?? '',
             item.ms ?? '—',
             item.ho_ten ?? '—',
             item.cong_ty ?? '—',
             item.thaco ?? '—',
-            item.ten_khoa_hoc ?? '—',
-            item.ma_khoa ?? '—',
+            courseTitle,
             formatScore(item.dtb),
             formatHours(item.gio_thuc_hoc),
             item.ngay_hoan_thanh ?? '—',
-            formatCurrency(item.chi_phi),
-            item.chung_nhan ? { href: item.chung_nhan, label: 'Chứng nhận' } : '—'
+            certificateCell,
           ];
           cells.forEach(cell => tr.appendChild(createCell(cell)));
         } else {
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
           const cells = [
             item.stt ?? '',
             item.ms ?? '—',
             item.ho_ten ?? '—',
             item.cong_ty ?? '—',
             item.thaco ?? '—',
-            item.ten_khoa_hoc ?? '—',
-            item.ma_khoa ?? '—',
+            courseTitle,
             item.ly_do ?? '—'
           ];
           cells.forEach(cell => tr.appendChild(createCell(cell)));
@@ -1182,6 +1276,62 @@
         td.textContent = (cell !== undefined && cell !== null && cell !== '') ? cell : '—';
       }
       return td;
+    }
+
+    function updateLookupProfile(profile){
+      if(!lookupPrintProfile) return;
+      if(profile){
+        const parts = [];
+        parts.push(`Mã số: ${profile.ms && profile.ms !== '' ? profile.ms : '—'}`);
+        parts.push(`Họ & Tên: ${profile.ho_ten && profile.ho_ten !== '' ? profile.ho_ten : '—'}`);
+        parts.push(`Ngày tháng năm sinh: ${profile.ngay_sinh && profile.ngay_sinh !== '' ? profile.ngay_sinh : '—'}`);
+        parts.push(`Giới tính: ${profile.gioi_tinh && profile.gioi_tinh !== '' ? profile.gioi_tinh : '—'}`);
+        parts.push(`Công ty/Ban NVQT: ${profile.cong_ty && profile.cong_ty !== '' ? profile.cong_ty : '—'}`);
+        parts.push(`THACO/TĐTV: ${profile.thaco && profile.thaco !== '' ? profile.thaco : '—'}`);
+        lookupPrintProfile.textContent = parts.join(', ');
+        lookupPrintProfile.style.display = 'block';
+      } else {
+        lookupPrintProfile.textContent = '';
+        lookupPrintProfile.style.display = 'none';
+      }
+    }
+
+    function formatCourseTitle(name, code){
+      const title = (name ?? '').toString().trim();
+      const courseCode = (code ?? '').toString().trim();
+      if(title && courseCode){
+        return `${title}, ${courseCode}`;
+      }
+      if(title){
+        return title;
+      }
+      if(courseCode){
+        return courseCode;
+      }
+      return '—';
+    }
+
+    function formatCertificateCell(url, label){
+      if(!url){
+        return '—';
+      }
+      const text = (label ?? '').toString().trim() || extractFileName(url) || 'Chứng nhận';
+      return { href: url, label: text };
+    }
+
+    function extractFileName(value){
+      if(!value){
+        return '';
+      }
+      try {
+        const parsed = new URL(value, window.location.origin);
+        const pathname = decodeURIComponent(parsed.pathname || '');
+        const parts = pathname.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : '';
+      } catch(_) {
+        const segments = decodeURIComponent(String(value)).split('/').filter(Boolean);
+        return segments.length ? segments[segments.length - 1] : '';
+      }
     }
 
     function normalizeUnitText(value){
@@ -1213,14 +1363,6 @@
       if(Number.isFinite(number)){
         const options = number % 1 === 0 ? { minimumFractionDigits:0, maximumFractionDigits:0 } : { minimumFractionDigits:1, maximumFractionDigits:1 };
         return number.toLocaleString('vi-VN', options);
-      }
-      return '—';
-    }
-
-    function formatCurrency(value){
-      const number = parseFloat(value);
-      if(Number.isFinite(number)){
-        return number.toLocaleString('vi-VN') + ' đ';
       }
       return '—';
     }
