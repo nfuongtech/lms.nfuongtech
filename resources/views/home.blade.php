@@ -25,6 +25,8 @@
 
     *, *::before, *::after { box-sizing:border-box; }
 
+    [hidden] { display:none !important; }
+
     html, body { height:100%; }
 
     body {
@@ -636,7 +638,7 @@
         <button type="submit" class="btn btn-primary">Tra cứu</button>
       </form>
       <div class="lookup-message" id="lookupMessage"></div>
-      <div class="lookup-results">
+      <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
           <h3>Khóa học đã hoàn thành</h3>
           <div class="table-wrap">
@@ -726,7 +728,7 @@
           @endif
         </div>
         <div class="featured-column">
-          <h3>3 tháng qua (120 ngày)</h3>
+          <h3>Trong 3 tháng qua</h3>
           @if(!empty($featuredRecent))
             <div class="card-stack">
               @foreach($featuredRecent as $card)
@@ -758,7 +760,7 @@
               @endforeach
             </div>
           @else
-            <p class="empty-text">Chưa có dữ liệu trong 120 ngày gần nhất.</p>
+            <p class="empty-text">Chưa có dữ liệu trong 3 tháng qua.</p>
           @endif
         </div>
       </div>
@@ -895,6 +897,7 @@
     const lookupForm = document.getElementById('lookupForm');
     const lookupInput = document.getElementById('lookupInput');
     const lookupMessage = document.getElementById('lookupMessage');
+    const lookupResults = document.getElementById('lookupResults');
     const completedBody = document.querySelector('#completedTable tbody');
     const incompletedBody = document.querySelector('#incompletedTable tbody');
     const completedEmpty = document.getElementById('completedEmpty');
@@ -908,6 +911,9 @@
       const query = lookupInput.value.trim();
       if(!query){
         lookupMessage.textContent = 'Vui lòng nhập thông tin cần tra cứu.';
+        if(lookupResults){
+          lookupResults.hidden = true;
+        }
         return;
       }
 
@@ -916,6 +922,9 @@
       incompletedBody.innerHTML = '';
       completedEmpty.hidden = true;
       incompletedEmpty.hidden = true;
+      if(lookupResults){
+        lookupResults.hidden = false;
+      }
 
       fetch(lookupUrl + '?q=' + encodeURIComponent(query))
         .then(res => {

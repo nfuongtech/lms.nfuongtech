@@ -465,14 +465,14 @@ class HomeController extends Controller
     protected function formatAchievementSummary(int $courses, ?float $score, ?float $hours): string
     {
         $parts = [];
-        $parts[] = 'Tổng số khóa học: ' . $courses;
+        $parts[] = 'Khóa học hoàn thành nhiều nhất: ' . $courses . ' khóa';
 
         if ($score !== null) {
             $parts[] = 'ĐTB cao nhất: ' . number_format($score, 1);
         }
 
         if ($hours !== null) {
-            $parts[] = 'Tổng giờ thực học: ' . number_format($hours, 1) . ' giờ';
+            $parts[] = 'Tổng số giờ thực học cao nhất: ' . number_format($hours, 1) . ' giờ';
         }
 
         return implode(' • ', $parts);
