@@ -197,7 +197,7 @@
 
     tbody tr:first-child td { border-top:none; }
 
-    td.left { text-align:left; }
+    td.left, th.left { text-align:left; }
 
     .badge {
       display:inline-flex;
@@ -446,7 +446,7 @@
     .modal-header {
       display:flex;
       justify-content:space-between;
-      align-items:flex-start;
+      align-items:center;
       gap:12px;
     }
 
@@ -454,6 +454,14 @@
       font-size:20px;
       margin:0;
     }
+
+    .modal-actions {
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .btn-print { white-space:nowrap; }
 
     .modal-close {
       background:none;
@@ -499,6 +507,51 @@
       .lookup { padding:18px; }
       .featured-column { padding:18px; }
       .modal-card { padding:18px; }
+    }
+
+    @media print {
+      body {
+        background:#fff;
+        padding:0;
+        color:#000;
+      }
+
+      .topbar,
+      .content,
+      footer,
+      .modal-backdrop,
+      .modal-close,
+      .modal-actions { display:none !important; }
+
+      .modal {
+        position:static;
+        inset:auto;
+        display:block;
+        padding:0;
+      }
+
+      .modal-card {
+        width:100%;
+        max-height:none;
+        box-shadow:none;
+        border-radius:0;
+        padding:0;
+      }
+
+      .modal-card .table-wrap {
+        box-shadow:none;
+        border-radius:0;
+      }
+
+      .modal-title {
+        font-size:18px;
+        padding:16px 16px 0;
+      }
+
+      .modal-table {
+        width:100%;
+        min-width:0;
+      }
     }
   </style>
 </head>
@@ -605,7 +658,14 @@
                 <td class="nowrap">{{ $r['tuan'] }}</td>
                 <td class="nowrap">
                   @if($r['registered_students_count'] > 0)
-                    <button type="button" class="link-btn" data-course="{{ $r['id'] }}" data-course-name="{{ $r['ten_khoa_hoc'] }}">
+                    <button
+                      type="button"
+                      class="link-btn"
+                      data-course="{{ $r['id'] }}"
+                      data-course-name="{{ $r['ten_khoa_hoc'] }}"
+                      data-course-schedule="{{ $r['primary_schedule_text'] }}"
+                      data-course-location="{{ $r['primary_location_text'] }}"
+                    >
                       {{ $r['registered_students_count'] }} học viên
                     </button>
                   @else
@@ -637,7 +697,7 @@
         <input type="text" class="lookup-input" id="lookupInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
         <button type="submit" class="btn btn-primary">Tra cứu</button>
       </form>
-      <div class="lookup-message" id="lookupMessage"></div>
+      <div class="lookup-message" id="lookupMessage" hidden></div>
       <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
           <h3>Khóa học đã hoàn thành</h3>
@@ -776,18 +836,20 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
-        <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-print" id="modalPrint">In</button>
+          <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table class="modal-table">
           <thead>
             <tr>
               <th>TT</th>
-              <th>MS</th>
+              <th>Mã số</th>
+              <th class="left">Họ &amp; Tên</th>
               <th>Năm sinh</th>
-              <th>Họ &amp; Tên</th>
-              <th>Chức vụ</th>
-              <th>Đơn vị</th>
+              <th class="left">Đơn vị</th>
             </tr>
           </thead>
           <tbody id="modalBody"></tbody>
@@ -815,24 +877,35 @@
     const modalTitle = document.getElementById('modalTitle');
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
     const registrationButtons = document.querySelectorAll('[data-course]');
+    const modalPrintButton = document.getElementById('modalPrint');
+
+    if(modalPrintButton){
+      modalPrintButton.addEventListener('click', () => window.print());
+    }
 
     registrationButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         const courseId = btn.dataset.course;
         if(!courseId) return;
         const courseName = btn.dataset.courseName || '';
-        openRegistrationsModal(courseId, courseName);
+        const courseSchedule = btn.dataset.courseSchedule || '';
+        const courseLocation = btn.dataset.courseLocation || '';
+        openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation);
       });
     });
 
-    function openRegistrationsModal(courseId, courseName){
+    function openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation){
       const urlTemplate = document.body.dataset.registrationsUrl || '';
       if(!urlTemplate) return;
       const url = urlTemplate.replace('__ID__', encodeURIComponent(courseId));
 
       modal.hidden = false;
       document.body.classList.add('modal-open');
-      modalTitle.textContent = courseName ? 'Danh sách học viên — ' + courseName : 'Danh sách học viên';
+      const baseTitle = courseName ? `Danh sách học viên “${courseName}”` : 'Danh sách học viên';
+      const metaParts = [];
+      if(courseSchedule){ metaParts.push(courseSchedule); }
+      if(courseLocation){ metaParts.push(courseLocation); }
+      modalTitle.textContent = metaParts.length ? `${baseTitle} - ${metaParts.join(', ')}` : baseTitle;
       modalBody.innerHTML = '';
       modalLoader.hidden = false;
       modalEmpty.hidden = true;
@@ -856,12 +929,24 @@
           const fragment = document.createDocumentFragment();
           registrations.forEach(item => {
             const tr = document.createElement('tr');
-            [item.stt ?? '', item.ms ?? '—', item.nam_sinh ?? '—', item.ho_ten ?? '—', item.chuc_vu ?? '—', item.don_vi ?? '—']
-              .forEach(value => {
-                const td = document.createElement('td');
-                td.textContent = value || '—';
-                tr.appendChild(td);
-              });
+            const cells = [
+              { value: item.stt ?? '' },
+              { value: item.ms ?? '—' },
+              { value: item.ho_ten ?? '—', align: 'left' },
+              { value: item.nam_sinh ?? '—' },
+              { value: normalizeUnitText(item.don_vi), align: 'left' },
+            ];
+
+            cells.forEach(cell => {
+              const td = document.createElement('td');
+              if(cell.align === 'left'){
+                td.classList.add('left');
+              }
+              const content = (cell.value !== undefined && cell.value !== null && cell.value !== '') ? cell.value : '—';
+              td.textContent = content;
+              tr.appendChild(td);
+            });
+
             fragment.appendChild(tr);
           });
 
@@ -903,21 +988,32 @@
     const completedEmpty = document.getElementById('completedEmpty');
     const incompletedEmpty = document.getElementById('incompletedEmpty');
     const lookupUrl = document.body.dataset.lookupUrl || '';
-    const defaultLookupMessage = 'Nhập Mã số, Họ & Tên hoặc Email để bắt đầu tra cứu.';
-    lookupMessage.textContent = defaultLookupMessage;
+
+    function setLookupMessage(message){
+      if(!lookupMessage) return;
+      if(message && message.trim() !== ''){
+        lookupMessage.textContent = message;
+        lookupMessage.hidden = false;
+      } else {
+        lookupMessage.textContent = '';
+        lookupMessage.hidden = true;
+      }
+    }
+
+    setLookupMessage('');
 
     lookupForm.addEventListener('submit', event => {
       event.preventDefault();
       const query = lookupInput.value.trim();
       if(!query){
-        lookupMessage.textContent = 'Vui lòng nhập thông tin cần tra cứu.';
+        setLookupMessage('Vui lòng nhập thông tin cần tra cứu.');
         if(lookupResults){
           lookupResults.hidden = true;
         }
         return;
       }
 
-      lookupMessage.textContent = 'Đang tra cứu...';
+      setLookupMessage('Đang tra cứu...');
       completedBody.innerHTML = '';
       incompletedBody.innerHTML = '';
       completedEmpty.hidden = true;
@@ -942,12 +1038,12 @@
           const completed = Array.isArray(data.completed) ? data.completed : [];
           const incompleted = Array.isArray(data.incompleted) ? data.incompleted : [];
           const hasResult = completed.length || incompleted.length;
-          lookupMessage.textContent = hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.';
+          setLookupMessage(hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
           renderLookupTable(completedBody, completedEmpty, completed, true);
           renderLookupTable(incompletedBody, incompletedEmpty, incompleted, false);
         })
         .catch(error => {
-          lookupMessage.textContent = error.message || 'Không thể tra cứu kết quả.';
+          setLookupMessage(error.message || 'Không thể tra cứu kết quả.');
           completedEmpty.hidden = false;
           incompletedEmpty.hidden = false;
         });
@@ -1011,6 +1107,22 @@
         td.textContent = (cell !== undefined && cell !== null && cell !== '') ? cell : '—';
       }
       return td;
+    }
+
+    function normalizeUnitText(value){
+      if(value === undefined || value === null){
+        return '—';
+      }
+
+      const stringValue = String(value).trim();
+      if(stringValue === ''){
+        return '—';
+      }
+
+      const replaced = stringValue.replace(/\s*•\s*/g, ', ');
+      const collapsed = replaced.replace(/\s{2,}/g, ' ').trim();
+
+      return collapsed !== '' ? collapsed : '—';
     }
 
     function formatScore(value){

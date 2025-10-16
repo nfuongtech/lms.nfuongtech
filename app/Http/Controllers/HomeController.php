@@ -125,6 +125,8 @@ class HomeController extends Controller
             })->all();
             $diaDiemHtml = $diaDiemLines ? implode('<br>', $diaDiemLines) : '—';
 
+            $primarySession = $this->summarizePrimarySession($lichFiltered);
+
             $weeks = $lichFiltered->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
             if ($weeks === '') {
                 $weeks = $mode === 'week' ? (string) $week : '—';
@@ -146,6 +148,8 @@ class HomeController extends Controller
                 'ly_do_tam_hoan'              => trim((string) ($kh->ly_do_tam_hoan ?? '')),
                 'registered_students_count'   => (int) ($kh->registered_students_count ?? 0),
                 'admin_registration_url'      => url('/admin/dang-ky-hoc-vien?khoa_hoc_id=' . $kh->id),
+                'primary_schedule_text'       => $primarySession['schedule'] ?? '',
+                'primary_location_text'       => $primarySession['location'] ?? '',
             ];
         });
 
@@ -369,16 +373,79 @@ class HomeController extends Controller
         }
 
         $parts = array_filter([
-            $donVi->thaco_tdtv ?? null,
-            $donVi->cong_ty_ban_nvqt ?? null,
             $donVi->phong_bo_phan ?? null,
+            $donVi->cong_ty_ban_nvqt ?? null,
+            $donVi->thaco_tdtv ?? null,
         ]);
 
         if (! empty($parts)) {
-            return implode(' • ', $parts);
+            return implode(', ', array_map(fn ($part) => trim((string) $part), $parts));
         }
 
-        return $donVi->ten_hien_thi ?? '—';
+        $fallback = $donVi->ten_hien_thi ?? '';
+        if ($fallback === '') {
+            return '—';
+        }
+
+        $normalized = str_replace('•', ',', $fallback);
+        $normalized = preg_replace('/\s*,\s*/u', ', ', $normalized) ?? $normalized;
+
+        return trim($normalized) !== '' ? trim($normalized) : '—';
+    }
+
+    protected function summarizePrimarySession($lichFiltered): array
+    {
+        $first = $lichFiltered instanceof \Illuminate\Support\Collection
+            ? $lichFiltered->first()
+            : (is_array($lichFiltered) ? reset($lichFiltered) : null);
+
+        if (! $first) {
+            return ['schedule' => null, 'location' => null];
+        }
+
+        $date = null;
+        if (! empty($first->ngay_hoc)) {
+            $date = rescue(function () use ($first) {
+                return Carbon::parse($first->ngay_hoc)->format('d/m/Y');
+            }, null, false);
+        }
+
+        $time = null;
+        if (! empty($first->gio_bat_dau)) {
+            $time = substr($first->gio_bat_dau, 0, 5);
+        } elseif (! empty($first->gio_ket_thuc)) {
+            $time = substr($first->gio_ket_thuc, 0, 5);
+        }
+
+        $schedule = null;
+        if ($date && $time) {
+            $schedule = $date . ', ' . $time;
+        } elseif ($date) {
+            $schedule = $date;
+        } elseif ($time) {
+            $schedule = $time;
+        }
+
+        return [
+            'schedule' => $schedule,
+            'location' => $this->formatLocation($first->diaDiem ?? null),
+        ];
+    }
+
+    protected function formatLocation($diaDiem): ?string
+    {
+        if (! $diaDiem) {
+            return null;
+        }
+
+        foreach (['ten_phong', 'ma_phong'] as $field) {
+            $value = trim((string) ($diaDiem->{$field} ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     protected function resolveCertificateUrl(HocVienHoanThanh $record): ?string
@@ -465,14 +532,14 @@ class HomeController extends Controller
     protected function formatAchievementSummary(int $courses, ?float $score, ?float $hours): string
     {
         $parts = [];
-        $parts[] = 'Khóa học hoàn thành nhiều nhất: ' . $courses . ' khóa';
+        $parts[] = 'Tổng khóa học: ' . $courses;
 
         if ($score !== null) {
             $parts[] = 'ĐTB cao nhất: ' . number_format($score, 1);
         }
 
         if ($hours !== null) {
-            $parts[] = 'Tổng số giờ thực học cao nhất: ' . number_format($hours, 1) . ' giờ';
+            $parts[] = 'Tổng giờ học: ' . number_format($hours, 1) . ' giờ';
         }
 
         return implode(' • ', $parts);
