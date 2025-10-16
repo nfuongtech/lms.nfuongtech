@@ -470,14 +470,25 @@
     .modal-header {
       display:flex;
       justify-content:space-between;
-      align-items:center;
+      align-items:flex-start;
       gap:12px;
+    }
+
+    .modal-heading {
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      flex:1;
     }
 
     .modal-title {
       font-size:20px;
-      margin:0;
       font-weight:700;
+      text-transform:uppercase;
+    }
+
+    .modal-meta {
+      font-size:calc(20px - 2pt);
     }
 
     .modal-actions {
@@ -936,7 +947,10 @@
         </div>
       </div>
       <div class="modal-header">
-        <h3 class="modal-title no-print" id="modalTitle">Danh sách học viên</h3>
+        <div class="modal-heading no-print">
+          <div class="modal-title" id="modalTitle">Danh sách học viên</div>
+          <div class="modal-meta" id="modalMeta" hidden></div>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-print no-print" id="modalPrint">In</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
@@ -976,6 +990,7 @@
     const modalBody = document.getElementById('modalBody');
     const modalEmpty = document.getElementById('modalEmpty');
     const modalTitle = document.getElementById('modalTitle');
+    const modalMeta = document.getElementById('modalMeta');
     const modalPrintTitle = document.getElementById('modalPrintTitle');
     const modalPrintMain = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-main]') : null;
     const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
@@ -1050,12 +1065,23 @@
       const metaParts = [];
       if(courseSchedule){ metaParts.push(courseSchedule); }
       if(courseLocation){ metaParts.push(courseLocation); }
-      modalTitle.textContent = baseTitle;
+      if(modalTitle){
+        modalTitle.textContent = baseTitle;
+      }
       if(modalPrintMain){
         modalPrintMain.textContent = baseTitle;
       }
       if(modalPrintMeta){
         modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
+      }
+      if(modalMeta){
+        const metaText = metaParts.length ? metaParts.join(', ') : '';
+        modalMeta.textContent = metaText;
+        if(metaText){
+          modalMeta.removeAttribute('hidden');
+        } else {
+          modalMeta.setAttribute('hidden', '');
+        }
       }
       modalBody.innerHTML = '';
       modalEmpty.hidden = true;
