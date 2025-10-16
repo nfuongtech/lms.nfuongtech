@@ -52,6 +52,11 @@ class KhoaHoc extends Model
         return $this->hasMany(LichHoc::class, 'khoa_hoc_id');
     }
 
+    public function dangKies()
+    {
+        return $this->hasMany(DangKy::class, 'khoa_hoc_id');
+    }
+
     public function setRelation($relation, $value)
     {
         if ($relation === 'lichHocs') {
