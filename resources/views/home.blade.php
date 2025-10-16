@@ -274,7 +274,8 @@
     }
 
     .lookup-results {
-      display:grid;
+      display:flex;
+      flex-direction:column;
       gap:20px;
     }
 
@@ -461,17 +462,6 @@
       color:var(--muted);
     }
 
-    .modal-actions {
-      display:flex;
-      justify-content:flex-end;
-    }
-
-    .modal-actions a {
-      color:var(--accent);
-      font-weight:600;
-      text-decoration:none;
-    }
-
     .modal-table {
       min-width:720px;
     }
@@ -497,7 +487,7 @@
       .login-user { grid-area:user; }
       .login-pass { grid-area:pass; }
       .login-actions { grid-area:actions; justify-content:flex-end; }
-      .lookup-results { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .lookup-results { flex-direction:column; }
     }
 
     @media (max-width:540px) {
@@ -613,7 +603,7 @@
                 <td class="nowrap">{{ $r['tuan'] }}</td>
                 <td class="nowrap">
                   @if($r['registered_students_count'] > 0)
-                    <button type="button" class="link-btn" data-course="{{ $r['id'] }}" data-course-name="{{ $r['ten_khoa_hoc'] }}" data-admin="{{ $r['admin_registration_url'] }}">
+                    <button type="button" class="link-btn" data-course="{{ $r['id'] }}" data-course-name="{{ $r['ten_khoa_hoc'] }}">
                       {{ $r['registered_students_count'] }} học viên
                     </button>
                   @else
@@ -720,11 +710,11 @@
                   <div class="student-info">
                     <div class="student-name">{{ $card['ms'] }} — {{ $card['name'] }}</div>
                     <div class="student-meta">{{ $card['position'] }}</div>
-                    @if(!empty($card['group']) && $card['group'] !== '—')
-                      <div class="student-meta">{{ $card['group'] }}</div>
-                    @endif
                     @if(!empty($card['company']) && $card['company'] !== '—')
                       <div class="student-meta">{{ $card['company'] }}</div>
+                    @endif
+                    @if(!empty($card['group']) && $card['group'] !== '—')
+                      <div class="student-meta">{{ $card['group'] }}</div>
                     @endif
                     <div class="student-achievement">{{ $card['achievement'] }}</div>
                   </div>
@@ -756,11 +746,11 @@
                   <div class="student-info">
                     <div class="student-name">{{ $card['ms'] }} — {{ $card['name'] }}</div>
                     <div class="student-meta">{{ $card['position'] }}</div>
-                    @if(!empty($card['group']) && $card['group'] !== '—')
-                      <div class="student-meta">{{ $card['group'] }}</div>
-                    @endif
                     @if(!empty($card['company']) && $card['company'] !== '—')
                       <div class="student-meta">{{ $card['company'] }}</div>
+                    @endif
+                    @if(!empty($card['group']) && $card['group'] !== '—')
+                      <div class="student-meta">{{ $card['group'] }}</div>
                     @endif
                     <div class="student-achievement">{{ $card['achievement'] }}</div>
                   </div>
@@ -785,9 +775,6 @@
       <div class="modal-header">
         <h3 class="modal-title" id="modalTitle">Danh sách học viên</h3>
         <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
-      </div>
-      <div class="modal-actions">
-        <a href="#" target="_blank" rel="noopener" id="modalAdminLink">Xem trên trang Admin</a>
       </div>
       <div class="table-wrap">
         <table class="modal-table">
@@ -824,7 +811,6 @@
     const modalLoader = document.getElementById('modalLoader');
     const modalEmpty = document.getElementById('modalEmpty');
     const modalTitle = document.getElementById('modalTitle');
-    const modalAdminLink = document.getElementById('modalAdminLink');
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
     const registrationButtons = document.querySelectorAll('[data-course]');
 
@@ -833,12 +819,11 @@
         const courseId = btn.dataset.course;
         if(!courseId) return;
         const courseName = btn.dataset.courseName || '';
-        const adminUrl = btn.dataset.admin || '';
-        openRegistrationsModal(courseId, courseName, adminUrl);
+        openRegistrationsModal(courseId, courseName);
       });
     });
 
-    function openRegistrationsModal(courseId, courseName, adminUrl){
+    function openRegistrationsModal(courseId, courseName){
       const urlTemplate = document.body.dataset.registrationsUrl || '';
       if(!urlTemplate) return;
       const url = urlTemplate.replace('__ID__', encodeURIComponent(courseId));
@@ -846,13 +831,6 @@
       modal.hidden = false;
       document.body.classList.add('modal-open');
       modalTitle.textContent = courseName ? 'Danh sách học viên — ' + courseName : 'Danh sách học viên';
-      if(adminUrl){
-        modalAdminLink.href = adminUrl;
-        modalAdminLink.style.display = 'inline-flex';
-      } else {
-        modalAdminLink.style.display = 'none';
-      }
-
       modalBody.innerHTML = '';
       modalLoader.hidden = false;
       modalEmpty.hidden = true;

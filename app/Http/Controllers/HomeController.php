@@ -295,17 +295,16 @@ class HomeController extends Controller
         $stats = HocVienHoanThanh::query()
             ->select([
                 'hoc_vien_hoan_thanhs.hoc_vien_id as hoc_vien_id',
-                DB::raw('COUNT(DISTINCT ket_qua_chuyen_des.id) as total_modules'),
+                DB::raw('COUNT(DISTINCT hoc_vien_hoan_thanhs.ket_qua_khoa_hoc_id) as total_courses'),
                 DB::raw('MAX(COALESCE(ket_qua_khoa_hocs.diem_trung_binh, 0)) as best_score'),
+                DB::raw('SUM(COALESCE(ket_qua_khoa_hocs.tong_so_gio_thuc_te, 0)) as total_hours'),
             ])
-            ->selectRaw('SUM(COALESCE(ket_qua_khoa_hocs.tong_so_gio_thuc_te, 0)) as total_hours')
             ->whereNotNull('hoc_vien_hoan_thanhs.hoc_vien_id')
             ->when($from, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '>=', $from->toDateString()))
             ->when($to, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '<=', $to->toDateString()))
             ->leftJoin('ket_qua_khoa_hocs', 'ket_qua_khoa_hocs.id', '=', 'hoc_vien_hoan_thanhs.ket_qua_khoa_hoc_id')
-            ->leftJoin('ket_qua_chuyen_des', 'ket_qua_chuyen_des.ket_qua_khoa_hoc_id', '=', 'ket_qua_khoa_hocs.id')
             ->groupBy('hoc_vien_hoan_thanhs.hoc_vien_id')
-            ->orderByDesc('total_modules')
+            ->orderByDesc('total_courses')
             ->orderByDesc('best_score')
             ->orderByDesc('total_hours')
             ->limit($limit)
@@ -328,7 +327,7 @@ class HomeController extends Controller
                 return null;
             }
 
-            $modules = (int) $stat->total_modules;
+            $courses = (int) $stat->total_courses;
             $score   = $stat->best_score !== null ? (float) $stat->best_score : null;
             $hours   = $stat->total_hours !== null ? (float) $stat->total_hours : null;
 
@@ -339,7 +338,7 @@ class HomeController extends Controller
                 'company'     => $hocVien->donVi?->cong_ty_ban_nvqt ?? '—',
                 'group'       => $hocVien->donVi?->thaco_tdtv ?? '—',
                 'avatar'      => $this->resolveAvatarUrl($hocVien->hinh_anh_path),
-                'achievement' => $this->formatAchievementSummary($modules, $score, $hours),
+                'achievement' => $this->formatAchievementSummary($courses, $score, $hours),
             ];
         })->filter()->values()->all();
     }
@@ -463,17 +462,17 @@ class HomeController extends Controller
         return $raw;
     }
 
-    protected function formatAchievementSummary(int $modules, ?float $score, ?float $hours): string
+    protected function formatAchievementSummary(int $courses, ?float $score, ?float $hours): string
     {
         $parts = [];
-        $parts[] = $modules . ' chuyên đề';
+        $parts[] = 'Tổng số khóa học: ' . $courses;
 
         if ($score !== null) {
-            $parts[] = 'ĐTB ' . number_format($score, 1);
+            $parts[] = 'ĐTB cao nhất: ' . number_format($score, 1);
         }
 
         if ($hours !== null) {
-            $parts[] = number_format($hours, 1) . ' giờ thực học';
+            $parts[] = 'Tổng giờ thực học: ' . number_format($hours, 1) . ' giờ';
         }
 
         return implode(' • ', $parts);
