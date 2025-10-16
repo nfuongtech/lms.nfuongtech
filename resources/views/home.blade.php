@@ -477,6 +477,7 @@
     .modal-title {
       font-size:20px;
       margin:0;
+      font-weight:700;
     }
 
     .modal-actions {
@@ -1040,15 +1041,11 @@
       const metaParts = [];
       if(courseSchedule){ metaParts.push(courseSchedule); }
       if(courseLocation){ metaParts.push(courseLocation); }
-      const fullTitle = metaParts.length ? `${baseTitle} - ${metaParts.join(', ')}` : baseTitle;
-      modalTitle.textContent = fullTitle;
+      modalTitle.textContent = baseTitle;
       if(modalPrintMain){
         modalPrintMain.textContent = baseTitle;
       }
       if(modalPrintMeta){
-        const metaParts = [];
-        if(courseSchedule){ metaParts.push(courseSchedule); }
-        if(courseLocation){ metaParts.push(courseLocation); }
         modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
       }
       modalBody.innerHTML = '';
