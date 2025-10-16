@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\HocVien;
+use App\Models\HocVienHoanThanh;
+use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class HomeController extends Controller
 {
     public function index(Request $request)
     {
-        // Tham số filter (riêng lẻ) theo thứ tự ưu tiên: Tuần -> Tháng -> Năm
         $yearParam  = $request->query('year');
         $weekParam  = $request->query('week');
         $monthParam = $request->query('month');
@@ -36,24 +41,27 @@ class HomeController extends Controller
             $month = null;
         }
 
-        // Query theo mode (luôn gắn theo năm đang xét)
         $records = KhoaHoc::query()
             ->where('nam', $year)
             ->when($mode === 'week',  fn ($q) => $q->whereHas('lichHocs', fn ($h) => $h->where('tuan',  $week)))
             ->when($mode === 'month', fn ($q) => $q->whereHas('lichHocs', fn ($h) => $h->where('thang', $month)))
             ->with([
-                'lichHocs.giangVien' => fn ($q) => $q->select(['id','ho_ten']),
-                'lichHocs.diaDiem'   => fn ($q) => $q->select(['id','ten_phong','ma_phong']),
+                'lichHocs.giangVien' => fn ($q) => $q->select(['id', 'ho_ten']),
+                'lichHocs.diaDiem'   => fn ($q) => $q->select(['id', 'ten_phong', 'ma_phong']),
             ])
+            ->withCount(['dangKies as registered_students_count'])
             ->get();
 
-        // Chuẩn bị + sắp xếp theo phiên mới nhất (giảm dần)
         $prepared = $records->map(function ($kh) use ($mode, $week, $month) {
             $lichFiltered = $kh->lichHocs
                 ->filter(function ($lh) use ($mode, $week, $month) {
-                    if ($mode === 'week')  return (int) $lh->tuan  === (int) $week;
-                    if ($mode === 'month') return (int) $lh->thang === (int) $month;
-                    return true; // year
+                    if ($mode === 'week') {
+                        return (int) $lh->tuan === (int) $week;
+                    }
+                    if ($mode === 'month') {
+                        return (int) $lh->thang === (int) $month;
+                    }
+                    return true;
                 });
 
             $latest = $lichFiltered->map(function ($lh) {
@@ -63,15 +71,19 @@ class HomeController extends Controller
 
                 $end   = $lh->gio_ket_thuc ? (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc) : null;
                 $start = $lh->gio_bat_dau  ? (clone $day)->setTimeFromTimeString($lh->gio_bat_dau)  : null;
+
                 return $end ?? $start ?? $day;
             })->filter();
 
-            $latestDt = $latest->count() ? $latest->max() : Carbon::create(1970,1,1,0,0,0);
+            $latestDt = $latest->count() ? $latest->max() : Carbon::create(1970, 1, 1, 0, 0, 0);
 
             return [
                 'record'       => $kh,
                 'lichFiltered' => $lichFiltered
-                    ->sortBy([['ngay_hoc','asc'],['gio_bat_dau','asc']]) // hiển thị tăng dần trong cell
+                    ->sortBy([
+                        ['ngay_hoc', 'asc'],
+                        ['gio_bat_dau', 'asc'],
+                    ])
                     ->values(),
                 'latest'       => $latestDt,
             ];
@@ -79,94 +91,391 @@ class HomeController extends Controller
 
         $today = Carbon::today();
 
-        // Dựng rows hiển thị (kèm HTML highlight cho ngày hôm nay)
         $rows = $prepared->map(function ($p) use ($mode, $week, $today) {
             /** @var \App\Models\KhoaHoc $kh */
             $kh = $p['record'];
             $lichFiltered = $p['lichFiltered'];
 
-            // Giảng viên (duy nhất)
             $giangViens = $lichFiltered
                 ->map(fn ($lh) => $lh->giangVien?->ho_ten)
                 ->filter()
                 ->unique()
                 ->values()
                 ->all();
-            $giangVienText = !empty($giangViens) ? implode(', ', $giangViens) : '—';
+            $giangVienText = ! empty($giangViens) ? implode(', ', $giangViens) : '—';
 
-            // Ngày, Giờ (mỗi lịch 1 dòng; nếu là hôm nay -> bôi xanh + in đậm)
             $ngayGioLines = $lichFiltered->map(function ($lh) use ($today) {
-                $date  = Carbon::parse($lh->ngay_hoc);
+                $date    = Carbon::parse($lh->ngay_hoc);
                 $dateStr = $date->format('d/m/Y');
-                $start = $lh->gio_bat_dau  ? substr($lh->gio_bat_dau, 0, 5)  : '';
-                $end   = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
-                $line  = "{$dateStr}, {$start}-{$end}";
+                $start   = $lh->gio_bat_dau  ? substr($lh->gio_bat_dau, 0, 5)  : '';
+                $end     = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
+                $line    = "{$dateStr}, {$start}-{$end}";
+
                 if ($date->isSameDay($today)) {
-                    return '<span class="session today">'.$line.'</span>';
+                    return '<span class="session today">' . $line . '</span>';
                 }
-                return '<span class="session">'.$line.'</span>';
+
+                return '<span class="session">' . $line . '</span>';
             })->all();
             $ngayGioHtml = $ngayGioLines ? implode('<br>', $ngayGioLines) : '—';
 
-            // Địa điểm tương ứng từng dòng
             $diaDiemLines = $lichFiltered->map(function ($lh) {
                 $dd = $lh->diaDiem;
                 return $dd?->ten_phong ?? $dd?->ma_phong ?? '';
             })->all();
             $diaDiemHtml = $diaDiemLines ? implode('<br>', $diaDiemLines) : '—';
 
-            // Tuần (theo dữ liệu sau lọc)
             $weeks = $lichFiltered->pluck('tuan')->filter()->unique()->sortDesc()->implode(', ');
-            if ($weeks === '') $weeks = $mode === 'week' ? (string) $week : '—';
-
-            // Trạng thái (giữ logic cũ)
-            $qs = $kh->lichHocs()->select('ngay_hoc','gio_bat_dau','gio_ket_thuc');
-            if (!$qs->exists()) {
-                $status = 'Dự thảo';
-            } else {
-                $all = $qs->get()->map(function ($lh) {
-                    $day = $lh->ngay_hoc instanceof \DateTimeInterface
-                        ? Carbon::instance($lh->ngay_hoc)->startOfDay()
-                        : Carbon::parse($lh->ngay_hoc)->startOfDay();
-                    $start = (clone $day)->setTimeFromTimeString($lh->gio_bat_dau ?: '00:00:00');
-                    $end   = (clone $day)->setTimeFromTimeString($lh->gio_ket_thuc ?: '23:59:59');
-                    return compact('start','end');
-                });
-                $minStart = $all->min('start');
-                $maxEnd   = $all->max('end');
-                $now = now();
-
-                if ($now->lt($minStart))      $status = 'Ban hành';
-                elseif ($now->between($minStart, $maxEnd)) $status = 'Đang đào tạo';
-                else                           $status = 'Kết thúc';
+            if ($weeks === '') {
+                $weeks = $mode === 'week' ? (string) $week : '—';
             }
 
+            $status = $kh->trang_thai_hien_thi;
+            $statusSlug = Str::slug($status) ?: 'trang-thai';
+
             return [
-                'ma_khoa_hoc'  => $kh->ma_khoa_hoc,
-                'ten_khoa_hoc' => $kh->ten_khoa_hoc,
-                'giang_vien'   => $giangVienText,
-                'ngay_gio_html'=> $ngayGioHtml,
-                'dia_diem_html'=> $diaDiemHtml,
-                'tuan'         => $weeks,
-                'trang_thai'   => $status,
+                'id'                          => $kh->id,
+                'ma_khoa_hoc'                 => $kh->ma_khoa_hoc,
+                'ten_khoa_hoc'                => $kh->ten_khoa_hoc,
+                'giang_vien'                  => $giangVienText,
+                'ngay_gio_html'               => $ngayGioHtml,
+                'dia_diem_html'               => $diaDiemHtml,
+                'tuan'                        => $weeks,
+                'trang_thai'                  => $status,
+                'trang_thai_slug'             => $statusSlug,
+                'ly_do_tam_hoan'              => trim((string) ($kh->ly_do_tam_hoan ?? '')),
+                'registered_students_count'   => (int) ($kh->registered_students_count ?? 0),
+                'admin_registration_url'      => url('/admin/dang-ky-hoc-vien?khoa_hoc_id=' . $kh->id),
             ];
         });
 
-        // Dropdown
-        $years  = KhoaHoc::query()->select('nam')->distinct()->orderBy('nam','desc')->pluck('nam')->all();
-        if (empty($years)) $years = [now()->year];
+        $years  = KhoaHoc::query()->select('nam')->distinct()->orderBy('nam', 'desc')->pluck('nam')->all();
+        if (empty($years)) {
+            $years = [now()->year];
+        }
         $months = range(1, 12);
         $weeks  = range(1, 53);
 
+        $now = Carbon::now();
+        $featuredYear   = $this->buildFeaturedStudents($now->copy()->startOfYear(), $now);
+        $featuredRecent = $this->buildFeaturedStudents($now->copy()->subDays(120), $now);
+
         return view('home', [
-            'filterMode' => $mode,
-            'year'   => $year,
-            'week'   => $week,
-            'month'  => $month ?? null,
-            'years'  => $years,
-            'months' => $months,
-            'weeks'  => $weeks,
-            'rows'   => $rows,
+            'filterMode'       => $mode,
+            'year'             => $year,
+            'week'             => $week,
+            'month'            => $month ?? null,
+            'years'            => $years,
+            'months'           => $months,
+            'weeks'            => $weeks,
+            'rows'             => $rows,
+            'featuredYear'     => $featuredYear,
+            'featuredRecent'   => $featuredRecent,
         ]);
+    }
+
+    public function registeredStudents(KhoaHoc $khoaHoc): JsonResponse
+    {
+        $registrations = $khoaHoc->dangKies()
+            ->with(['hocVien.donVi'])
+            ->orderBy('id')
+            ->get()
+            ->map(function ($dangKy, $index) {
+                $hocVien = $dangKy->hocVien;
+
+                return [
+                    'stt'      => $index + 1,
+                    'ms'       => $hocVien?->msnv ?? '—',
+                    'nam_sinh' => $this->formatYear($hocVien?->nam_sinh),
+                    'ho_ten'   => $hocVien?->ho_ten ?? '—',
+                    'chuc_vu'  => $hocVien?->chuc_vu ?? '—',
+                    'don_vi'   => $this->formatDonVi($hocVien?->donVi),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'course' => [
+                'id'   => $khoaHoc->id,
+                'name' => $khoaHoc->ten_khoa_hoc,
+            ],
+            'registrations' => $registrations,
+        ]);
+    }
+
+    public function lookupResults(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        if ($term === '') {
+            return response()->json([
+                'message'     => 'Vui lòng nhập Mã số, Họ & Tên hoặc Email để tra cứu.',
+                'completed'   => [],
+                'incompleted' => [],
+            ], 422);
+        }
+
+        $likeTerm = '%' . $term . '%';
+
+        $completed = HocVienHoanThanh::query()
+            ->with(['hocVien.donVi', 'khoaHoc', 'ketQua'])
+            ->where(function ($query) use ($likeTerm) {
+                $query->whereHas('hocVien', function ($sub) use ($likeTerm) {
+                    $sub->where('msnv', 'like', $likeTerm)
+                        ->orWhere('ho_ten', 'like', $likeTerm)
+                        ->orWhere('email', 'like', $likeTerm);
+                });
+            })
+            ->orderByDesc('ngay_hoan_thanh')
+            ->limit(100)
+            ->get()
+            ->map(function ($record, $index) {
+                $hocVien = $record->hocVien;
+                $khoaHoc = $record->khoaHoc;
+                $ketQua  = $record->ketQua;
+
+                return [
+                    'stt'            => $index + 1,
+                    'ms'             => $hocVien?->msnv ?? '—',
+                    'ho_ten'         => $hocVien?->ho_ten ?? '—',
+                    'nam_sinh'       => $this->formatYear($hocVien?->nam_sinh),
+                    'cong_ty'        => $hocVien?->donVi?->cong_ty_ban_nvqt ?? '—',
+                    'thaco'          => $hocVien?->donVi?->thaco_tdtv ?? '—',
+                    'chuc_vu'        => $hocVien?->chuc_vu ?? '—',
+                    'ten_khoa_hoc'   => $khoaHoc?->ten_khoa_hoc ?? '—',
+                    'ma_khoa'        => $khoaHoc?->ma_khoa_hoc ?? '—',
+                    'dtb'            => $ketQua?->diem_trung_binh,
+                    'gio_thuc_hoc'   => $ketQua?->tong_so_gio_thuc_te,
+                    'ngay_hoan_thanh'=> $record->ngay_hoan_thanh ? Carbon::parse($record->ngay_hoan_thanh)->format('d/m/Y') : null,
+                    'chi_phi'        => $record->chi_phi_dao_tao,
+                    'chung_nhan'     => $this->resolveCertificateUrl($record),
+                ];
+            })
+            ->values();
+
+        $incompleted = HocVienKhongHoanThanh::query()
+            ->with(['hocVien.donVi', 'khoaHoc', 'ketQua'])
+            ->where(function ($query) use ($likeTerm) {
+                $query->whereHas('hocVien', function ($sub) use ($likeTerm) {
+                    $sub->where('msnv', 'like', $likeTerm)
+                        ->orWhere('ho_ten', 'like', $likeTerm)
+                        ->orWhere('email', 'like', $likeTerm);
+                });
+            })
+            ->orderByDesc('updated_at')
+            ->limit(100)
+            ->get()
+            ->map(function ($record, $index) {
+                $hocVien = $record->hocVien;
+                $khoaHoc = $record->khoaHoc;
+
+                return [
+                    'stt'          => $index + 1,
+                    'ms'           => $hocVien?->msnv ?? '—',
+                    'ho_ten'       => $hocVien?->ho_ten ?? '—',
+                    'nam_sinh'     => $this->formatYear($hocVien?->nam_sinh),
+                    'cong_ty'      => $hocVien?->donVi?->cong_ty_ban_nvqt ?? '—',
+                    'thaco'        => $hocVien?->donVi?->thaco_tdtv ?? '—',
+                    'chuc_vu'      => $hocVien?->chuc_vu ?? '—',
+                    'ten_khoa_hoc' => $khoaHoc?->ten_khoa_hoc ?? '—',
+                    'ma_khoa'      => $khoaHoc?->ma_khoa_hoc ?? '—',
+                    'ly_do'        => $this->formatIncompleteReason($record),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'completed'   => $completed,
+            'incompleted' => $incompleted,
+        ]);
+    }
+
+    protected function buildFeaturedStudents(Carbon $from, Carbon $to, int $limit = 3): array
+    {
+        $stats = HocVienHoanThanh::query()
+            ->select([
+                'hoc_vien_hoan_thanhs.hoc_vien_id as hoc_vien_id',
+                DB::raw('COUNT(DISTINCT ket_qua_chuyen_des.id) as total_modules'),
+                DB::raw('MAX(COALESCE(ket_qua_khoa_hocs.diem_trung_binh, 0)) as best_score'),
+            ])
+            ->selectRaw('SUM(COALESCE(ket_qua_khoa_hocs.tong_so_gio_thuc_te, 0)) as total_hours')
+            ->whereNotNull('hoc_vien_hoan_thanhs.hoc_vien_id')
+            ->when($from, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '>=', $from->toDateString()))
+            ->when($to, fn ($q) => $q->whereDate('hoc_vien_hoan_thanhs.ngay_hoan_thanh', '<=', $to->toDateString()))
+            ->leftJoin('ket_qua_khoa_hocs', 'ket_qua_khoa_hocs.id', '=', 'hoc_vien_hoan_thanhs.ket_qua_khoa_hoc_id')
+            ->leftJoin('ket_qua_chuyen_des', 'ket_qua_chuyen_des.ket_qua_khoa_hoc_id', '=', 'ket_qua_khoa_hocs.id')
+            ->groupBy('hoc_vien_hoan_thanhs.hoc_vien_id')
+            ->orderByDesc('total_modules')
+            ->orderByDesc('best_score')
+            ->orderByDesc('total_hours')
+            ->limit($limit)
+            ->get();
+
+        if ($stats->isEmpty()) {
+            return [];
+        }
+
+        $hocVienIds = $stats->pluck('hoc_vien_id')->all();
+        $hocViens = HocVien::query()
+            ->with('donVi')
+            ->whereIn('id', $hocVienIds)
+            ->get()
+            ->keyBy('id');
+
+        return $stats->map(function ($stat) use ($hocViens) {
+            $hocVien = $hocViens->get($stat->hoc_vien_id);
+            if (! $hocVien) {
+                return null;
+            }
+
+            $modules = (int) $stat->total_modules;
+            $score   = $stat->best_score !== null ? (float) $stat->best_score : null;
+            $hours   = $stat->total_hours !== null ? (float) $stat->total_hours : null;
+
+            return [
+                'ms'          => $hocVien->msnv ?? '—',
+                'name'        => $hocVien->ho_ten ?? '—',
+                'position'    => $hocVien->chuc_vu ?? '—',
+                'company'     => $hocVien->donVi?->cong_ty_ban_nvqt ?? '—',
+                'group'       => $hocVien->donVi?->thaco_tdtv ?? '—',
+                'avatar'      => $this->resolveAvatarUrl($hocVien->hinh_anh_path),
+                'achievement' => $this->formatAchievementSummary($modules, $score, $hours),
+            ];
+        })->filter()->values()->all();
+    }
+
+    protected function formatYear($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        if ($value instanceof Carbon) {
+            return $value->format('Y');
+        }
+
+        if (is_numeric($value) && strlen((string) $value) === 4) {
+            return (string) $value;
+        }
+
+        return rescue(fn () => Carbon::parse($value)->format('Y'), function () use ($value) {
+            return substr((string) $value, 0, 4) ?: null;
+        }, false);
+    }
+
+    protected function formatDonVi($donVi): string
+    {
+        if (! $donVi) {
+            return '—';
+        }
+
+        $parts = array_filter([
+            $donVi->thaco_tdtv ?? null,
+            $donVi->cong_ty_ban_nvqt ?? null,
+            $donVi->phong_bo_phan ?? null,
+        ]);
+
+        if (! empty($parts)) {
+            return implode(' • ', $parts);
+        }
+
+        return $donVi->ten_hien_thi ?? '—';
+    }
+
+    protected function resolveCertificateUrl(HocVienHoanThanh $record): ?string
+    {
+        $link = trim((string) ($record->chung_chi_link ?? ''));
+        if ($link !== '') {
+            return $this->ensureUrl($link);
+        }
+
+        $file = trim((string) ($record->chung_chi_tap_tin ?? ''));
+        if ($file !== '') {
+            return $this->resolveStorageUrl($file);
+        }
+
+        return null;
+    }
+
+    protected function resolveAvatarUrl(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        return $this->resolveStorageUrl($path);
+    }
+
+    protected function resolveStorageUrl(string $path): string
+    {
+        $normalized = ltrim($path, '/');
+
+        if (Str::startsWith($normalized, ['http://', 'https://'])) {
+            return $normalized;
+        }
+
+        if (Str::startsWith($normalized, 'storage/')) {
+            return url('/' . $normalized);
+        }
+
+        if (Str::startsWith($normalized, 'public/')) {
+            $normalized = substr($normalized, 7);
+        }
+
+        return url('/storage/' . ltrim($normalized, '/'));
+    }
+
+    protected function ensureUrl(string $value): string
+    {
+        if (Str::startsWith($value, ['http://', 'https://'])) {
+            return $value;
+        }
+
+        return url($value);
+    }
+
+    protected function formatIncompleteReason(HocVienKhongHoanThanh $record): string
+    {
+        $raw = trim((string) ($record->ly_do_khong_hoan_thanh ?? ''));
+
+        if ($raw === '') {
+            return '—';
+        }
+
+        $lower = Str::lower($raw);
+
+        if (Str::contains($lower, ['giờ', 'gio', 'hour'])) {
+            return 'Không đủ số giờ giảng';
+        }
+
+        if (Str::contains($lower, ['đtb', 'diem', 'điểm', 'grade'])) {
+            return 'ĐTB không đạt';
+        }
+
+        if (Str::contains($lower, ['vắng', 'vang'])) {
+            return 'Vắng: ' . $raw;
+        }
+
+        return $raw;
+    }
+
+    protected function formatAchievementSummary(int $modules, ?float $score, ?float $hours): string
+    {
+        $parts = [];
+        $parts[] = $modules . ' chuyên đề';
+
+        if ($score !== null) {
+            $parts[] = 'ĐTB ' . number_format($score, 1);
+        }
+
+        if ($hours !== null) {
+            $parts[] = number_format($hours, 1) . ' giờ thực học';
+        }
+
+        return implode(' • ', $parts);
     }
 }
