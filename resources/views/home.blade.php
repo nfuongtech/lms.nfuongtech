@@ -1180,7 +1180,7 @@
       container.style.pointerEvents = 'none';
       container.style.opacity = '1';
       container.style.zIndex = '-1';
-      const orientation = 'landscape';
+      const orientation = 'portrait';
       const pageWidth = orientation === 'landscape' ? 297 : 210;
       container.style.width = `${pageWidth}mm`;
       container.style.maxWidth = `${pageWidth}mm`;
