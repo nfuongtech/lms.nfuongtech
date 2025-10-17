@@ -81,6 +81,7 @@
       padding:12px;
       border-radius:12px;
       box-shadow:0 6px 18px rgba(15, 23, 42, 0.05);
+      align-items:center;
     }
 
     .login-row { min-width:0; }
@@ -93,22 +94,20 @@
       border-radius:8px;
     }
 
-    .login-pass {
-      display:flex;
-      justify-content:flex-start;
-    }
+    .login-pass { min-width:0; }
 
-    .login-pass input {
-      width:70%;
-    }
+    .login-pass input { width:100%; }
+
+    .login-actions { justify-self:end; }
 
     .login-actions {
       display:flex;
-      flex-wrap:wrap;
-      gap:10px;
+      flex-wrap:nowrap;
+      gap:12px;
       align-items:center;
       justify-content:flex-end;
-      width:100%;
+      min-width:0;
+      width:auto;
     }
 
     .remember {
@@ -117,6 +116,10 @@
       gap:6px;
       font-size:14px;
       color:#374151;
+    }
+
+    .lookup-form .btn {
+      justify-self:end;
     }
 
     .btn {
@@ -200,8 +203,46 @@
     }
 
     @media (max-width:640px) {
+      .filters { align-items:stretch; }
+      .filter-field {
+        flex-direction:column;
+        align-items:flex-start;
+        gap:4px;
+      }
+      .filter-field select { width:100%; }
       .filter-pair {
         width:100%;
+        display:grid;
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:12px;
+      }
+      .login-form {
+        grid-template-columns:1fr;
+      }
+      .login-actions {
+        width:100%;
+        justify-content:flex-end;
+        flex-wrap:wrap;
+      }
+      .lookup-form {
+        grid-template-columns:1fr;
+      }
+      .lookup-form .btn {
+        justify-self:stretch;
+      }
+    }
+
+    @media (min-width:641px) {
+      .login-form {
+        grid-template-columns:minmax(240px, 2fr) minmax(180px, 1fr) minmax(0, max-content);
+        align-items:center;
+        column-gap:12px;
+      }
+      .login-actions {
+        align-self:center;
+      }
+      .login-actions .remember {
+        white-space:nowrap;
       }
     }
 
@@ -300,15 +341,15 @@
     }
 
     .lookup-form {
-      display:flex;
-      flex-wrap:wrap;
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
       gap:12px;
       align-items:center;
       margin-bottom:16px;
     }
 
     .lookup-input {
-      flex:1 1 260px;
+      width:100%;
       padding:10px 14px;
       border:1px solid var(--border);
       border-radius:10px;
@@ -611,16 +652,21 @@
     @media (min-width:768px) {
       .login-wrap { align-items:flex-end; }
       .login-form {
-        grid-template-columns:1fr 1fr;
-        grid-template-areas:
-          "user pass"
-          "actions actions";
+        grid-template-columns:minmax(220px, 1fr) minmax(0, 0.7fr) auto;
+        grid-template-areas:"user pass actions";
         column-gap:12px;
-        row-gap:10px;
+        row-gap:0;
       }
       .login-user { grid-area:user; }
       .login-pass { grid-area:pass; }
-      .login-actions { grid-area:actions; justify-content:flex-end; }
+      .login-actions {
+        grid-area:actions;
+        justify-content:flex-start;
+        flex-wrap:nowrap;
+        gap:12px;
+      }
+      .login-actions .btn { white-space:nowrap; }
+      .remember { white-space:nowrap; }
       .lookup-results { flex-direction:column; }
     }
 
@@ -848,13 +894,6 @@
       </form>
       <div class="lookup-message" id="lookupMessage" hidden></div>
       <div class="lookup-actions no-print" id="lookupActions" hidden>
-        <label class="filter-field" style="gap:8px;">
-          Khổ giấy:
-          <select id="lookupOrientation" class="btn">
-            <option value="landscape" selected>Ngang (Landscape)</option>
-            <option value="portrait">Dọc (Portrait)</option>
-          </select>
-        </label>
         <button type="button" class="btn btn-secondary no-print" id="lookupExport">Xuất danh sách</button>
       </div>
       <div class="lookup-results" id="lookupResults" hidden>
@@ -1003,13 +1042,6 @@
         <div class="modal-heading no-print">
         </div>
         <div class="modal-actions">
-          <label class="filter-field" style="gap:8px;">
-            Khổ giấy:
-            <select id="modalOrientation" class="btn">
-              <option value="landscape" selected>Ngang (Landscape)</option>
-              <option value="portrait">Dọc (Portrait)</option>
-            </select>
-          </label>
           <button type="button" class="btn btn-print no-print" id="modalExport">Xuất danh sách</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
         </div>
@@ -1065,9 +1097,6 @@
     const lookupActions = document.getElementById('lookupActions');
     const lookupExportButton = document.getElementById('lookupExport');
     const lookupPrintFooter = document.getElementById('lookupPrintFooter');
-    const modalOrientationSel = document.getElementById('modalOrientation');
-    const lookupOrientationSel = document.getElementById('lookupOrientation');
-
     const pdfSources = [
       @json(asset('vendor/html2pdf.bundle.min.js')),
       'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
@@ -1075,6 +1104,7 @@
     ].filter(Boolean);
     let pdfLoadPromise = null;
 
+    
     function slugifyFileName(value){
       return (value || '')
         .toString()
@@ -1162,7 +1192,7 @@
       return pdfLoadPromise;
     }
 
-    function exportNodeToPdf(node, filename, orientation){
+    function exportNodeToPdf(node, filename, orientation = 'landscape'){
       if(!ensurePdfLibrary()){
         throw new Error('PDF library unavailable');
       }
@@ -1186,31 +1216,30 @@
         pagebreak: { mode: ['css','legacy'] },
       };
 
-      window.html2pdf().set(options).from(node).save().then(() => {
+      return window.html2pdf().set(options).from(node).save().then(() => {
         document.body.removeChild(container);
-      }).catch(() => {
+      }).catch(error => {
         document.body.removeChild(container);
-        alert('Không thể xuất PDF. Vui lòng thử lại.');
+        throw error;
       });
     }
 
-    function exportRegistrationsPdf(){
+    async function exportRegistrationsPdf(){
       if(!modal) return;
       const card = modal.querySelector('.modal-card');
       if(!card) return;
 
+      const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
       const titleText = (modal.dataset.exportTitle || (modalTitle ? modalTitle.textContent : '') || 'Danh sách học viên').trim();
       const fileName = `${slugifyFileName(titleText)}.pdf`;
-      const orientation = (modalOrientationSel && modalOrientationSel.value) || 'landscape';
 
-      loadPdfLibrary()
-        .then(() => {
-          const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
-          exportNodeToPdf(clone, fileName, orientation);
-        })
-        .catch(() => {
-          alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
-        });
+      try {
+        await loadPdfLibrary();
+        await exportNodeToPdf(clone, fileName, 'landscape');
+      } catch(error){
+        console.error(error);
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+      }
     }
 
     if(modalExportButton){
@@ -1342,55 +1371,54 @@
     const incompletedEmpty = document.getElementById('incompletedEmpty');
     const lookupUrl = document.body.dataset.lookupUrl || '';
 
-    function exportLookupPdf(){
+    async function exportLookupPdf(){
       if(!lookupResults || lookupResults.hidden){
         alert('Không có dữ liệu để xuất.');
         return;
       }
 
+      const wrapper = document.createElement('div');
+      wrapper.style.background = '#ffffff';
+      wrapper.style.width = '100%';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.gap = '16px';
+      wrapper.style.padding = '24px';
+
+      const heading = document.createElement('h2');
+      heading.textContent = 'TRA CỨU KẾT QUẢ HỌC TẬP';
+      heading.style.textAlign = 'center';
+      heading.style.margin = '0';
+      wrapper.appendChild(heading);
+
       const term = lookupInput ? lookupInput.value.trim() : '';
+      if(term){
+        const metaLine = document.createElement('div');
+        metaLine.textContent = `Từ khóa: ${term}`;
+        metaLine.style.textAlign = 'center';
+        metaLine.style.fontSize = '14px';
+        wrapper.appendChild(metaLine);
+      }
+
+      const resultsClone = cloneWithPrintStyles(lookupResults);
+      wrapper.appendChild(resultsClone);
+
+      if(lookupPrintFooter){
+        const footerClone = cloneWithPrintStyles(lookupPrintFooter);
+        footerClone.style.textAlign = 'right';
+        wrapper.appendChild(footerClone);
+      }
+
       const key = term || 'tra-cuu';
       const filename = slugifyFileName('ket-qua-hoc-tap-' + key) + '.pdf';
-      const orientation = (lookupOrientationSel && lookupOrientationSel.value) || 'landscape';
 
-      loadPdfLibrary()
-        .then(() => {
-          const wrapper = document.createElement('div');
-          wrapper.style.background = '#ffffff';
-          wrapper.style.width = '100%';
-          wrapper.style.display = 'flex';
-          wrapper.style.flexDirection = 'column';
-          wrapper.style.gap = '16px';
-          wrapper.style.padding = '24px';
-
-          const heading = document.createElement('h2');
-          heading.textContent = 'TRA CỨU KẾT QUẢ HỌC TẬP';
-          heading.style.textAlign = 'center';
-          heading.style.margin = '0';
-          wrapper.appendChild(heading);
-
-          if(term){
-            const metaLine = document.createElement('div');
-            metaLine.textContent = `Từ khóa: ${term}`;
-            metaLine.style.textAlign = 'center';
-            metaLine.style.fontSize = '14px';
-            wrapper.appendChild(metaLine);
-          }
-
-          const resultsClone = cloneWithPrintStyles(lookupResults);
-          wrapper.appendChild(resultsClone);
-
-          if(lookupPrintFooter){
-            const footerClone = cloneWithPrintStyles(lookupPrintFooter);
-            footerClone.style.textAlign = 'right';
-            wrapper.appendChild(footerClone);
-          }
-
-          exportNodeToPdf(wrapper, filename, orientation);
-        })
-        .catch(() => {
-          alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
-        });
+      try {
+        await loadPdfLibrary();
+        await exportNodeToPdf(wrapper, filename, 'landscape');
+      } catch(error){
+        console.error(error);
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+      }
     }
 
     if(lookupExportButton){
