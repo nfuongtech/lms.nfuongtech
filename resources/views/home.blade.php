@@ -1099,6 +1099,12 @@
     const lookupActions = document.getElementById('lookupActions');
     const lookupExportButton = document.getElementById('lookupExport');
     const lookupPrintFooter = document.getElementById('lookupPrintFooter');
+    const pdfSources = [
+      @json(asset('vendor/html2pdf.bundle.min.js')),
+      'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+      'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js'
+    ].filter(Boolean);
+    let pdfLoadPromise = null;
 
     
     function slugifyFileName(value){
@@ -1137,92 +1143,86 @@
       return clone;
     }
 
-    function exportNodeToPdf(node, filename){
-      const printWindow = window.open('', '_blank', 'noopener');
-      if(!printWindow){
-        alert('Trình duyệt đã chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên và thử lại.');
+    function ensurePdfLibrary(){
+      return typeof window.html2pdf !== 'undefined';
+    }
+
+    function loadPdfLibrary(){
+      if(ensurePdfLibrary()){
         return Promise.resolve();
       }
 
-      const safeTitle = (filename || 'danh-sach').replace(/\.pdf$/i, '');
-      const styles = `
-        <!doctype html>
-        <html lang="vi">
-          <head>
-            <meta charset="utf-8">
-            <title>${safeTitle}</title>
-            <style>
-              @page { size: A4 landscape; margin: 10mm; }
-              *, *::before, *::after { box-sizing: border-box; }
-              html, body { height: auto; }
-              body {
-                margin: 0;
-                padding: 0;
-                font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-                color: #111827;
-                background: #ffffff;
-              }
-              table { width: 100%; border-collapse: collapse; }
-              th, td {
-                border: 1px solid #d1d5db;
-                padding: 6px 8px;
-                font-size: 12px;
-                text-align: center;
-              }
-              th { background: #f3f4f6; font-weight: 600; }
-              .left { text-align: left; }
-              .nowrap { white-space: nowrap; }
-              .print-banner, .print-footer {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 12px;
-              }
-              .print-banner { margin-bottom: 12px; }
-              .print-footer { margin-top: 18px; }
-            </style>
-          </head>
-          <body></body>
-        </html>
-      `;
-
-      printWindow.document.open();
-      printWindow.document.write(styles);
-      printWindow.document.close();
-
-      const targetBody = printWindow.document.body;
-      targetBody.style.margin = '0';
-      targetBody.style.padding = '20px';
-      targetBody.style.display = 'flex';
-      targetBody.style.flexDirection = 'column';
-      targetBody.style.gap = '16px';
-      targetBody.appendChild(node);
-
-      const cleanup = () => {
-        try {
-          printWindow.close();
-        } catch(_) {}
-      };
-
-      if('onafterprint' in printWindow){
-        printWindow.onafterprint = cleanup;
-      } else {
-        printWindow.addEventListener('focus', () => {
-          setTimeout(cleanup, 500);
-        }, { once: true });
+      if(pdfLoadPromise){
+        return pdfLoadPromise;
       }
 
-      return new Promise(resolve => {
-        setTimeout(() => {
-          try {
-            printWindow.focus();
-            printWindow.print();
-          } catch(_) {
-            alert('Không thể mở hộp thoại in. Vui lòng thử lại.');
-            cleanup();
+      pdfLoadPromise = new Promise((resolve, reject) => {
+        const sources = [...pdfSources];
+
+        function tryNext(){
+          const src = sources.shift();
+          if(!src){
+            reject(new Error('PDF source unavailable'));
+            return;
           }
-          resolve();
-        }, 300);
+
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          script.onload = () => {
+            if(ensurePdfLibrary()){
+              resolve();
+            } else {
+              script.remove();
+              tryNext();
+            }
+          };
+          script.onerror = () => {
+            script.remove();
+            tryNext();
+          };
+          document.head.appendChild(script);
+        }
+
+        tryNext();
+      }).finally(() => {
+        if(!ensurePdfLibrary()){
+          pdfLoadPromise = null;
+        }
+      });
+
+      return pdfLoadPromise;
+    }
+
+    function exportNodeToPdf(node, filename, orientation = 'landscape'){
+      if(!ensurePdfLibrary()){
+        throw new Error('PDF library unavailable');
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = (orientation === 'landscape' ? '297mm' : '210mm');
+      container.style.padding = '20px';
+      container.style.background = '#ffffff';
+      container.appendChild(node);
+      document.body.appendChild(container);
+
+      const options = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: (orientation === 'landscape' ? 'landscape' : 'portrait') },
+        pagebreak: { mode: ['css','legacy'] },
+      };
+
+      return window.html2pdf().set(options).from(node).save().then(() => {
+        document.body.removeChild(container);
+      }).catch(error => {
+        document.body.removeChild(container);
+        throw error;
       });
     }
 
@@ -1234,7 +1234,14 @@
       const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
       const titleText = (modal.dataset.exportTitle || (modalTitle ? modalTitle.textContent : '') || 'Danh sách học viên').trim();
       const fileName = `${slugifyFileName(titleText)}.pdf`;
-      await exportNodeToPdf(clone, fileName);
+
+      try {
+        await loadPdfLibrary();
+        await exportNodeToPdf(clone, fileName, 'landscape');
+      } catch(error){
+        console.error(error);
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+      }
     }
 
     if(modalExportButton){
@@ -1406,7 +1413,14 @@
 
       const key = term || 'tra-cuu';
       const filename = slugifyFileName('ket-qua-hoc-tap-' + key) + '.pdf';
-      await exportNodeToPdf(wrapper, filename);
+
+      try {
+        await loadPdfLibrary();
+        await exportNodeToPdf(wrapper, filename, 'landscape');
+      } catch(error){
+        console.error(error);
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+      }
     }
 
     if(lookupExportButton){
