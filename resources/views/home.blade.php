@@ -98,14 +98,16 @@
 
     .login-pass input { width:100%; }
 
+    .login-actions { justify-self:end; }
+
     .login-actions {
       display:flex;
-      flex-wrap:wrap;
-      gap:10px;
+      flex-wrap:nowrap;
+      gap:12px;
       align-items:center;
       justify-content:flex-end;
       min-width:0;
-      width:100%;
+      width:auto;
     }
 
     .remember {
@@ -114,6 +116,10 @@
       gap:6px;
       font-size:14px;
       color:#374151;
+    }
+
+    .lookup-form .btn {
+      justify-self:end;
     }
 
     .btn {
@@ -209,6 +215,34 @@
         display:grid;
         grid-template-columns:repeat(2, minmax(0, 1fr));
         gap:12px;
+      }
+      .login-form {
+        grid-template-columns:1fr;
+      }
+      .login-actions {
+        width:100%;
+        justify-content:flex-end;
+        flex-wrap:wrap;
+      }
+      .lookup-form {
+        grid-template-columns:1fr;
+      }
+      .lookup-form .btn {
+        justify-self:stretch;
+      }
+    }
+
+    @media (min-width:641px) {
+      .login-form {
+        grid-template-columns:minmax(240px, 2fr) minmax(180px, 1fr) minmax(0, max-content);
+        align-items:center;
+        column-gap:12px;
+      }
+      .login-actions {
+        align-self:center;
+      }
+      .login-actions .remember {
+        white-space:nowrap;
       }
     }
 
@@ -307,15 +341,15 @@
     }
 
     .lookup-form {
-      display:flex;
-      flex-wrap:wrap;
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
       gap:12px;
       align-items:center;
       margin-bottom:16px;
     }
 
     .lookup-input {
-      flex:1 1 260px;
+      width:100%;
       padding:10px 14px;
       border:1px solid var(--border);
       border-radius:10px;
@@ -757,7 +791,7 @@
 
   <main class="content">
     <section>
-      <h2 class="section-title">Kế hoạch đào tạo</h2>
+      <h2 class="section-title">KẾ HOẠCH ĐÀO TẠO</h2>
 
       <form class="filters" method="get" action="" id="filterForm">
         <label class="filter-field">Tuần:
@@ -852,7 +886,7 @@
     </section>
 
     <section class="lookup" id="lookupSection">
-      <h2 class="section-title">Tra cứu kết quả học tập</h2>
+      <h2 class="section-title">TRA CỨU KẾT QUẢ HỌC TẬP</h2>
       <form class="lookup-form" id="lookupForm">
         <label class="sr-only" for="lookupInput">Nhập Mã số, Họ &amp; Tên hoặc Email</label>
         <input type="text" class="lookup-input" id="lookupInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
@@ -911,7 +945,7 @@
     </section>
 
     <section class="featured">
-      <h2 class="section-title">Học viên tiêu biểu</h2>
+      <h2 class="section-title">HỌC VIÊN TIÊU BIỂU</h2>
       <div class="featured-grid">
         <div class="featured-column">
           <h3>Năm {{ date('Y') }}</h3>
@@ -1034,7 +1068,7 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==" crossorigin="anonymous" referrerpolicy="no-referrer" data-html2pdf="true"></script>
 
   <script>
     const form  = document.getElementById('filterForm');
@@ -1105,12 +1139,57 @@
       return clone;
     }
 
+    let pdfLibraryPromise = null;
+
     function ensurePdfLibrary(){
-      return typeof window.html2pdf !== 'undefined';
+      if(typeof window.html2pdf !== 'undefined'){
+        return Promise.resolve(window.html2pdf);
+      }
+
+      if(pdfLibraryPromise){
+        return pdfLibraryPromise;
+      }
+
+      pdfLibraryPromise = new Promise((resolve, reject) => {
+        const finish = () => {
+          if(typeof window.html2pdf !== 'undefined'){
+            resolve(window.html2pdf);
+          } else {
+            reject(new Error('html2pdf unavailable'));
+          }
+        };
+
+        const fail = () => reject(new Error('html2pdf failed to load'));
+
+        let script = document.querySelector('script[data-html2pdf]');
+        if(!script){
+          script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+          script.integrity = 'sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==';
+          script.crossOrigin = 'anonymous';
+          script.referrerPolicy = 'no-referrer';
+          script.dataset.html2pdf = 'true';
+          document.head.appendChild(script);
+        }
+
+        script.addEventListener('load', finish, { once: true });
+        script.addEventListener('error', fail, { once: true });
+
+        if(script.readyState === 'complete' || script.readyState === 'loaded'){
+          setTimeout(finish, 0);
+        }
+      }).catch(error => {
+        pdfLibraryPromise = null;
+        throw error;
+      });
+
+      return pdfLibraryPromise;
     }
 
-    function exportNodeToPdf(node, filename){
-      if(!ensurePdfLibrary()){
+    async function exportNodeToPdf(node, filename){
+      try {
+        await ensurePdfLibrary();
+      } catch(_) {
         alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
         return;
       }
@@ -1133,27 +1212,24 @@
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
       };
 
-      window.html2pdf().set(options).from(node).save().then(() => {
-        document.body.removeChild(container);
-      }).catch(() => {
-        document.body.removeChild(container);
+      try {
+        await window.html2pdf().set(options).from(node).save();
+      } catch(_) {
         alert('Không thể xuất PDF. Vui lòng thử lại.');
-      });
+      } finally {
+        document.body.removeChild(container);
+      }
     }
 
-    function exportRegistrationsPdf(){
+    async function exportRegistrationsPdf(){
       if(!modal) return;
       const card = modal.querySelector('.modal-card');
       if(!card) return;
-      if(!ensurePdfLibrary()){
-        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
-        return;
-      }
 
       const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
       const titleText = (modal.dataset.exportTitle || (modalTitle ? modalTitle.textContent : '') || 'Danh sách học viên').trim();
       const fileName = `${slugifyFileName(titleText)}.pdf`;
-      exportNodeToPdf(clone, fileName);
+      await exportNodeToPdf(clone, fileName);
     }
 
     if(modalExportButton){
@@ -1285,13 +1361,9 @@
     const incompletedEmpty = document.getElementById('incompletedEmpty');
     const lookupUrl = document.body.dataset.lookupUrl || '';
 
-    function exportLookupPdf(){
+    async function exportLookupPdf(){
       if(!lookupResults || lookupResults.hidden){
         alert('Không có dữ liệu để xuất.');
-        return;
-      }
-      if(!ensurePdfLibrary()){
-        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
         return;
       }
 
@@ -1304,7 +1376,7 @@
       wrapper.style.padding = '24px';
 
       const heading = document.createElement('h2');
-      heading.textContent = 'Tra cứu kết quả học tập';
+      heading.textContent = 'TRA CỨU KẾT QUẢ HỌC TẬP';
       heading.style.textAlign = 'center';
       heading.style.margin = '0';
       wrapper.appendChild(heading);
@@ -1329,7 +1401,7 @@
 
       const key = term || 'tra-cuu';
       const filename = slugifyFileName('ket-qua-hoc-tap-' + key) + '.pdf';
-      exportNodeToPdf(wrapper, filename);
+      await exportNodeToPdf(wrapper, filename);
     }
 
     if(lookupExportButton){
