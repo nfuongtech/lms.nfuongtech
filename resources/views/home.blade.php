@@ -1074,6 +1074,9 @@
     function cloneWithPrintStyles(element, options = {}){
       const { padding = null, remove = [] } = options;
       const clone = element.cloneNode(true);
+      if(clone.hasAttribute('hidden')){
+        clone.removeAttribute('hidden');
+      }
       remove.forEach(selector => {
         clone.querySelectorAll(selector).forEach(node => node.remove());
       });
@@ -1082,6 +1085,7 @@
         node.classList.remove('print-only');
         node.style.display = 'block';
       });
+      clone.querySelectorAll('[hidden]').forEach(node => node.removeAttribute('hidden'));
       clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
       clone.querySelectorAll('.table-wrap').forEach(wrapper => {
         wrapper.style.overflow = 'visible';
@@ -1161,19 +1165,25 @@
 
     function exportNodeToPdf(node, filename){
       if(!ensurePdfLibrary()){
-        throw new Error('PDF library unavailable');
+        return Promise.reject(new Error('PDF library unavailable'));
       }
 
       const container = document.createElement('div');
       container.style.position = 'fixed';
-      container.style.left = '-9999px';
+      container.style.left = '0';
       container.style.top = '0';
       container.style.boxSizing = 'border-box';
+      container.style.visibility = 'hidden';
+      container.style.pointerEvents = 'none';
+      container.style.opacity = '0';
+      container.style.zIndex = '-1';
       const orientation = 'landscape';
       const pageWidth = orientation === 'landscape' ? 297 : 210;
       container.style.width = `${pageWidth}mm`;
       container.style.maxWidth = `${pageWidth}mm`;
       container.style.minWidth = `${pageWidth}mm`;
+      container.style.maxHeight = 'none';
+      container.style.overflow = 'visible';
       container.style.padding = '20px';
       container.style.background = '#ffffff';
       container.appendChild(node);
@@ -1183,16 +1193,24 @@
         margin: 10,
         filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation },
         pagebreak: { mode: ['css', 'legacy'] },
       };
 
-      window.html2pdf().set(options).from(container).save().then(() => {
-        document.body.removeChild(container);
-      }).catch(() => {
-        document.body.removeChild(container);
-        alert('Không thể xuất PDF. Vui lòng thử lại.');
+      const schedule = window.requestAnimationFrame || function(callback){ return window.setTimeout(callback, 0); };
+
+      return new Promise((resolve, reject) => {
+        schedule(() => {
+          window.html2pdf().set(options).from(container).save()
+            .then(resolve)
+            .catch(reject)
+            .finally(() => {
+              if(container.parentNode){
+                container.parentNode.removeChild(container);
+              }
+            });
+        });
       });
     }
 
@@ -1207,7 +1225,7 @@
       loadPdfLibrary()
         .then(() => {
           const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
-          exportNodeToPdf(clone, fileName);
+          return exportNodeToPdf(clone, fileName);
         })
         .catch(() => {
           alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
@@ -1386,7 +1404,7 @@
             wrapper.appendChild(footerClone);
           }
 
-          exportNodeToPdf(wrapper, filename);
+          return exportNodeToPdf(wrapper, filename);
         })
         .catch(() => {
           alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
