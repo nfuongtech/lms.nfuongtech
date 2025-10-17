@@ -81,6 +81,7 @@
       padding:12px;
       border-radius:12px;
       box-shadow:0 6px 18px rgba(15, 23, 42, 0.05);
+      align-items:center;
     }
 
     .login-row { min-width:0; }
@@ -93,14 +94,9 @@
       border-radius:8px;
     }
 
-    .login-pass {
-      display:flex;
-      justify-content:flex-start;
-    }
+    .login-pass { min-width:0; }
 
-    .login-pass input {
-      width:70%;
-    }
+    .login-pass input { width:100%; }
 
     .login-actions {
       display:flex;
@@ -108,6 +104,7 @@
       gap:10px;
       align-items:center;
       justify-content:flex-end;
+      min-width:0;
       width:100%;
     }
 
@@ -200,8 +197,18 @@
     }
 
     @media (max-width:640px) {
+      .filters { align-items:stretch; }
+      .filter-field {
+        flex-direction:column;
+        align-items:flex-start;
+        gap:4px;
+      }
+      .filter-field select { width:100%; }
       .filter-pair {
         width:100%;
+        display:grid;
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+        gap:12px;
       }
     }
 
@@ -611,16 +618,21 @@
     @media (min-width:768px) {
       .login-wrap { align-items:flex-end; }
       .login-form {
-        grid-template-columns:1fr 1fr;
-        grid-template-areas:
-          "user pass"
-          "actions actions";
+        grid-template-columns:minmax(220px, 1fr) minmax(0, 0.7fr) auto;
+        grid-template-areas:"user pass actions";
         column-gap:12px;
-        row-gap:10px;
+        row-gap:0;
       }
       .login-user { grid-area:user; }
       .login-pass { grid-area:pass; }
-      .login-actions { grid-area:actions; justify-content:flex-end; }
+      .login-actions {
+        grid-area:actions;
+        justify-content:flex-start;
+        flex-wrap:nowrap;
+        gap:12px;
+      }
+      .login-actions .btn { white-space:nowrap; }
+      .remember { white-space:nowrap; }
       .lookup-results { flex-direction:column; }
     }
 
@@ -1107,7 +1119,7 @@
       container.style.position = 'fixed';
       container.style.left = '-9999px';
       container.style.top = '0';
-      container.style.width = '210mm';
+      container.style.width = '297mm';
       container.style.padding = '20px';
       container.style.background = '#ffffff';
       container.appendChild(node);
@@ -1118,7 +1130,7 @@
         filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
       };
 
       window.html2pdf().set(options).from(node).save().then(() => {
