@@ -93,6 +93,15 @@
       border-radius:8px;
     }
 
+    .login-pass {
+      display:flex;
+      justify-content:flex-start;
+    }
+
+    .login-pass input {
+      width:70%;
+    }
+
     .login-actions {
       display:flex;
       flex-wrap:wrap;
@@ -152,28 +161,48 @@
       font-size:22px;
       margin-bottom:12px;
       font-weight:700;
+      text-align:center;
     }
 
     .filters {
       margin:12px 0 18px;
       display:flex;
       gap:12px;
-      align-items:center;
+      align-items:flex-end;
       flex-wrap:wrap;
     }
 
-    .filters label {
+    .filter-field {
       display:flex;
       align-items:center;
       gap:6px;
       font-size:14px;
     }
 
-    .filters label select {
+    .filter-field select {
       padding:8px 10px;
       border-radius:8px;
       border:1px solid var(--border);
       background:#fff;
+      width:100%;
+    }
+
+    .filter-pair {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:nowrap;
+    }
+
+    .filter-pair .filter-field {
+      flex:1 1 0;
+      min-width:0;
+    }
+
+    @media (max-width:640px) {
+      .filter-pair {
+        width:100%;
+      }
     }
 
     #week option:not([value=""]) {
@@ -422,6 +451,19 @@
       color:var(--muted);
       font-size:14px;
       text-align:center;
+      display:flex;
+      flex-direction:column;
+      gap:0;
+      align-items:center;
+    }
+
+    footer > div {
+      margin:0;
+    }
+
+    .footer-space {
+      height:18px;
+      width:100%;
     }
 
     .sr-only {
@@ -589,6 +631,7 @@
       .lookup { padding:18px; }
       .featured-column { padding:18px; }
       .modal-card { padding:18px; }
+      .login-pass input { width:100%; }
     }
 
     @media print {
@@ -659,7 +702,7 @@
     }
   </style>
 </head>
-<body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}">
+<body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}" data-default-year="{{ $defaultYear }}">
   <div class="topbar">
     <div class="brand"><a href="/">QUẢN LÝ ĐÀO TẠO &amp; HỌC VIÊN</a></div>
 
@@ -705,7 +748,7 @@
       <h2 class="section-title">Kế hoạch đào tạo</h2>
 
       <form class="filters" method="get" action="" id="filterForm">
-        <label>Tuần:
+        <label class="filter-field">Tuần:
           <select id="week" name="week" onchange="onWeekChange()">
             <option value="">— Không lọc theo tuần —</option>
             @foreach($weeks as $opt)
@@ -714,23 +757,25 @@
           </select>
         </label>
 
-        <label>Tháng:
-          <select id="month" name="month" onchange="onMonthChange()">
-            <option value="">— Không lọc theo tháng —</option>
-            @foreach($months as $m)
-              <option value="{{ $m }}" {{ $filterMode==='month' && (int)$month===(int)$m ? 'selected' : '' }}>{{ $m }}</option>
-            @endforeach
-          </select>
-        </label>
+        <div class="filter-pair">
+          <label class="filter-field">Tháng:
+            <select id="month" name="month" onchange="onMonthChange()">
+              <option value="">— Không lọc theo tháng —</option>
+              @foreach($months as $m)
+                <option value="{{ $m }}" {{ $filterMode==='month' && (int)$month===(int)$m ? 'selected' : '' }}>{{ $m }}</option>
+              @endforeach
+            </select>
+          </label>
 
-        <label>Năm:
-          <select id="year" name="year" onchange="onYearChange()">
-            <option value="">— Không lọc theo năm —</option>
-            @foreach($years as $y)
-              <option value="{{ $y }}" {{ (int)$year===(int)$y && $filterMode!=='week' ? 'selected' : '' }}>{{ $y }}</option>
-            @endforeach
-          </select>
-        </label>
+          <label class="filter-field">Năm:
+            <select id="year" name="year" onchange="onYearChange()">
+              <option value="">— Không lọc theo năm —</option>
+              @foreach($years as $y)
+                <option value="{{ $y }}" {{ (int)$year===(int)$y && $filterMode!=='week' ? 'selected' : '' }}>{{ $y }}</option>
+              @endforeach
+            </select>
+          </label>
+        </div>
 
         <noscript><button type="submit" class="btn">Lọc</button></noscript>
       </form>
@@ -803,7 +848,7 @@
       </form>
       <div class="lookup-message" id="lookupMessage" hidden></div>
       <div class="lookup-actions no-print" id="lookupActions" hidden>
-        <button type="button" class="btn btn-secondary no-print" id="lookupPrint">In</button>
+        <button type="button" class="btn btn-secondary no-print" id="lookupExport">Xuất danh sách</button>
       </div>
       <div class="lookup-results" id="lookupResults" hidden>
         <div class="lookup-panel">
@@ -933,7 +978,8 @@
   </main>
 
   <footer>
-    Copyright © {{ date('Y') }} nfuongtech.io.vn. All rights reserved.
+    <div>Copyright © {{ date('Y') }} nfuongtech.io.vn. All rights reserved.</div>
+    <div class="footer-space" aria-hidden="true">&nbsp;</div>
   </footer>
 
   <div class="modal" id="registrationsModal" hidden>
@@ -952,7 +998,7 @@
           <div class="modal-meta" id="modalMeta" hidden></div>
         </div>
         <div class="modal-actions">
-          <button type="button" class="btn btn-print no-print" id="modalPrint">In</button>
+          <button type="button" class="btn btn-print no-print" id="modalExport">Xuất danh sách</button>
           <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
         </div>
       </div>
@@ -976,14 +1022,23 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
   <script>
     const form  = document.getElementById('filterForm');
     const week  = document.getElementById('week');
     const month = document.getElementById('month');
     const year  = document.getElementById('year');
+    const defaultYearValue = (document.body.dataset.defaultYear || '').toString();
 
     function onWeekChange(){ month.value=''; year.value=''; form.submit(); }
-    function onMonthChange(){ week.value=''; if(!year.value){ year.value=new Date().getFullYear().toString(); } form.submit(); }
+    function onMonthChange(){
+      week.value='';
+      if(!year.value){
+        year.value = defaultYearValue || new Date().getFullYear().toString();
+      }
+      form.submit();
+    }
     function onYearChange(){ week.value=''; month.value=''; form.submit(); }
 
     const modal = document.getElementById('registrationsModal');
@@ -996,51 +1051,101 @@
     const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
     const registrationButtons = document.querySelectorAll('[data-course]');
-    const modalPrintButton = document.getElementById('modalPrint');
+    const modalExportButton = document.getElementById('modalExport');
     const lookupActions = document.getElementById('lookupActions');
-    const lookupPrintButton = document.getElementById('lookupPrint');
+    const lookupExportButton = document.getElementById('lookupExport');
+    const lookupPrintFooter = document.getElementById('lookupPrintFooter');
 
-    const afterPrintCleanup = () => {
-      document.body.classList.remove('print-modal');
-      document.body.classList.remove('print-lookup');
-    };
-
-    window.addEventListener('afterprint', afterPrintCleanup);
-    if(window.matchMedia){
-      try {
-        const mediaQuery = window.matchMedia('print');
-        if(mediaQuery){
-          if(typeof mediaQuery.addEventListener === 'function'){
-            mediaQuery.addEventListener('change', event => {
-              if(!event.matches){
-                afterPrintCleanup();
-              }
-            });
-          } else if(typeof mediaQuery.addListener === 'function'){
-            mediaQuery.addListener(event => {
-              if(!event.matches){
-                afterPrintCleanup();
-              }
-            });
-          }
-        }
-      } catch(_) {}
+    
+    function slugifyFileName(value){
+      return (value || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'danh-sach';
     }
 
-    if(modalPrintButton){
-      modalPrintButton.addEventListener('click', () => {
-        document.body.classList.remove('print-lookup');
-        document.body.classList.add('print-modal');
-        window.print();
+    function cloneWithPrintStyles(element, options = {}){
+      const { padding = null, remove = [] } = options;
+      const clone = element.cloneNode(true);
+      remove.forEach(selector => {
+        clone.querySelectorAll(selector).forEach(node => node.remove());
+      });
+      clone.querySelectorAll('.no-print').forEach(node => node.remove());
+      clone.querySelectorAll('.print-only').forEach(node => {
+        node.classList.remove('print-only');
+        node.style.display = 'block';
+      });
+      clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+      if(padding !== null){
+        clone.style.padding = padding;
+      }
+      clone.style.boxShadow = 'none';
+      clone.style.borderRadius = '0';
+      clone.style.width = '100%';
+      clone.style.maxHeight = 'none';
+      clone.style.background = '#ffffff';
+      clone.querySelectorAll('table').forEach(table => {
+        table.style.width = '100%';
+      });
+      return clone;
+    }
+
+    function ensurePdfLibrary(){
+      return typeof window.html2pdf !== 'undefined';
+    }
+
+    function exportNodeToPdf(node, filename){
+      if(!ensurePdfLibrary()){
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+        return;
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '210mm';
+      container.style.padding = '20px';
+      container.style.background = '#ffffff';
+      container.appendChild(node);
+      document.body.appendChild(container);
+
+      const options = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      };
+
+      window.html2pdf().set(options).from(node).save().then(() => {
+        document.body.removeChild(container);
+      }).catch(() => {
+        document.body.removeChild(container);
+        alert('Không thể xuất PDF. Vui lòng thử lại.');
       });
     }
 
-    if(lookupPrintButton){
-      lookupPrintButton.addEventListener('click', () => {
-        document.body.classList.remove('print-modal');
-        document.body.classList.add('print-lookup');
-        window.print();
-      });
+    function exportRegistrationsPdf(){
+      if(!modal) return;
+      const card = modal.querySelector('.modal-card');
+      if(!card) return;
+      if(!ensurePdfLibrary()){
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+        return;
+      }
+
+      const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
+      const titleText = (modal.dataset.exportTitle || (modalTitle ? modalTitle.textContent : '') || 'Danh sách học viên').trim();
+      const fileName = `${slugifyFileName(titleText)}.pdf`;
+      exportNodeToPdf(clone, fileName);
+    }
+
+    if(modalExportButton){
+      modalExportButton.addEventListener('click', exportRegistrationsPdf);
     }
 
     registrationButtons.forEach(btn => {
@@ -1065,17 +1170,21 @@
       const metaParts = [];
       if(courseSchedule){ metaParts.push(courseSchedule); }
       if(courseLocation){ metaParts.push(courseLocation); }
+      const metaText = metaParts.length ? metaParts.join(', ') : '';
+      const uppercaseTitle = baseTitle.toLocaleUpperCase('vi-VN');
+
       if(modalTitle){
-        modalTitle.textContent = baseTitle;
+        modalTitle.textContent = uppercaseTitle;
       }
       if(modalPrintMain){
-        modalPrintMain.textContent = baseTitle;
+        modalPrintMain.textContent = uppercaseTitle;
       }
       if(modalPrintMeta){
-        modalPrintMeta.textContent = metaParts.length ? metaParts.join(', ') : '';
+        modalPrintMeta.textContent = metaText;
       }
+      modal.dataset.exportTitle = uppercaseTitle;
+      modal.dataset.exportMeta = metaText;
       if(modalMeta){
-        const metaText = metaParts.length ? metaParts.join(', ') : '';
         modalMeta.textContent = metaText;
         if(metaText){
           modalMeta.removeAttribute('hidden');
@@ -1163,6 +1272,57 @@
     const completedEmpty = document.getElementById('completedEmpty');
     const incompletedEmpty = document.getElementById('incompletedEmpty');
     const lookupUrl = document.body.dataset.lookupUrl || '';
+
+    function exportLookupPdf(){
+      if(!lookupResults || lookupResults.hidden){
+        alert('Không có dữ liệu để xuất.');
+        return;
+      }
+      if(!ensurePdfLibrary()){
+        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+        return;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.style.background = '#ffffff';
+      wrapper.style.width = '100%';
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      wrapper.style.gap = '16px';
+      wrapper.style.padding = '24px';
+
+      const heading = document.createElement('h2');
+      heading.textContent = 'Tra cứu kết quả học tập';
+      heading.style.textAlign = 'center';
+      heading.style.margin = '0';
+      wrapper.appendChild(heading);
+
+      const term = lookupInput ? lookupInput.value.trim() : '';
+      if(term){
+        const metaLine = document.createElement('div');
+        metaLine.textContent = `Từ khóa: ${term}`;
+        metaLine.style.textAlign = 'center';
+        metaLine.style.fontSize = '14px';
+        wrapper.appendChild(metaLine);
+      }
+
+      const resultsClone = cloneWithPrintStyles(lookupResults);
+      wrapper.appendChild(resultsClone);
+
+      if(lookupPrintFooter){
+        const footerClone = cloneWithPrintStyles(lookupPrintFooter);
+        footerClone.style.textAlign = 'right';
+        wrapper.appendChild(footerClone);
+      }
+
+      const key = term || 'tra-cuu';
+      const filename = slugifyFileName('ket-qua-hoc-tap-' + key) + '.pdf';
+      exportNodeToPdf(wrapper, filename);
+    }
+
+    if(lookupExportButton){
+      lookupExportButton.addEventListener('click', exportLookupPdf);
+    }
 
     function setLookupMessage(message){
       if(!lookupMessage) return;
