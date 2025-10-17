@@ -6,6 +6,7 @@ use App\Models\HocVien;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
+use App\Models\LichHoc;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,23 +21,38 @@ class HomeController extends Controller
         $weekParam  = $request->query('week');
         $monthParam = $request->query('month');
 
-        $hasWeek  = $request->has('week')  && $weekParam  !== '' && $weekParam  !== null;
-        $hasMonth = $request->has('month') && $monthParam !== '' && $monthParam !== null;
-        $hasYear  = $request->has('year')  && $yearParam  !== '' && $yearParam  !== null;
+        $yearOptions = $this->buildYearOptions();
+        if (empty($yearOptions)) {
+            $yearOptions = [now()->year];
+        }
+
+        $hasYearParam = $request->has('year') && $yearParam !== '' && $yearParam !== null;
+        $candidateYear = $hasYearParam ? (int) $yearParam : null;
+        $year = $candidateYear !== null && in_array($candidateYear, $yearOptions, true)
+            ? $candidateYear
+            : (in_array(now()->year, $yearOptions, true) ? now()->year : ($yearOptions[0] ?? now()->year));
+        $hasYear = $candidateYear !== null && in_array($candidateYear, $yearOptions, true);
+
+        $months = $this->buildMonthOptions($year);
+        $months = array_values(array_unique(array_filter($months, fn ($m) => $m >= 1 && $m <= 12)));
+        sort($months);
+
+        $hasMonthParam = $request->has('month') && $monthParam !== '' && $monthParam !== null;
+        $candidateMonth = $hasMonthParam ? (int) $monthParam : null;
+        $hasMonth = $candidateMonth !== null && in_array($candidateMonth, $months, true);
+
+        $hasWeek = $request->has('week') && $weekParam !== '' && $weekParam !== null;
 
         if ($hasWeek || (!$hasWeek && !$hasMonth && !$hasYear)) {
             $mode  = 'week';
-            $year  = (int) ($hasYear ? $yearParam : now()->year);
             $week  = (int) ($hasWeek ? $weekParam : now()->isoWeek());
             $month = null;
         } elseif ($hasMonth) {
             $mode  = 'month';
-            $year  = (int) ($hasYear ? $yearParam : now()->year);
-            $month = (int) $monthParam;
+            $month = (int) $candidateMonth;
             $week  = (int) now()->isoWeek();
         } else {
             $mode  = 'year';
-            $year  = (int) ($hasYear ? $yearParam : now()->year);
             $week  = (int) now()->isoWeek();
             $month = null;
         }
@@ -153,19 +169,21 @@ class HomeController extends Controller
             ];
         });
 
-        $years  = KhoaHoc::query()->select('nam')->distinct()->orderBy('nam', 'desc')->pluck('nam')->all();
-        if (empty($years)) {
-            $years = [now()->year];
-        }
-        $months = range(1, 12);
+        $years = $yearOptions;
 
         $weekOptionsMonth = $month;
         if ($weekOptionsMonth === null) {
             if ($mode === 'week' && $week) {
                 $weekOptionsMonth = $this->resolveMonthFromWeek($year, $week);
-            } else {
+            } elseif (in_array(now()->month, $months, true)) {
                 $weekOptionsMonth = now()->month;
+            } else {
+                $weekOptionsMonth = $months[0] ?? now()->month;
             }
+        }
+
+        if (!in_array((int) $weekOptionsMonth, $months, true) && !empty($months)) {
+            $weekOptionsMonth = $months[0];
         }
 
         $weeks  = $this->buildWeekOptions($year, (int) $weekOptionsMonth);
@@ -185,6 +203,7 @@ class HomeController extends Controller
             'rows'             => $rows,
             'featuredYear'     => $featuredYear,
             'featuredRecent'   => $featuredRecent,
+            'defaultYear'      => $year,
         ]);
     }
 
@@ -375,6 +394,35 @@ class HomeController extends Controller
         }
 
         return array_values($weeks);
+    }
+
+    protected function buildYearOptions(): array
+    {
+        return LichHoc::query()
+            ->selectRaw('YEAR(ngay_hoc) as year_value')
+            ->whereNotNull('ngay_hoc')
+            ->distinct()
+            ->orderByDesc('year_value')
+            ->pluck('year_value')
+            ->map(fn ($year) => (int) $year)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    protected function buildMonthOptions(int $year): array
+    {
+        return LichHoc::query()
+            ->selectRaw('MONTH(ngay_hoc) as month_value')
+            ->whereNotNull('ngay_hoc')
+            ->whereYear('ngay_hoc', $year)
+            ->distinct()
+            ->orderBy('month_value')
+            ->pluck('month_value')
+            ->map(fn ($month) => (int) $month)
+            ->filter()
+            ->values()
+            ->all();
     }
 
     protected function resolveMonthFromWeek(int $year, int $week): int
