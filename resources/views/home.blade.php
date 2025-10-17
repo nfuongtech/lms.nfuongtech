@@ -72,19 +72,20 @@
     }
 
     .login-form {
-      display:grid;
-      grid-template-columns:1fr;
-      grid-auto-rows:auto;
-      gap:8px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
       width:100%;
       background:var(--surface-strong);
       padding:12px;
       border-radius:12px;
       box-shadow:0 6px 18px rgba(15, 23, 42, 0.05);
-      align-items:center;
     }
 
-    .login-row { min-width:0; }
+    .login-row { min-width:0; flex:1 1 220px; }
+
+    .login-user { flex-basis:260px; }
 
     .login-row input {
       width:100%;
@@ -104,12 +105,12 @@
     }
 
     .login-remember {
-      justify-self:start;
       align-self:center;
+      flex:0 0 auto;
     }
 
     .login-submit {
-      justify-self:end;
+      margin-left:auto;
       white-space:nowrap;
       align-self:center;
     }
@@ -316,6 +317,10 @@
       border:1px solid var(--border);
       border-radius:10px;
       font-size:15px;
+    }
+
+    .lookup-form .btn {
+      margin-left:auto;
     }
 
     .lookup-message {
@@ -614,14 +619,13 @@
     @media (min-width:768px) {
       .login-wrap { align-items:flex-end; }
       .login-form {
-        grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto auto;
-        column-gap:12px;
-        row-gap:0;
+        flex-wrap:nowrap;
+        gap:12px;
       }
-      .login-user { grid-column:1; }
-      .login-pass { grid-column:2; }
-      .login-remember { grid-column:3; }
-      .login-submit { grid-column:4; }
+      .login-user,
+      .login-pass { flex:1 1 0; }
+      .login-remember { margin-left:12px; }
+      .login-submit { margin-left:auto; }
       .lookup-results { flex-direction:column; }
     }
 
@@ -1170,11 +1174,11 @@
 
       const container = document.createElement('div');
       container.style.position = 'fixed';
-      container.style.left = '0';
+      container.style.left = '-10000px';
       container.style.top = '0';
       container.style.boxSizing = 'border-box';
       container.style.pointerEvents = 'none';
-      container.style.opacity = '0';
+      container.style.opacity = '1';
       container.style.zIndex = '-1';
       const orientation = 'landscape';
       const pageWidth = orientation === 'landscape' ? 297 : 210;
