@@ -81,6 +81,7 @@
       padding:12px;
       border-radius:12px;
       box-shadow:0 6px 18px rgba(15, 23, 42, 0.05);
+      align-items:center;
     }
 
     .login-row { min-width:0; }
@@ -102,13 +103,15 @@
       width:70%;
     }
 
-    .login-actions {
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      align-items:center;
-      justify-content:flex-end;
-      width:100%;
+    .login-remember {
+      justify-self:start;
+      align-self:center;
+    }
+
+    .login-submit {
+      justify-self:end;
+      white-space:nowrap;
+      align-self:center;
     }
 
     .remember {
@@ -611,16 +614,14 @@
     @media (min-width:768px) {
       .login-wrap { align-items:flex-end; }
       .login-form {
-        grid-template-columns:1fr 1fr;
-        grid-template-areas:
-          "user pass"
-          "actions actions";
+        grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto auto;
         column-gap:12px;
-        row-gap:10px;
+        row-gap:0;
       }
-      .login-user { grid-area:user; }
-      .login-pass { grid-area:pass; }
-      .login-actions { grid-area:actions; justify-content:flex-end; }
+      .login-user { grid-column:1; }
+      .login-pass { grid-column:2; }
+      .login-remember { grid-column:3; }
+      .login-submit { grid-column:4; }
       .lookup-results { flex-direction:column; }
     }
 
@@ -731,13 +732,11 @@
           <div class="login-row login-pass">
             <input type="password" name="password" placeholder="Password" required>
           </div>
-          <div class="login-actions">
-            <label class="remember">
-              <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
-              Ghi nhớ
-            </label>
-            <button type="submit" class="btn btn-primary">Đăng nhập</button>
-          </div>
+          <label class="remember login-remember">
+            <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
+            Ghi nhớ
+          </label>
+          <button type="submit" class="btn btn-primary login-submit">Đăng nhập</button>
         </form>
       @endauth
     </div>
@@ -1084,6 +1083,11 @@
         node.style.display = 'block';
       });
       clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+      clone.querySelectorAll('.table-wrap').forEach(wrapper => {
+        wrapper.style.overflow = 'visible';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.borderRadius = '0';
+      });
       if(padding !== null){
         clone.style.padding = padding;
       }
@@ -1094,6 +1098,12 @@
       clone.style.background = '#ffffff';
       clone.querySelectorAll('table').forEach(table => {
         table.style.width = '100%';
+        table.style.minWidth = '0';
+        table.style.tableLayout = 'auto';
+      });
+      clone.querySelectorAll('th, td').forEach(cell => {
+        cell.style.whiteSpace = 'normal';
+        cell.style.wordBreak = 'break-word';
       });
       return clone;
     }
@@ -1158,7 +1168,12 @@
       container.style.position = 'fixed';
       container.style.left = '-9999px';
       container.style.top = '0';
-      container.style.width = '210mm';
+      container.style.boxSizing = 'border-box';
+      const orientation = 'landscape';
+      const pageWidth = orientation === 'landscape' ? 297 : 210;
+      container.style.width = `${pageWidth}mm`;
+      container.style.maxWidth = `${pageWidth}mm`;
+      container.style.minWidth = `${pageWidth}mm`;
       container.style.padding = '20px';
       container.style.background = '#ffffff';
       container.appendChild(node);
@@ -1169,10 +1184,11 @@
         filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation },
+        pagebreak: { mode: ['css', 'legacy'] },
       };
 
-      window.html2pdf().set(options).from(node).save().then(() => {
+      window.html2pdf().set(options).from(container).save().then(() => {
         document.body.removeChild(container);
       }).catch(() => {
         document.body.removeChild(container);
