@@ -1151,17 +1151,48 @@
       }
 
       pdfLibraryPromise = new Promise((resolve, reject) => {
-        const finish = () => {
-          if(typeof window.html2pdf !== 'undefined'){
-            resolve(window.html2pdf);
-          } else {
-            reject(new Error('html2pdf unavailable'));
+        let script = document.querySelector('script[data-html2pdf]');
+        let intervalId = null;
+        let timeoutId = null;
+
+        const cleanup = () => {
+          if(script){
+            script.removeEventListener('load', handleLoad);
+            script.removeEventListener('error', handleError);
+          }
+          if(intervalId !== null){
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          if(timeoutId !== null){
+            clearTimeout(timeoutId);
+            timeoutId = null;
           }
         };
 
-        const fail = () => reject(new Error('html2pdf failed to load'));
+        const resolveIfReady = () => {
+          if(typeof window.html2pdf !== 'undefined'){
+            cleanup();
+            resolve(window.html2pdf);
+            return true;
+          }
+          return false;
+        };
 
-        let script = document.querySelector('script[data-html2pdf]');
+        function handleLoad(){
+          if(!resolveIfReady()){
+            cleanup();
+            pdfLibraryPromise = null;
+            reject(new Error('html2pdf unavailable'));
+          }
+        }
+
+        function handleError(){
+          cleanup();
+          pdfLibraryPromise = null;
+          reject(new Error('html2pdf failed to load'));
+        }
+
         if(!script){
           script = document.createElement('script');
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
@@ -1169,14 +1200,21 @@
           script.crossOrigin = 'anonymous';
           script.referrerPolicy = 'no-referrer';
           script.dataset.html2pdf = 'true';
+          script.addEventListener('load', handleLoad, { once: true });
+          script.addEventListener('error', handleError, { once: true });
           document.head.appendChild(script);
+        } else {
+          script.addEventListener('load', handleLoad, { once: true });
+          script.addEventListener('error', handleError, { once: true });
         }
 
-        script.addEventListener('load', finish, { once: true });
-        script.addEventListener('error', fail, { once: true });
-
-        if(script.readyState === 'complete' || script.readyState === 'loaded'){
-          setTimeout(finish, 0);
+        if(!resolveIfReady()){
+          intervalId = window.setInterval(resolveIfReady, 100);
+          timeoutId = window.setTimeout(() => {
+            cleanup();
+            pdfLibraryPromise = null;
+            reject(new Error('html2pdf loading timed out'));
+          }, 7000);
         }
       }).catch(error => {
         pdfLibraryPromise = null;
