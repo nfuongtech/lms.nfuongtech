@@ -5,114 +5,714 @@
   <title>Kế hoạch đào tạo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    :root{
+    :root {
       --border:#e5e7eb;
+      --surface:#f9fafb;
+      --surface-strong:#ffffff;
       --text:#111827;
       --muted:#6b7280;
       --brand:#111827;
       --accent:#2563eb;
+      --accent-soft:#dbeafe;
       --today-bg:#dcfce7;
-    }
-    html,body{height:100%}
-    body{
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
-      margin:20px; display:flex; flex-direction:column; min-height:100vh; color:var(--text);
+      --badge-gray:#e5e7eb;
+      --badge-info:#dbeafe;
+      --badge-warn:#fef3c7;
+      --badge-ok:#dcfce7;
+      --badge-pause:#fee2e2;
+      --shadow:0 12px 32px rgba(15, 23, 42, 0.1);
     }
 
-    /* Header */
-    .topbar{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; flex-wrap:wrap}
-    .brand{font-weight:800; letter-spacing:.3px; font-size:150%; white-space:nowrap;} /* luôn 1 hàng */
-    .brand a{text-decoration:none; color:var(--brand)}
+    *, *::before, *::after { box-sizing:border-box; }
 
-    /* Login form */
-    .login-wrap{
-      display:flex; flex-direction:column; gap:8px;
-      align-items:stretch; /* mobile: căn trái */
-      width:100%; max-width:680px;
+    [hidden] { display:none !important; }
+    .no-print { }
+    .print-only { display:none; }
+
+    html, body { height:100%; }
+
+    body {
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      margin:0;
+      padding:24px;
+      display:flex;
+      flex-direction:column;
+      min-height:100vh;
+      color:var(--text);
+      background:linear-gradient(180deg, #f5f7fb 0%, #fff 100%);
     }
-    .login-form{
+
+    .topbar {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .brand {
+      font-weight:800;
+      letter-spacing:.3px;
+      font-size:150%;
+      white-space:nowrap;
+    }
+
+    .brand a {
+      text-decoration:none;
+      color:var(--brand);
+    }
+
+    .login-wrap {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:stretch;
+      width:100%;
+      max-width:680px;
+    }
+
+    .login-form {
       display:grid;
-      grid-template-columns:1fr;   /* mobile: 1 cột */
+      grid-template-columns:1fr;
       grid-auto-rows:auto;
       gap:8px;
       width:100%;
-    }
-    .login-row{min-width:0;}
-    .login-row input{
-      width:100%; box-sizing:border-box;
-      padding:8px 10px; border:1px solid var(--border); border-radius:6px;
+      background:var(--surface-strong);
+      padding:12px;
+      border-radius:12px;
+      box-shadow:0 6px 18px rgba(15, 23, 42, 0.05);
+      align-items:center;
     }
 
-    /* Căn phải cho Ghi nhớ + Đăng nhập */
-    .login-actions{
-      display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-      justify-content:flex-end;   /* căn phải trên mobile & PC */
+    .login-row { min-width:0; }
+
+    .login-row input {
+      width:100%;
+      box-sizing:border-box;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:8px;
+    }
+
+    .login-pass {
+      display:flex;
+      justify-content:flex-start;
+    }
+
+    .login-pass input {
+      width:70%;
+    }
+
+    .login-remember {
+      justify-self:start;
+      align-self:center;
+    }
+
+    .login-submit {
+      justify-self:end;
+      white-space:nowrap;
+      align-self:center;
+    }
+
+    .remember {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:14px;
+      color:#374151;
+    }
+
+    .btn {
+      padding:9px 14px;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:600;
+      transition:all .2s ease;
+    }
+
+    .btn:hover { box-shadow:0 4px 12px rgba(37, 99, 235, 0.12); }
+
+    .btn-primary {
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+    }
+
+    .btn-secondary {
+      background:#e5e7eb;
+      border-color:#d1d5db;
+      color:#111827;
+    }
+
+    .btn-secondary:hover {
+      background:#dbe0e9;
+      border-color:#cbd5e1;
+    }
+
+    .content {
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:40px;
+      margin-top:28px;
+    }
+
+    .section-title {
+      font-size:22px;
+      margin-bottom:12px;
+      font-weight:700;
+      text-align:center;
+    }
+
+    .filters {
+      margin:12px 0 18px;
+      display:flex;
+      gap:12px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .filter-field {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:14px;
+    }
+
+    .filter-field select {
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background:#fff;
       width:100%;
     }
-    .remember{display:flex; align-items:center; gap:6px; font-size:14px; color:#374151}
 
-    .btn{padding:8px 12px; border-radius:6px; border:1px solid var(--border); background:#fff; color:var(--text); cursor:pointer}
-    .btn-primary{background:var(--accent); color:#fff; border-color:var(--accent)}
+    .filter-pair {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:nowrap;
+    }
 
-    /* PC ≥ 768px: user|pass cùng dòng; dưới: actions (remember + login) cùng dòng, căn phải */
-    @media (min-width:768px){
-      .login-wrap{align-items:flex-end;}
-      .login-form{
-        grid-template-columns: 1fr 1fr;
-        grid-template-areas:
-          "user pass"
-          "actions actions";
-        column-gap:10px; row-gap:8px;
+    .filter-pair .filter-field {
+      flex:1 1 0;
+      min-width:0;
+    }
+
+    @media (max-width:640px) {
+      .filter-pair {
+        width:100%;
       }
-      .login-user{grid-area:user}
-      .login-pass{grid-area:pass}
-      .login-actions{grid-area:actions; justify-content:flex-end;}
     }
 
-    /* Filters & table */
-    .filters{margin:12px 0 16px; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    .filters label select{padding:6px 8px}
-    .table-wrap{width:100%; overflow-x:auto}
-    table{min-width:780px; width:100%; border-collapse:collapse; background:#fff}
-    /* Header: nền xám mặc định + căn giữa */
-    th{
-      background:#f3f4f6; /* xám mặc định */
+    #week option:not([value=""]) {
+      font-weight:600;
+    }
+
+    .table-wrap {
+      width:100%;
+      overflow-x:auto;
+      background:var(--surface-strong);
+      border-radius:16px;
+      box-shadow:var(--shadow);
+    }
+
+    table {
+      width:100%;
+      border-collapse:collapse;
+      min-width:960px;
+    }
+
+    th {
+      background:#f3f4f6;
       text-align:center;
-      border:1px solid var(--border);
-      padding:8px 10px;
-      vertical-align:middle; /* căn giữa theo hàng */
+      border-bottom:1px solid var(--border);
+      padding:12px 14px;
+      font-size:14px;
+      font-weight:600;
+      color:#1f2937;
     }
-    /* Ô dữ liệu: căn giữa theo hàng; text căn giữa mặc định, riêng cột left thì căn trái */
-    td{
-      border:1px solid var(--border);
-      padding:8px 10px;
-      vertical-align:middle; /* căn giữa theo hàng */
-      text-align:center;     /* mặc định căn giữa theo cột */
-    }
-    td.left{ text-align:left; } /* giữ nguyên cột Tên khóa học căn trái */
 
-    .badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; color:var(--text)}
-    .badge.gray{background:#e5e7eb}
-    .badge.info{background:#dbeafe}
-    .badge.warn{background:#fef3c7}
-    .badge.ok{background:#dcfce7}
-    .nowrap{white-space:nowrap}
-    .session.today{
-      /* không in đậm, vẫn nền xanh nhạt */
-      background:var(--today-bg); padding:1px 6px; border-radius:6px;
+    td {
+      border-top:1px solid var(--border);
+      padding:12px 14px;
+      vertical-align:middle;
+      text-align:center;
+      font-size:14px;
     }
-    footer{margin-top:auto; padding-top:14px; color:var(--muted); font-size:14px; text-align:center}
 
-    /* Màn hình rất hẹp */
-    @media (max-width:420px){
-      .brand{font-size:135%}
-      table{min-width:720px}
+    tbody tr:first-child td { border-top:none; }
+
+    td.left, th.left { text-align:left; }
+
+    .badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      color:var(--text);
+      font-weight:600;
+    }
+
+    .badge.gray { background:var(--badge-gray); }
+    .badge.info { background:var(--badge-info); }
+    .badge.warn { background:var(--badge-warn); }
+    .badge.ok { background:var(--badge-ok); }
+    .badge.pause { background:var(--badge-pause); }
+
+    .status-note {
+      margin-top:6px;
+      font-size:13px;
+      color:#b91c1c;
+      text-align:center;
+      line-height:1.4;
+      white-space:pre-wrap;
+    }
+
+    .nowrap { white-space:nowrap; }
+
+    .session.today {
+      background:var(--today-bg);
+      padding:2px 8px;
+      border-radius:6px;
+      display:inline-block;
+    }
+
+    .link-btn {
+      background:none;
+      border:none;
+      color:var(--accent);
+      cursor:pointer;
+      font-weight:600;
+      text-decoration:underline;
+      padding:0;
+    }
+
+    .link-btn:hover { opacity:.8; }
+
+    .lookup {
+      background:var(--surface-strong);
+      border-radius:20px;
+      padding:24px;
+      box-shadow:var(--shadow);
+    }
+
+    .lookup-form {
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
+      gap:12px;
+      align-items:center;
+      margin-bottom:16px;
+      width:100%;
+    }
+
+    .lookup-form .btn {
+      justify-self:end;
+    }
+
+    .lookup-input {
+      width:100%;
+      padding:10px 14px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      font-size:15px;
+    }
+
+    .lookup-message {
+      font-size:14px;
+      color:var(--muted);
+      margin-bottom:16px;
+    }
+
+    .lookup-actions {
+      display:flex;
+      justify-content:flex-end;
+      margin-bottom:12px;
+      gap:12px;
+    }
+
+    .lookup-results {
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .lookup-panel h3 {
+      margin:0 0 12px;
+      font-size:18px;
+    }
+
+    .lookup-panel .table-wrap {
+      box-shadow:none;
+      border-radius:12px;
+    }
+
+    .lookup-table {
+      min-width:880px;
+    }
+
+    .empty-row {
+      text-align:center;
+      color:var(--muted);
+      padding:16px;
+    }
+
+    .featured {
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .featured-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+      gap:20px;
+    }
+
+    .featured-column {
+      background:var(--surface-strong);
+      border-radius:20px;
+      padding:24px;
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .featured-column h3 {
+      margin:0;
+      font-size:18px;
+    }
+
+    .card-stack {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .student-card {
+      display:flex;
+      gap:14px;
+      align-items:center;
+      padding:16px;
+      border-radius:14px;
+      border:1px solid rgba(37, 99, 235, 0.08);
+      background:linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(255,255,255,0.95));
+    }
+
+    .student-avatar {
+      width:64px;
+      height:64px;
+      border-radius:50%;
+      overflow:hidden;
+      flex-shrink:0;
+      background:var(--accent-soft);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      color:var(--accent);
+      font-size:20px;
+    }
+
+    .student-avatar img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .student-info {
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      font-size:14px;
+    }
+
+    .student-name {
+      font-weight:700;
+      font-size:15px;
+    }
+
+    .student-meta {
+      color:var(--muted);
+    }
+
+    .student-achievement {
+      margin-top:4px;
+      font-weight:600;
+      color:var(--accent);
+    }
+
+    .empty-text {
+      color:var(--muted);
+      font-size:14px;
+    }
+
+    footer {
+      margin-top:40px;
+      padding-top:16px;
+      color:var(--muted);
+      font-size:14px;
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      gap:0;
+      align-items:center;
+    }
+
+    footer > div {
+      margin:0;
+    }
+
+    .footer-space {
+      height:18px;
+      width:100%;
+    }
+
+    .sr-only {
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
+    .modal-open { overflow:hidden; }
+
+    .modal {
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:50;
+    }
+
+    .modal-backdrop {
+      position:absolute;
+      inset:0;
+      background:rgba(15,23,42,0.55);
+    }
+
+    .modal-card {
+      position:relative;
+      z-index:1;
+      width:min(920px, 92vw);
+      max-height:85vh;
+      background:var(--surface-strong);
+      border-radius:20px;
+      box-shadow:var(--shadow);
+      padding:24px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .modal-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+    }
+
+    .modal-heading {
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      flex:1;
+    }
+
+    .modal-title {
+      font-size:20px;
+      font-weight:700;
+      text-transform:uppercase;
+    }
+
+    .modal-meta {
+      font-size:calc(20px - 2pt);
+    }
+
+    .modal-actions {
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .btn-print { white-space:nowrap; }
+
+    .modal-close {
+      background:none;
+      border:none;
+      font-size:24px;
+      line-height:1;
+      cursor:pointer;
+      color:var(--muted);
+    }
+
+    .modal-table {
+      min-width:840px;
+    }
+
+    .print-banner {
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-start;
+    }
+
+    .print-brand {
+      font-weight:600;
+      font-size:14px;
+      text-align:left;
+    }
+
+    .print-heading {
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      font-weight:600;
+      font-size:20px;
+      line-height:1.4;
+      width:100%;
+    }
+
+    .print-heading > div {
+      line-height:1.4;
+    }
+
+    .print-heading [data-print-main] {
+      font-weight:700;
+    }
+
+    .print-heading [data-print-meta] {
+      font-size:18px;
+      font-weight:500;
+    }
+
+    .print-footer {
+      width:100%;
+      text-align:right;
+      font-weight:600;
+      font-size:12px;
+      margin-top:24px;
+    }
+
+    .modal-loader,
+    .modal-empty {
+      text-align:center;
+      color:var(--muted);
+      font-size:14px;
+      padding:12px 0;
+    }
+
+    @media (min-width:768px) {
+      .login-wrap { align-items:flex-end; }
+      .login-form {
+        grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) auto auto;
+        column-gap:12px;
+        row-gap:0;
+      }
+      .login-user { grid-column:1; }
+      .login-pass { grid-column:2; }
+      .login-remember { grid-column:3; }
+      .login-submit { grid-column:4; }
+      .lookup-results { flex-direction:column; }
+    }
+
+    @media (max-width:540px) {
+      body { padding:18px; }
+      .brand { font-size:135%; }
+      .table-wrap { border-radius:12px; }
+      .lookup { padding:18px; }
+      .lookup-form { grid-template-columns:1fr; }
+      .lookup-form .btn { justify-self:end; }
+      .featured-column { padding:18px; }
+      .modal-card { padding:18px; }
+      .login-pass input { width:100%; }
+    }
+
+    @media print {
+      body {
+        background:#fff;
+        padding:0;
+        color:#000;
+      }
+
+      .no-print { display:none !important; }
+
+      .topbar,
+      footer { display:none !important; }
+
+      .modal { display:none !important; }
+
+      body.print-modal .content { display:none !important; }
+      body.print-modal .modal {
+        display:block !important;
+        position:static;
+        inset:auto;
+        padding:0;
+      }
+      body.print-modal .modal-card {
+        width:100%;
+        max-height:none;
+        box-shadow:none;
+        border-radius:0;
+        padding:0 40px 40px 0;
+      }
+      body.print-modal .modal-card .table-wrap {
+        box-shadow:none;
+        border-radius:0;
+      }
+      body.print-modal .modal-header,
+      body.print-modal .modal-close,
+      body.print-modal .modal-actions { display:none !important; }
+      body.print-modal .print-only { display:block !important; }
+
+      body.print-lookup .modal { display:none !important; }
+      body.print-lookup .print-only { display:block !important; }
+
+      .print-banner {
+        padding:0 0 16px;
+      }
+
+      .print-footer {
+        padding:0 40px 0 0;
+      }
+
+      body.print-lookup .print-footer {
+        margin-top:16px;
+      }
+
+      body.print-lookup .content > :not(#lookupSection) { display:none !important; }
+
+      .print-banner {
+        align-items:flex-start;
+      }
+
+      .print-heading { align-self:stretch; }
+      .print-footer { align-self:flex-end; }
+
+      .modal-table {
+        width:100%;
+        min-width:0;
+      }
     }
   </style>
 </head>
-<body>
+<body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}" data-default-year="{{ $defaultYear }}">
   <div class="topbar">
-    <div class="brand"><a href="/">QUẢN LÝ ĐÀO TẠO</a></div>
+    <div class="brand"><a href="/">QUẢN LÝ ĐÀO TẠO &amp; HỌC VIÊN</a></div>
 
     <div class="login-wrap">
       @auth
@@ -133,110 +733,908 @@
         @endif
         <form class="login-form" method="post" action="{{ route('site.login') }}">
           @csrf
-          <!-- Hàng 1 (PC): user | pass  — Mobile: 2 hàng -->
           <div class="login-row login-user">
             <input type="text" name="user" value="{{ old('user') }}" placeholder="User / Email" required>
           </div>
           <div class="login-row login-pass">
             <input type="password" name="password" placeholder="Password" required>
           </div>
-
-          <!-- Hàng 2: Ghi nhớ + Đăng nhập (căn phải) -->
-          <div class="login-actions">
-            <label class="remember">
-              <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
-              Ghi nhớ
-            </label>
-            <button type="submit" class="btn btn-primary">Đăng nhập</button>
-          </div>
+          <label class="remember login-remember">
+            <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
+            Ghi nhớ
+          </label>
+          <button type="submit" class="btn btn-primary login-submit">Đăng nhập</button>
         </form>
       @endauth
     </div>
   </div>
 
-  <h2>Kế hoạch đào tạo</h2>
+  <main class="content">
+    <section>
+      <h2 class="section-title">KẾ HOẠCH ĐÀO TẠO</h2>
 
-  {{-- 3 filter riêng lẻ: Tuần -> Tháng -> Năm (giữ logic đã thống nhất) --}}
-  <form class="filters" method="get" action="" id="filterForm">
-    <label>Tuần:
-      <select id="week" name="week" onchange="onWeekChange()">
-        <option value="">— Không lọc theo tuần —</option>
-        @foreach($weeks as $w)
-          <option value="{{ $w }}" {{ $filterMode==='week' && (int)$week===(int)$w ? 'selected' : '' }}>{{ $w }}</option>
-        @endforeach
-      </select>
-    </label>
+      <form class="filters" method="get" action="" id="filterForm">
+        <label class="filter-field">Tuần:
+          <select id="week" name="week" onchange="onWeekChange()">
+            <option value="">— Không lọc theo tuần —</option>
+            @foreach($weeks as $opt)
+              <option value="{{ $opt['value'] }}" {{ $filterMode==='week' && (int)$week===(int)$opt['value'] ? 'selected' : '' }}>{{ $opt['label'] }}</option>
+            @endforeach
+          </select>
+        </label>
 
-    <label>Tháng:
-      <select id="month" name="month" onchange="onMonthChange()">
-        <option value="">— Không lọc theo tháng —</option>
-        @foreach($months as $m)
-          <option value="{{ $m }}" {{ $filterMode==='month' && (int)$month===(int)$m ? 'selected' : '' }}>{{ $m }}</option>
-        @endforeach
-      </select>
-    </label>
+        <div class="filter-pair">
+          <label class="filter-field">Tháng:
+            <select id="month" name="month" onchange="onMonthChange()">
+              <option value="">— Không lọc theo tháng —</option>
+              @foreach($months as $m)
+                <option value="{{ $m }}" {{ $filterMode==='month' && (int)$month===(int)$m ? 'selected' : '' }}>{{ $m }}</option>
+              @endforeach
+            </select>
+          </label>
 
-    <label>Năm:
-      <select id="year" name="year" onchange="onYearChange()">
-        <option value="">— Không lọc theo năm —</option>
-        @foreach($years as $y)
-          <option value="{{ $y }}" {{ (int)$year===(int)$y && $filterMode!=='week' ? 'selected' : '' }}>{{ $y }}</option>
-        @endforeach
-      </select>
-    </label>
+          <label class="filter-field">Năm:
+            <select id="year" name="year" onchange="onYearChange()">
+              <option value="">— Không lọc theo năm —</option>
+              @foreach($years as $y)
+                <option value="{{ $y }}" {{ (int)$year===(int)$y && $filterMode!=='week' ? 'selected' : '' }}>{{ $y }}</option>
+              @endforeach
+            </select>
+          </label>
+        </div>
 
-    <noscript><button type="submit" class="btn">Lọc</button></noscript>
-  </form>
+        <noscript><button type="submit" class="btn">Lọc</button></noscript>
+      </form>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th class="nowrap">TT</th>
-          <th class="nowrap">Mã khóa</th>
-          <th>Tên khóa học</th>
-          <th>Giảng viên</th>
-          <th>Ngày, Giờ đào tạo</th>
-          <th>Địa điểm</th>
-          <th class="nowrap">Tuần</th>
-          <th>Trạng thái</th>
-        </tr>
-      </thead>
-      <tbody>
-        @forelse($rows as $i => $r)
-          <tr>
-            <td class="nowrap">{{ $i+1 }}</td>
-            <td class="nowrap">{{ $r['ma_khoa_hoc'] }}</td>
-            <td class="left">{{ $r['ten_khoa_hoc'] }}</td> {{-- chỉ cột này căn trái --}}
-            <td>{{ $r['giang_vien'] }}</td>
-            <td>{!! $r['ngay_gio_html'] !!}</td>
-            <td>{!! $r['dia_diem_html'] !!}</td>
-            <td class="nowrap">{{ $r['tuan'] }}</td>
-            <td>
-              @php $classes = ['Dự thảo'=>'gray','Ban hành'=>'info','Đang đào tạo'=>'warn','Kết thúc'=>'ok']; @endphp
-              <span class="badge {{ $classes[$r['trang_thai']] ?? 'gray' }}">{{ $r['trang_thai'] }}</span>
-            </td>
-          </tr>
-        @empty
-          <tr><td colspan="8" style="text-align:center; color:var(--muted)">Không có dữ liệu.</td></tr>
-        @endforelse
-      </tbody>
-    </table>
-  </div>
+      <div class="table-wrap">
+        <table class="training-table">
+          <thead>
+            <tr>
+              <th class="nowrap">TT</th>
+              <th class="nowrap">Mã khóa</th>
+              <th>Tên khóa học</th>
+              <th>Giảng viên</th>
+              <th>Ngày, Giờ đào tạo</th>
+              <th>Địa điểm</th>
+              <th class="nowrap">Tuần</th>
+              <th class="nowrap">DS Học viên</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse($rows as $i => $r)
+              <tr>
+                <td class="nowrap">{{ $i + 1 }}</td>
+                <td class="nowrap">{{ $r['ma_khoa_hoc'] }}</td>
+                <td class="left">{{ $r['ten_khoa_hoc'] }}</td>
+                <td>{{ $r['giang_vien'] }}</td>
+                <td>{!! $r['ngay_gio_html'] !!}</td>
+                <td>{!! $r['dia_diem_html'] !!}</td>
+                <td class="nowrap">{{ $r['tuan'] }}</td>
+                <td class="nowrap">
+                  @if($r['registered_students_count'] > 0)
+                    <button
+                      type="button"
+                      class="link-btn"
+                      data-course="{{ $r['id'] }}"
+                      data-course-name="{{ $r['ten_khoa_hoc'] }}"
+                      data-course-schedule="{{ $r['primary_schedule_text'] }}"
+                      data-course-location="{{ $r['primary_location_text'] }}"
+                    >
+                      {{ $r['registered_students_count'] }} học viên
+                    </button>
+                  @else
+                    <span style="color:var(--muted);">Chưa có</span>
+                  @endif
+                </td>
+                <td>
+                  @php $classes = ['Dự thảo'=>'gray','Ban hành'=>'info','Đang đào tạo'=>'warn','Kết thúc'=>'ok','Tạm hoãn'=>'pause']; @endphp
+                  <span class="badge {{ $classes[$r['trang_thai']] ?? 'gray' }}">{{ $r['trang_thai'] }}</span>
+                  @if($r['trang_thai'] === 'Tạm hoãn' && $r['ly_do_tam_hoan'] !== '')
+                    <div class="status-note">{!! nl2br(e($r['ly_do_tam_hoan'])) !!}</div>
+                  @endif
+                </td>
+              </tr>
+            @empty
+              <tr>
+                <td colspan="9" class="empty-row">Không có dữ liệu.</td>
+              </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="lookup" id="lookupSection">
+      <h2 class="section-title">TRA CỨU KẾT QUẢ HỌC TẬP</h2>
+      <form class="lookup-form" id="lookupForm">
+        <label class="sr-only" for="lookupInput">Nhập Mã số, Họ &amp; Tên hoặc Email</label>
+        <input type="text" class="lookup-input" id="lookupInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Tra cứu</button>
+      </form>
+      <div class="lookup-message" id="lookupMessage" hidden></div>
+      <div class="lookup-actions no-print" id="lookupActions" hidden>
+        <button type="button" class="btn btn-secondary no-print" id="lookupExport">Xuất danh sách</button>
+      </div>
+      <div class="lookup-results" id="lookupResults" hidden>
+        <div class="lookup-panel">
+          <h3>Khóa học đã hoàn thành</h3>
+          <div class="table-wrap">
+            <table class="lookup-table" id="completedTable">
+              <thead>
+                <tr>
+                  <th>TT</th>
+                  <th>MS</th>
+                  <th>Họ &amp; Tên</th>
+                  <th>Công ty/Ban NVQT</th>
+                  <th>THACO/TĐTV</th>
+                  <th>Tên khóa học</th>
+                  <th>ĐTB</th>
+                  <th>Giờ thực học</th>
+                  <th>Ngày hoàn thành</th>
+                  <th>Chứng nhận</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div class="modal-empty" id="completedEmpty" hidden>Chưa có dữ liệu phù hợp.</div>
+          </div>
+        </div>
+        <div class="lookup-panel">
+          <h3>Khóa học chưa hoàn thành</h3>
+          <div class="table-wrap">
+            <table class="lookup-table" id="incompletedTable">
+              <thead>
+                <tr>
+                  <th>TT</th>
+                  <th>MS</th>
+                  <th>Họ &amp; Tên</th>
+                  <th>Công ty/Ban NVQT</th>
+                  <th>THACO/TĐTV</th>
+                  <th>Tên khóa học</th>
+                  <th>Lý do không hoàn thành</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div class="modal-empty" id="incompletedEmpty" hidden>Không có Khóa học chưa hoàn thành.</div>
+          </div>
+        </div>
+      </div>
+      <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
+    </section>
+
+    <section class="featured">
+      <h2 class="section-title">HỌC VIÊN TIÊU BIỂU</h2>
+      <div class="featured-grid">
+        <div class="featured-column">
+          <h3>Năm {{ date('Y') }}</h3>
+          @if(!empty($featuredYear))
+            <div class="card-stack">
+              @foreach($featuredYear as $card)
+                @php
+                  $name = trim($card['name'] ?? '');
+                  $initials = collect(preg_split('/\s+/u', $name))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('');
+                  if ($initials === '') { $initials = 'HV'; }
+                @endphp
+                <article class="student-card">
+                  <div class="student-avatar">
+                    @if(!empty($card['avatar']))
+                      <img src="{{ $card['avatar'] }}" alt="Ảnh học viên {{ $card['name'] }}">
+                    @else
+                      {{ $initials }}
+                    @endif
+                  </div>
+                  <div class="student-info">
+                    <div class="student-name">{{ $card['ms'] }} — {{ $card['name'] }}</div>
+                    <div class="student-meta">{{ $card['position'] }}</div>
+                    @if(!empty($card['company']) && $card['company'] !== '—')
+                      <div class="student-meta">{{ $card['company'] }}</div>
+                    @endif
+                    @if(!empty($card['group']) && $card['group'] !== '—')
+                      <div class="student-meta">{{ $card['group'] }}</div>
+                    @endif
+                    <div class="student-achievement">{{ $card['achievement'] }}</div>
+                  </div>
+                </article>
+              @endforeach
+            </div>
+          @else
+            <p class="empty-text">Chưa có dữ liệu trong năm hiện tại.</p>
+          @endif
+        </div>
+        <div class="featured-column">
+          <h3>Trong 3 tháng qua</h3>
+          @if(!empty($featuredRecent))
+            <div class="card-stack">
+              @foreach($featuredRecent as $card)
+                @php
+                  $name = trim($card['name'] ?? '');
+                  $initials = collect(preg_split('/\s+/u', $name))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('');
+                  if ($initials === '') { $initials = 'HV'; }
+                @endphp
+                <article class="student-card">
+                  <div class="student-avatar">
+                    @if(!empty($card['avatar']))
+                      <img src="{{ $card['avatar'] }}" alt="Ảnh học viên {{ $card['name'] }}">
+                    @else
+                      {{ $initials }}
+                    @endif
+                  </div>
+                  <div class="student-info">
+                    <div class="student-name">{{ $card['ms'] }} — {{ $card['name'] }}</div>
+                    <div class="student-meta">{{ $card['position'] }}</div>
+                    @if(!empty($card['company']) && $card['company'] !== '—')
+                      <div class="student-meta">{{ $card['company'] }}</div>
+                    @endif
+                    @if(!empty($card['group']) && $card['group'] !== '—')
+                      <div class="student-meta">{{ $card['group'] }}</div>
+                    @endif
+                    <div class="student-achievement">{{ $card['achievement'] }}</div>
+                  </div>
+                </article>
+              @endforeach
+            </div>
+          @else
+            <p class="empty-text">Chưa có dữ liệu trong 3 tháng qua.</p>
+          @endif
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    Copyright © {{ date('Y') }} nfuongtech.io.vn. All rights reserved.
+    <div>Copyright © {{ date('Y') }} nfuongtech.io.vn. All rights reserved.</div>
+    <div class="footer-space" aria-hidden="true">&nbsp;</div>
   </footer>
+
+  <div class="modal" id="registrationsModal" hidden>
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal-card">
+      <div class="print-only print-banner" aria-hidden="true">
+        <div class="print-brand">TRƯỜNG CAO ĐẲNG THACO</div>
+        <div class="print-heading" id="modalPrintTitle">
+          <div data-print-main>Danh sách học viên</div>
+          <div data-print-meta></div>
+        </div>
+      </div>
+      <div class="modal-header">
+        <div class="modal-heading no-print">
+          <div class="modal-title" id="modalTitle">Danh sách học viên</div>
+          <div class="modal-meta" id="modalMeta" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-print no-print" id="modalExport">Xuất danh sách</button>
+          <button type="button" class="modal-close" data-modal-close aria-label="Đóng">×</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>TT</th>
+              <th>Mã số</th>
+              <th class="left">Họ &amp; Tên</th>
+              <th>Năm sinh</th>
+              <th class="left">Chức vụ</th>
+              <th class="left">Đơn vị</th>
+            </tr>
+          </thead>
+          <tbody id="modalBody"></tbody>
+        </table>
+        <div class="modal-empty" id="modalEmpty" hidden>Chưa có học viên đăng ký.</div>
+      </div>
+      <div class="print-only print-footer" aria-hidden="true">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
+    </div>
+  </div>
 
   <script>
     const form  = document.getElementById('filterForm');
     const week  = document.getElementById('week');
     const month = document.getElementById('month');
     const year  = document.getElementById('year');
+    const defaultYearValue = (document.body.dataset.defaultYear || '').toString();
 
     function onWeekChange(){ month.value=''; year.value=''; form.submit(); }
-    function onMonthChange(){ week.value=''; if(!year.value){ year.value=new Date().getFullYear().toString(); } form.submit(); }
+    function onMonthChange(){
+      week.value='';
+      if(!year.value){
+        year.value = defaultYearValue || new Date().getFullYear().toString();
+      }
+      form.submit();
+    }
     function onYearChange(){ week.value=''; month.value=''; form.submit(); }
+
+    const modal = document.getElementById('registrationsModal');
+    const modalBody = document.getElementById('modalBody');
+    const modalEmpty = document.getElementById('modalEmpty');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMeta = document.getElementById('modalMeta');
+    const modalPrintTitle = document.getElementById('modalPrintTitle');
+    const modalPrintMain = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-main]') : null;
+    const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
+    const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
+    const registrationButtons = document.querySelectorAll('[data-course]');
+    const modalExportButton = document.getElementById('modalExport');
+    const lookupActions = document.getElementById('lookupActions');
+    const lookupExportButton = document.getElementById('lookupExport');
+    const lookupPrintFooter = document.getElementById('lookupPrintFooter');
+
+    const pdfSources = [
+      @json(asset('vendor/html2pdf.bundle.min.js')),
+      'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+      'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js'
+    ].filter(Boolean);
+    let pdfLoadPromise = null;
+
+    
+    function slugifyFileName(value){
+      return (value || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'danh-sach';
+    }
+
+    function cloneWithPrintStyles(element, options = {}){
+      const { padding = null, remove = [] } = options;
+      const clone = element.cloneNode(true);
+      if(clone.hasAttribute('hidden')){
+        clone.removeAttribute('hidden');
+      }
+      remove.forEach(selector => {
+        clone.querySelectorAll(selector).forEach(node => node.remove());
+      });
+      clone.querySelectorAll('.no-print').forEach(node => node.remove());
+      clone.querySelectorAll('.print-only').forEach(node => {
+        node.classList.remove('print-only');
+        node.style.display = 'block';
+      });
+      clone.querySelectorAll('[hidden]').forEach(node => node.removeAttribute('hidden'));
+      clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+      clone.querySelectorAll('.table-wrap').forEach(wrapper => {
+        wrapper.style.overflow = 'visible';
+        wrapper.style.boxShadow = 'none';
+        wrapper.style.borderRadius = '0';
+      });
+      if(padding !== null){
+        clone.style.padding = padding;
+      }
+      clone.style.boxShadow = 'none';
+      clone.style.borderRadius = '0';
+      clone.style.width = '100%';
+      clone.style.maxHeight = 'none';
+      clone.style.background = '#ffffff';
+      clone.querySelectorAll('table').forEach(table => {
+        table.style.width = '100%';
+        table.style.minWidth = '0';
+        table.style.tableLayout = 'auto';
+      });
+      clone.querySelectorAll('th, td').forEach(cell => {
+        cell.style.whiteSpace = 'normal';
+        cell.style.wordBreak = 'break-word';
+      });
+      return clone;
+    }
+
+    function ensurePdfLibrary(){
+      return typeof window.html2pdf !== 'undefined';
+    }
+
+    function loadPdfLibrary(){
+      if(ensurePdfLibrary()){
+        return Promise.resolve();
+      }
+
+      if(pdfLoadPromise){
+        return pdfLoadPromise;
+      }
+
+      pdfLoadPromise = new Promise((resolve, reject) => {
+        const sources = [...pdfSources];
+
+        function tryNext(){
+          const src = sources.shift();
+          if(!src){
+            reject(new Error('PDF source unavailable'));
+            return;
+          }
+
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          script.onload = () => {
+            if(ensurePdfLibrary()){
+              resolve();
+            } else {
+              script.remove();
+              tryNext();
+            }
+          };
+          script.onerror = () => {
+            script.remove();
+            tryNext();
+          };
+          document.head.appendChild(script);
+        }
+
+        tryNext();
+      }).finally(() => {
+        if(!ensurePdfLibrary()){
+          pdfLoadPromise = null;
+        }
+      });
+
+      return pdfLoadPromise;
+    }
+
+    function exportNodeToPdf(node, filename){
+      if(!ensurePdfLibrary()){
+        return Promise.reject(new Error('PDF library unavailable'));
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.boxSizing = 'border-box';
+      container.style.pointerEvents = 'none';
+      container.style.opacity = '0.01';
+      container.style.zIndex = '0';
+      const orientation = 'landscape';
+      const pageWidth = orientation === 'landscape' ? 297 : 210;
+      const pageHeight = orientation === 'landscape' ? 210 : 297;
+      container.style.width = `${pageWidth}mm`;
+      container.style.maxWidth = `${pageWidth}mm`;
+      container.style.minWidth = `${pageWidth}mm`;
+      container.style.minHeight = `${pageHeight}mm`;
+      container.style.maxHeight = 'none';
+      container.style.overflow = 'visible';
+      container.style.padding = '20px';
+      container.style.background = '#ffffff';
+      container.appendChild(node);
+      document.body.appendChild(container);
+
+      const widthPx = Math.max(container.scrollWidth, container.offsetWidth, node.scrollWidth || 0);
+      const heightPx = Math.max(container.scrollHeight, container.offsetHeight, node.scrollHeight || 0);
+
+      const options = {
+        margin: 10,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          scrollY: 0,
+          backgroundColor: '#ffffff',
+          windowWidth: widthPx + 40,
+          windowHeight: heightPx + 40
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation },
+        pagebreak: { mode: ['css', 'legacy'] },
+      };
+
+      const schedule = window.requestAnimationFrame || function(callback){ return window.setTimeout(callback, 0); };
+
+      return new Promise((resolve, reject) => {
+        schedule(() => {
+          window.html2pdf().set(options).from(container).save()
+            .then(resolve)
+            .catch(reject)
+            .finally(() => {
+              if(container.parentNode){
+                container.parentNode.removeChild(container);
+              }
+            });
+        });
+      });
+    }
+
+    function exportRegistrationsPdf(){
+      if(!modal) return;
+      const card = modal.querySelector('.modal-card');
+      if(!card) return;
+
+      const titleText = (modal.dataset.exportTitle || (modalTitle ? modalTitle.textContent : '') || 'Danh sách học viên').trim();
+      const fileName = `${slugifyFileName(titleText)}.pdf`;
+
+      loadPdfLibrary()
+        .then(() => {
+          const clone = cloneWithPrintStyles(card, { padding: '24px', remove: ['.modal-actions'] });
+          return exportNodeToPdf(clone, fileName);
+        })
+        .catch(() => {
+          alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+        });
+    }
+
+    if(modalExportButton){
+      modalExportButton.addEventListener('click', exportRegistrationsPdf);
+    }
+
+    registrationButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const courseId = btn.dataset.course;
+        if(!courseId) return;
+        const courseName = btn.dataset.courseName || '';
+        const courseSchedule = btn.dataset.courseSchedule || '';
+        const courseLocation = btn.dataset.courseLocation || '';
+        openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation);
+      });
+    });
+
+    function openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation){
+      const urlTemplate = document.body.dataset.registrationsUrl || '';
+      if(!urlTemplate) return;
+      const url = urlTemplate.replace('__ID__', encodeURIComponent(courseId));
+
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      const baseTitle = courseName ? `Danh sách học viên “${courseName}”` : 'Danh sách học viên';
+      const metaParts = [];
+      if(courseSchedule){ metaParts.push(courseSchedule); }
+      if(courseLocation){ metaParts.push(courseLocation); }
+      const metaText = metaParts.length ? metaParts.join(', ') : '';
+      const uppercaseTitle = baseTitle.toLocaleUpperCase('vi-VN');
+
+      if(modalTitle){
+        modalTitle.textContent = uppercaseTitle;
+      }
+      if(modalPrintMain){
+        modalPrintMain.textContent = uppercaseTitle;
+      }
+      if(modalPrintMeta){
+        modalPrintMeta.textContent = metaText;
+      }
+      modal.dataset.exportTitle = uppercaseTitle;
+      modal.dataset.exportMeta = metaText;
+      if(modalMeta){
+        modalMeta.textContent = metaText;
+        if(metaText){
+          modalMeta.removeAttribute('hidden');
+        } else {
+          modalMeta.setAttribute('hidden', '');
+        }
+      }
+      modalBody.innerHTML = '';
+      modalEmpty.hidden = true;
+      modalEmpty.textContent = 'Chưa có học viên đăng ký.';
+
+      fetch(url)
+        .then(res => {
+          if(!res.ok){
+            throw res;
+          }
+          return res.json();
+        })
+        .then(data => {
+          const registrations = Array.isArray(data.registrations) ? data.registrations : [];
+          if(!registrations.length){
+            modalEmpty.hidden = false;
+            return;
+          }
+
+          const fragment = document.createDocumentFragment();
+          registrations.forEach(item => {
+            const tr = document.createElement('tr');
+            const cells = [
+              { value: item.stt ?? '' },
+              { value: item.ms ?? '—' },
+              { value: item.ho_ten ?? '—', align: 'left' },
+              { value: item.nam_sinh ?? '—' },
+              { value: item.chuc_vu ?? '—', align: 'left' },
+              { value: normalizeUnitText(item.don_vi), align: 'left' },
+            ];
+
+            cells.forEach(cell => {
+              const td = document.createElement('td');
+              if(cell.align === 'left'){
+                td.classList.add('left');
+              }
+              const content = (cell.value !== undefined && cell.value !== null && cell.value !== '') ? cell.value : '—';
+              td.textContent = content;
+              tr.appendChild(td);
+            });
+
+            fragment.appendChild(tr);
+          });
+
+          modalBody.appendChild(fragment);
+        })
+        .catch(async error => {
+          modalEmpty.hidden = false;
+          modalEmpty.textContent = 'Không thể tải danh sách học viên.';
+          if(error && typeof error.json === 'function'){
+            try {
+              const detail = await error.json();
+              if(detail && detail.message){
+                modalEmpty.textContent = detail.message;
+              }
+            } catch(_) {}
+          }
+        });
+    }
+
+    function closeModal(){
+      modal.hidden = true;
+      document.body.classList.remove('modal-open');
+    }
+
+    modalCloseTriggers.forEach(trigger => trigger.addEventListener('click', closeModal));
+    document.addEventListener('keydown', event => {
+      if(event.key === 'Escape' && !modal.hidden){
+        closeModal();
+      }
+    });
+
+    const lookupForm = document.getElementById('lookupForm');
+    const lookupInput = document.getElementById('lookupInput');
+    const lookupMessage = document.getElementById('lookupMessage');
+    const lookupResults = document.getElementById('lookupResults');
+    const completedBody = document.querySelector('#completedTable tbody');
+    const incompletedBody = document.querySelector('#incompletedTable tbody');
+    const completedEmpty = document.getElementById('completedEmpty');
+    const incompletedEmpty = document.getElementById('incompletedEmpty');
+    const lookupUrl = document.body.dataset.lookupUrl || '';
+
+    function exportLookupPdf(){
+      if(!lookupResults || lookupResults.hidden){
+        alert('Không có dữ liệu để xuất.');
+        return;
+      }
+
+      const term = lookupInput ? lookupInput.value.trim() : '';
+      const key = term || 'tra-cuu';
+      const filename = slugifyFileName('ket-qua-hoc-tap-' + key) + '.pdf';
+
+      loadPdfLibrary()
+        .then(() => {
+          const wrapper = document.createElement('div');
+          wrapper.style.background = '#ffffff';
+          wrapper.style.width = '100%';
+          wrapper.style.display = 'flex';
+          wrapper.style.flexDirection = 'column';
+          wrapper.style.gap = '16px';
+          wrapper.style.padding = '24px';
+
+          const heading = document.createElement('h2');
+          heading.textContent = 'TRA CỨU KẾT QUẢ HỌC TẬP';
+          heading.style.textAlign = 'center';
+          heading.style.margin = '0';
+          wrapper.appendChild(heading);
+
+          if(term){
+            const metaLine = document.createElement('div');
+            metaLine.textContent = `Từ khóa: ${term}`;
+            metaLine.style.textAlign = 'center';
+            metaLine.style.fontSize = '14px';
+            wrapper.appendChild(metaLine);
+          }
+
+          const resultsClone = cloneWithPrintStyles(lookupResults);
+          wrapper.appendChild(resultsClone);
+
+          if(lookupPrintFooter){
+            const footerClone = cloneWithPrintStyles(lookupPrintFooter);
+            footerClone.style.textAlign = 'right';
+            wrapper.appendChild(footerClone);
+          }
+
+          return exportNodeToPdf(wrapper, filename);
+        })
+        .catch(() => {
+          alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
+        });
+    }
+
+    if(lookupExportButton){
+      lookupExportButton.addEventListener('click', exportLookupPdf);
+    }
+
+    function setLookupMessage(message){
+      if(!lookupMessage) return;
+      if(message && message.trim() !== ''){
+        lookupMessage.textContent = message;
+        lookupMessage.hidden = false;
+      } else {
+        lookupMessage.textContent = '';
+        lookupMessage.hidden = true;
+      }
+    }
+
+    setLookupMessage('');
+
+    lookupForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const query = lookupInput.value.trim();
+      if(!query){
+        setLookupMessage('Vui lòng nhập thông tin cần tra cứu.');
+        if(lookupResults){
+          lookupResults.hidden = true;
+        }
+        if(lookupActions){
+          lookupActions.hidden = true;
+        }
+        return;
+      }
+
+      setLookupMessage('Đang tra cứu...');
+      completedBody.innerHTML = '';
+      incompletedBody.innerHTML = '';
+      completedEmpty.hidden = true;
+      incompletedEmpty.hidden = true;
+      if(lookupResults){
+        lookupResults.hidden = false;
+      }
+      if(lookupActions){
+        lookupActions.hidden = true;
+      }
+
+      fetch(lookupUrl + '?q=' + encodeURIComponent(query))
+        .then(res => {
+          if(res.status === 422){
+            return res.json().then(data => {
+              throw new Error(data.message || 'Vui lòng kiểm tra thông tin nhập.');
+            });
+          }
+          if(!res.ok){
+            throw new Error('Không thể tra cứu kết quả.');
+          }
+          return res.json();
+        })
+        .then(data => {
+          const completed = Array.isArray(data.completed) ? data.completed : [];
+          const incompleted = Array.isArray(data.incompleted) ? data.incompleted : [];
+          const hasResult = completed.length || incompleted.length;
+          setLookupMessage(hasResult ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
+          renderLookupTable(completedBody, completedEmpty, completed, true);
+          renderLookupTable(incompletedBody, incompletedEmpty, incompleted, false);
+          if(lookupActions){
+            lookupActions.hidden = !hasResult;
+          }
+        })
+        .catch(error => {
+          setLookupMessage(error.message || 'Không thể tra cứu kết quả.');
+          completedEmpty.hidden = false;
+          incompletedEmpty.hidden = false;
+          if(lookupActions){
+            lookupActions.hidden = true;
+          }
+        });
+    });
+
+    function renderLookupTable(body, emptyEl, items, isCompleted){
+      body.innerHTML = '';
+      if(!Array.isArray(items) || !items.length){
+        emptyEl.hidden = false;
+        return;
+      }
+      emptyEl.hidden = true;
+
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        if(isCompleted){
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
+          const certificateCell = formatCertificateCell(item.chung_nhan, item.chung_nhan_ten);
+          const cells = [
+            item.stt ?? '',
+            item.ms ?? '—',
+            item.ho_ten ?? '—',
+            item.cong_ty ?? '—',
+            item.thaco ?? '—',
+            courseTitle,
+            formatScore(item.dtb),
+            formatHours(item.gio_thuc_hoc),
+            item.ngay_hoan_thanh ?? '—',
+            certificateCell,
+          ];
+          cells.forEach(cell => tr.appendChild(createCell(cell)));
+        } else {
+          const courseTitle = formatCourseTitle(item.ten_khoa_hoc, item.ma_khoa);
+          const cells = [
+            item.stt ?? '',
+            item.ms ?? '—',
+            item.ho_ten ?? '—',
+            item.cong_ty ?? '—',
+            item.thaco ?? '—',
+            courseTitle,
+            item.ly_do ?? '—'
+          ];
+          cells.forEach(cell => tr.appendChild(createCell(cell)));
+        }
+        fragment.appendChild(tr);
+      });
+      body.appendChild(fragment);
+    }
+
+    function createCell(cell){
+      const td = document.createElement('td');
+      if(cell && typeof cell === 'object' && cell.href){
+        const link = document.createElement('a');
+        link.href = cell.href;
+        link.textContent = cell.label || cell.href;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        td.appendChild(link);
+      } else {
+        td.textContent = (cell !== undefined && cell !== null && cell !== '') ? cell : '—';
+      }
+      return td;
+    }
+
+    function formatCourseTitle(name, code){
+      const title = (name ?? '').toString().trim();
+      const courseCode = (code ?? '').toString().trim();
+      if(title && courseCode){
+        return `${title}, ${courseCode}`;
+      }
+      if(title){
+        return title;
+      }
+      if(courseCode){
+        return courseCode;
+      }
+      return '—';
+    }
+
+    function formatCertificateCell(url, label){
+      if(!url){
+        return '—';
+      }
+      const text = (label ?? '').toString().trim() || extractFileName(url) || 'Chứng nhận';
+      return { href: url, label: text };
+    }
+
+    function extractFileName(value){
+      if(!value){
+        return '';
+      }
+      try {
+        const parsed = new URL(value, window.location.origin);
+        const pathname = decodeURIComponent(parsed.pathname || '');
+        const parts = pathname.split('/').filter(Boolean);
+        return parts.length ? parts[parts.length - 1] : '';
+      } catch(_) {
+        const segments = decodeURIComponent(String(value)).split('/').filter(Boolean);
+        return segments.length ? segments[segments.length - 1] : '';
+      }
+    }
+
+    function normalizeUnitText(value){
+      if(value === undefined || value === null){
+        return '—';
+      }
+
+      const stringValue = String(value).trim();
+      if(stringValue === ''){
+        return '—';
+      }
+
+      const replaced = stringValue.replace(/\s*•\s*/g, ', ');
+      const collapsed = replaced.replace(/\s{2,}/g, ' ').trim();
+
+      return collapsed !== '' ? collapsed : '—';
+    }
+
+    function formatScore(value){
+      const number = parseFloat(value);
+      if(Number.isFinite(number)){
+        return number.toFixed(number % 1 === 0 ? 0 : 1);
+      }
+      return '—';
+    }
+
+    function formatHours(value){
+      const number = parseFloat(value);
+      if(Number.isFinite(number)){
+        const options = number % 1 === 0 ? { minimumFractionDigits:0, maximumFractionDigits:0 } : { minimumFractionDigits:1, maximumFractionDigits:1 };
+        return number.toLocaleString('vi-VN', options);
+      }
+      return '—';
+    }
   </script>
 </body>
 </html>
