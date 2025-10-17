@@ -1068,8 +1068,6 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==" crossorigin="anonymous" referrerpolicy="no-referrer" data-html2pdf="true"></script>
-
   <script>
     const form  = document.getElementById('filterForm');
     const week  = document.getElementById('week');
@@ -1139,124 +1137,93 @@
       return clone;
     }
 
-    let pdfLibraryPromise = null;
-
-    function ensurePdfLibrary(){
-      if(typeof window.html2pdf !== 'undefined'){
-        return Promise.resolve(window.html2pdf);
+    function exportNodeToPdf(node, filename){
+      const printWindow = window.open('', '_blank', 'noopener');
+      if(!printWindow){
+        alert('Trình duyệt đã chặn cửa sổ in. Vui lòng cho phép cửa sổ bật lên và thử lại.');
+        return Promise.resolve();
       }
 
-      if(pdfLibraryPromise){
-        return pdfLibraryPromise;
-      }
+      const safeTitle = (filename || 'danh-sach').replace(/\.pdf$/i, '');
+      const styles = `
+        <!doctype html>
+        <html lang="vi">
+          <head>
+            <meta charset="utf-8">
+            <title>${safeTitle}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              *, *::before, *::after { box-sizing: border-box; }
+              html, body { height: auto; }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+                color: #111827;
+                background: #ffffff;
+              }
+              table { width: 100%; border-collapse: collapse; }
+              th, td {
+                border: 1px solid #d1d5db;
+                padding: 6px 8px;
+                font-size: 12px;
+                text-align: center;
+              }
+              th { background: #f3f4f6; font-weight: 600; }
+              .left { text-align: left; }
+              .nowrap { white-space: nowrap; }
+              .print-banner, .print-footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+              }
+              .print-banner { margin-bottom: 12px; }
+              .print-footer { margin-top: 18px; }
+            </style>
+          </head>
+          <body></body>
+        </html>
+      `;
 
-      pdfLibraryPromise = new Promise((resolve, reject) => {
-        let script = document.querySelector('script[data-html2pdf]');
-        let intervalId = null;
-        let timeoutId = null;
+      printWindow.document.open();
+      printWindow.document.write(styles);
+      printWindow.document.close();
 
-        const cleanup = () => {
-          if(script){
-            script.removeEventListener('load', handleLoad);
-            script.removeEventListener('error', handleError);
-          }
-          if(intervalId !== null){
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          if(timeoutId !== null){
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
-        };
+      const targetBody = printWindow.document.body;
+      targetBody.style.margin = '0';
+      targetBody.style.padding = '20px';
+      targetBody.style.display = 'flex';
+      targetBody.style.flexDirection = 'column';
+      targetBody.style.gap = '16px';
+      targetBody.appendChild(node);
 
-        const resolveIfReady = () => {
-          if(typeof window.html2pdf !== 'undefined'){
-            cleanup();
-            resolve(window.html2pdf);
-            return true;
-          }
-          return false;
-        };
-
-        function handleLoad(){
-          if(!resolveIfReady()){
-            cleanup();
-            pdfLibraryPromise = null;
-            reject(new Error('html2pdf unavailable'));
-          }
-        }
-
-        function handleError(){
-          cleanup();
-          pdfLibraryPromise = null;
-          reject(new Error('html2pdf failed to load'));
-        }
-
-        if(!script){
-          script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-          script.integrity = 'sha512-odHiC9kTm6BBFzEvFJi1dV0t1Ik5+pUvNbK/CtYQgQki71R+xVQUNBMNHDT6vKrrfE0kP7FpC18r0DutAN3/A==';
-          script.crossOrigin = 'anonymous';
-          script.referrerPolicy = 'no-referrer';
-          script.dataset.html2pdf = 'true';
-          script.addEventListener('load', handleLoad, { once: true });
-          script.addEventListener('error', handleError, { once: true });
-          document.head.appendChild(script);
-        } else {
-          script.addEventListener('load', handleLoad, { once: true });
-          script.addEventListener('error', handleError, { once: true });
-        }
-
-        if(!resolveIfReady()){
-          intervalId = window.setInterval(resolveIfReady, 100);
-          timeoutId = window.setTimeout(() => {
-            cleanup();
-            pdfLibraryPromise = null;
-            reject(new Error('html2pdf loading timed out'));
-          }, 7000);
-        }
-      }).catch(error => {
-        pdfLibraryPromise = null;
-        throw error;
-      });
-
-      return pdfLibraryPromise;
-    }
-
-    async function exportNodeToPdf(node, filename){
-      try {
-        await ensurePdfLibrary();
-      } catch(_) {
-        alert('Không thể xuất PDF ngay lúc này. Vui lòng thử lại sau.');
-        return;
-      }
-
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.width = '297mm';
-      container.style.padding = '20px';
-      container.style.background = '#ffffff';
-      container.appendChild(node);
-      document.body.appendChild(container);
-
-      const options = {
-        margin: 10,
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      const cleanup = () => {
+        try {
+          printWindow.close();
+        } catch(_) {}
       };
 
-      try {
-        await window.html2pdf().set(options).from(node).save();
-      } catch(_) {
-        alert('Không thể xuất PDF. Vui lòng thử lại.');
-      } finally {
-        document.body.removeChild(container);
+      if('onafterprint' in printWindow){
+        printWindow.onafterprint = cleanup;
+      } else {
+        printWindow.addEventListener('focus', () => {
+          setTimeout(cleanup, 500);
+        }, { once: true });
       }
+
+      return new Promise(resolve => {
+        setTimeout(() => {
+          try {
+            printWindow.focus();
+            printWindow.print();
+          } catch(_) {
+            alert('Không thể mở hộp thoại in. Vui lòng thử lại.');
+            cleanup();
+          }
+          resolve();
+        }, 300);
+      });
     }
 
     async function exportRegistrationsPdf(){
