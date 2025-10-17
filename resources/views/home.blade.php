@@ -1173,7 +1173,6 @@
       container.style.left = '0';
       container.style.top = '0';
       container.style.boxSizing = 'border-box';
-      container.style.visibility = 'hidden';
       container.style.pointerEvents = 'none';
       container.style.opacity = '0';
       container.style.zIndex = '-1';
