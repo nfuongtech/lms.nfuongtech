@@ -33,9 +33,25 @@
                         }
 
                         const datasetLabel = ctx.dataset?.label ?? '';
-                        const parsed = ctx.parsed ?? {};
-                        const raw = axis === 'x' ? parsed.x : parsed.y;
-                        const numeric = Number(raw ?? 0);
+
+                        if (typeof ctx.formattedValue === 'string' && ctx.formattedValue !== '') {
+                            return datasetLabel
+                                ? `${datasetLabel}: ${prefix}${ctx.formattedValue}${suffix}`
+                                : `${prefix}${ctx.formattedValue}${suffix}`;
+                        }
+
+                        let rawValue = typeof ctx.raw === 'number' ? ctx.raw : null;
+
+                        if (rawValue === null) {
+                            const parsed = ctx.parsed;
+                            if (typeof parsed === 'number') {
+                                rawValue = parsed;
+                            } else if (parsed && typeof parsed === 'object') {
+                                rawValue = axis === 'x' ? parsed.x : parsed.y;
+                            }
+                        }
+
+                        const numeric = Number(rawValue ?? 0);
 
                         if (!Number.isFinite(numeric)) {
                             return datasetLabel ? `${datasetLabel}: 0` : '0';
