@@ -202,26 +202,29 @@ document.addEventListener('alpine:init', () => {
                 },
                 plugins: {
                     legend: { position: 'bottom' },
-                    tooltip: { mode: 'index', intersect: false },
+                    tooltip: { enabled: true, mode: 'index', intersect: false },
                 },
             };
 
             const o = opts || {};
-            return {
-                ...base,
-                ...o,
-                scales: {
-                    x: { ...base.scales.x, ...(o.scales?.x ?? {}) },
-                    y: { ...base.scales.y, ...(o.scales?.y ?? {}) },
-                },
-                plugins: {
-                    ...base.plugins,
-                    ...(o.plugins ?? {}),
-                },
-                datasets: {
-                    bar: { ...base.datasets.bar, ...(o.datasets?.bar ?? {}) },
-                },
-            };
+            const oScales = o.scales || {};
+            const oPlugins = o.plugins || {};
+            const oDatasets = o.datasets || {};
+
+            const merged = Object.assign({}, base, o);
+
+            const mergedScales = Object.assign({}, base.scales || {}, oScales);
+            mergedScales.x = Object.assign({}, (base.scales && base.scales.x) || {}, oScales.x || {});
+            mergedScales.y = Object.assign({}, (base.scales && base.scales.y) || {}, oScales.y || {});
+            merged.scales = mergedScales;
+
+            merged.plugins = Object.assign({}, base.plugins || {}, oPlugins);
+
+            const mergedDatasets = Object.assign({}, base.datasets || {}, oDatasets);
+            mergedDatasets.bar = Object.assign({}, (base.datasets && base.datasets.bar) || {}, oDatasets.bar || {});
+            merged.datasets = mergedDatasets;
+
+            return merged;
         }
     }));
 });

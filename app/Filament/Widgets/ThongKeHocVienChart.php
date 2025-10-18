@@ -121,6 +121,7 @@ class ThongKeHocVienChart extends ChartWidget
             'plugins'   => [
                 'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ]],
                 'tooltip' => [
+                    'enabled' => true,
                     'mode' => 'index',
                     'intersect' => false,
                     'callbacks' => $tooltipCallbacks,

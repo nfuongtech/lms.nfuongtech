@@ -32,23 +32,24 @@
                             return '';
                         }
 
-                        const datasetLabel = ctx.dataset?.label ?? '';
-                        const parsed = ctx.parsed ?? {};
+                        const dataset = ctx.dataset || {};
+                        const datasetLabel = typeof dataset.label !== 'undefined' ? dataset.label : '';
+                        const parsed = typeof ctx.parsed !== 'undefined' && ctx.parsed !== null ? ctx.parsed : {};
                         const raw = axis === 'x' ? parsed.x : parsed.y;
-                        const numeric = Number(raw ?? 0);
+                        const numeric = Number(raw !== undefined && raw !== null ? raw : 0);
 
                         if (!Number.isFinite(numeric)) {
-                            return datasetLabel ? `${datasetLabel}: 0` : '0';
+                            return datasetLabel ? datasetLabel + ': 0' : '0';
                         }
 
-                        const formatted = `${prefix}${numeric.toLocaleString(locale)}${suffix}`;
+                        const formatted = prefix + numeric.toLocaleString(locale) + suffix;
 
-                        return datasetLabel ? `${datasetLabel}: ${formatted}` : formatted;
+                        return datasetLabel ? datasetLabel + ': ' + formatted : formatted;
                     };
                 };
 
                 const stackedSumTooltipFactory = (config = {}) => {
-                    const targetStack = config.stack ?? null;
+                    const targetStack = typeof config.stack !== 'undefined' ? config.stack : null;
                     const locale = config.locale || 'vi-VN';
                     const label = config.label || '';
                     const prefix = config.prefix || '';
@@ -59,8 +60,9 @@
                             return '';
                         }
 
-                        const dataIndex = items[0]?.dataIndex ?? 0;
-                        const chart = items[0]?.chart;
+                        const firstItem = items[0] || {};
+                        const dataIndex = typeof firstItem.dataIndex !== 'undefined' ? firstItem.dataIndex : 0;
+                        const chart = firstItem.chart;
                         if (!chart || !chart.data || !Array.isArray(chart.data.datasets)) {
                             return '';
                         }
@@ -70,10 +72,11 @@
                                 return carry;
                             }
 
-                            const raw = Array.isArray(dataset.data)
-                                ? dataset.data[dataIndex]
-                                : dataset.data;
-                            const numeric = Number(raw ?? 0);
+                            const datasetData = Array.isArray(dataset.data)
+                                ? dataset.data
+                                : [dataset.data];
+                            const raw = datasetData[dataIndex];
+                            const numeric = Number(raw !== undefined && raw !== null ? raw : 0);
 
                             if (!Number.isFinite(numeric)) {
                                 return carry;
@@ -86,9 +89,9 @@
                             return '';
                         }
 
-                        const formatted = `${prefix}${sum.toLocaleString(locale)}${suffix}`;
+                        const formatted = prefix + sum.toLocaleString(locale) + suffix;
 
-                        return label ? `${label}: ${formatted}` : formatted;
+                        return label ? label + ': ' + formatted : formatted;
                     };
                 };
 
@@ -149,8 +152,12 @@
 
                     const resolveIntlFormatter = (config, { style, currency } = {}) => {
                         const locale = config.locale || fallbackLocale;
-                        const minimumFractionDigits = config.minimumFractionDigits ?? 0;
-                        const maximumFractionDigits = config.maximumFractionDigits ?? minimumFractionDigits;
+                        const minimumFractionDigits = typeof config.minimumFractionDigits !== 'undefined'
+                            ? config.minimumFractionDigits
+                            : 0;
+                        const maximumFractionDigits = typeof config.maximumFractionDigits !== 'undefined'
+                            ? config.maximumFractionDigits
+                            : minimumFractionDigits;
 
                         return new Intl.NumberFormat(locale, {
                             style,
@@ -188,7 +195,10 @@
                         }
                     }
 
-                    return (value) => Number(value ?? 0).toLocaleString(fallbackLocale);
+                    return (value) => {
+                        const numeric = Number(value !== undefined && value !== null ? value : 0);
+                        return numeric.toLocaleString(fallbackLocale);
+                    };
                 };
 
                 // Tuỳ chỉnh mặc định nhẹ cho biểu đồ cột
@@ -217,12 +227,14 @@
                                 return;
                             }
 
-                            const orientation = (chart?.config?.options?.indexAxis === 'y' || chart?.options?.indexAxis === 'y')
+                            const hasYAxisIndex = chart && chart.config && chart.config.options && chart.config.options.indexAxis === 'y';
+                            const hasOptionsIndex = chart && chart.options && chart.options.indexAxis === 'y';
+                            const orientation = (hasYAxisIndex || hasOptionsIndex)
                                 ? 'horizontal'
                                 : 'vertical';
 
                             const { ctx } = chart;
-                            const padding = options.padding ?? 6;
+                            const padding = typeof options.padding !== 'undefined' ? options.padding : 6;
                             const color = options.color || '#111827';
                             const fontOptions = options.font || { size: 11, weight: '600' };
                             const showZero = options.showZero === true;
