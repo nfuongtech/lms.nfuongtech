@@ -20,14 +20,17 @@ class ThongKeHocVienChart extends ChartWidget
     protected static ?string $maxHeight = '380px';
     protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
-    protected ?Collection $planYearCache = null;
+    /**
+     * @var Collection|null
+     */
+    protected $planYearCache = null;
 
     /**
      * Cache of course ids grouped by month for a given training plan year.
      *
-     * @var array<int, array<int, array<int>>>
+     * @var array<int, array<int, int[]>>
      */
-    protected array $courseMonthCache = [];
+    protected $courseMonthCache = [];
 
     protected function getType(): string
     {

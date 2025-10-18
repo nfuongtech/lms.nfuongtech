@@ -15,27 +15,60 @@ class ChiPhiDaoTaoChart extends Widget
 {
     protected static string $view = 'filament.widgets.training-cost-chart';
 
-    public ?int $year = null;
+    /**
+     * @var int|null
+     */
+    public $year = null;
 
-    public ?int $month = null;
+    /**
+     * @var int|null
+     */
+    public $month = null;
 
-    public array $selectedTrainingTypes = [];
+    /**
+     * @var array<int, string>
+     */
+    public $selectedTrainingTypes = [];
 
-    public array $chartData = [];
+    /**
+     * @var array<string, mixed>
+     */
+    public $chartData = [];
 
-    public array $chartOptions = [];
+    /**
+     * @var array<string, mixed>
+     */
+    public $chartOptions = [];
 
-    public array $trainingTypeOptions = [];
+    /**
+     * @var array<string, string>
+     */
+    public $trainingTypeOptions = [];
 
-    public array $monthOptions = [];
+    /**
+     * @var array<int, string>
+     */
+    public $monthOptions = [];
 
-    protected array $aggregatedCosts = [];
+    /**
+     * @var array<int, array<string, float>>
+     */
+    protected $aggregatedCosts = [];
 
-    public array $yearOptions = [];
+    /**
+     * @var array<int, string>
+     */
+    public $yearOptions = [];
 
-    public float $totalCost = 0.0;
+    /**
+     * @var float
+     */
+    public $totalCost = 0.0;
 
-    public array $typeTotals = [];
+    /**
+     * @var array<string, float>
+     */
+    public $typeTotals = [];
 
     public function mount(): void
     {
