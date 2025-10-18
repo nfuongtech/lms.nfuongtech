@@ -4,6 +4,8 @@ namespace App\Providers\Filament;
 
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
+use App\Filament\Widgets\ChiPhiDaoTaoChart;
+use App\Filament\Widgets\ThongKeHocVienChart;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
@@ -18,7 +20,6 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use App\Filament\Widgets\KeHoachDaoTaoTuanWidget;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -41,7 +42,8 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
-                KeHoachDaoTaoTuanWidget::class, 
+                ThongKeHocVienChart::class,
+                ChiPhiDaoTaoChart::class,
             ])
             ->middleware([
                 EncryptCookies::class,
