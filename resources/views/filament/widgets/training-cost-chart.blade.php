@@ -104,7 +104,7 @@
                             const config = {
                                 type: this.type,
                                 data: preparedData,
-                                options: this.chartOptions,
+                                options: this.prepareOptions(),
                             };
 
                             if (this.chartInstance) {
@@ -122,8 +122,54 @@
                             const ctx = this.$refs.canvas.getContext('2d');
                             const preparedData = this.prepareData(ctx);
                             this.chartInstance.data = preparedData;
-                            this.chartInstance.options = this.chartOptions;
+                            this.chartInstance.options = this.prepareOptions();
                             this.chartInstance.update('active');
+                        },
+                        cloneOptions() {
+                            if (typeof structuredClone === 'function') {
+                                return structuredClone(this.chartOptions ?? {});
+                            }
+
+                            return JSON.parse(JSON.stringify(this.chartOptions ?? {}));
+                        },
+                        prepareOptions() {
+                            const cloned = this.cloneOptions();
+                            const meta = cloned.__meta ?? {};
+
+                            if (cloned.__meta) {
+                                delete cloned.__meta;
+                            }
+
+                            cloned.plugins = cloned.plugins || {};
+                            cloned.plugins.tooltip = cloned.plugins.tooltip || {};
+                            cloned.plugins.tooltip.callbacks = {
+                                label(context) {
+                                    const datasetLabel = context.dataset?.label ?? '';
+                                    const value = context.parsed?.y ?? 0;
+                                    const locale = meta.tooltipLocale ?? 'vi-VN';
+                                    const suffix = meta.tooltipSuffix ?? '';
+                                    const formatted = new Intl.NumberFormat(locale).format(value);
+
+                                    return `${datasetLabel}: ${formatted}${suffix}`.trim();
+                                },
+                            };
+
+                            cloned.scales = cloned.scales || {};
+                            cloned.scales.y = cloned.scales?.y || {};
+                            cloned.scales.y.ticks = cloned.scales.y.ticks || {};
+
+                            const divisor = meta.tickDivisor ?? 1000000;
+                            const tickLocale = meta.tickLocale ?? 'vi-VN';
+                            const tickSuffix = meta.tickSuffix ?? '';
+
+                            cloned.scales.y.ticks.callback = (value) => {
+                                const normalized = divisor ? value / divisor : value;
+                                const formatted = new Intl.NumberFormat(tickLocale).format(normalized);
+
+                                return `${formatted}${tickSuffix}`.trim();
+                            };
+
+                            return cloned;
                         },
                         prepareData(ctx) {
                             if (! this.chartData?.datasets) {
