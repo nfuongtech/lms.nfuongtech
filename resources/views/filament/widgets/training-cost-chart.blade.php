@@ -1,10 +1,16 @@
 <x-filament::card>
     <x-slot name="header">
-        <div class="text-base font-semibold">Chi phí đào tạo theo tháng</div>
+        <div class="space-y-1">
+            <div class="text-base font-semibold">Chi phí đào tạo theo tháng</div>
+            <p class="text-sm text-gray-600">
+                Sử dụng bộ lọc Năm (kế hoạch) và tùy chọn nhiều Loại hình đào tạo để theo dõi tổng chi phí phát sinh mỗi tháng
+                từ danh sách học viên hoàn thành.
+            </p>
+        </div>
     </x-slot>
 
-    <div class="text-sm text-gray-600">
-        Biểu đồ hiển thị ở widget <code>ChiPhiDaoTaoChart</code> (ChartWidget). File blade này chỉ để giữ bố cục/tùy biến.
+    <div class="mt-6">
+        {{ $this->chart }}
     </div>
 
     @include('filament.widgets.partials.dashboard-chart-script')

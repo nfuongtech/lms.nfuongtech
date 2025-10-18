@@ -8,6 +8,7 @@ use App\Models\KhoaHoc;
 use App\Models\QuyTacMaKhoa;
 use Filament\Forms;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -16,6 +17,8 @@ class ChiPhiDaoTaoChart extends ChartWidget
     protected static ?string $heading = 'Chi phí đào tạo theo tháng';
     protected static ?string $maxHeight = '380px';
     protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
+
+    protected ?Collection $planYearCache = null;
 
     protected function getType(): string
     {
@@ -27,8 +30,8 @@ class ChiPhiDaoTaoChart extends ChartWidget
         return [
             Forms\Components\Select::make('year')
                 ->label('Năm')
-                ->options($this->getAvailableYears())
-                ->default(now()->year)
+                ->options($this->getPlanYearOptions())
+                ->default($this->getDefaultYear())
                 ->live(),
 
             Forms\Components\MultiSelect::make('loai_hinh')
@@ -41,7 +44,7 @@ class ChiPhiDaoTaoChart extends ChartWidget
 
     protected function getData(): array
     {
-        $year = (int) ($this->filterFormData['year'] ?? now()->year);
+        $year = (int) ($this->filterFormData['year'] ?? $this->getDefaultYear());
         $selectedLoaiHinh = (array) ($this->filterFormData['loai_hinh'] ?? []);
 
         $labels = collect(range(1, 12))->map(fn ($m) => sprintf('%02d', $m))->all();
@@ -100,19 +103,6 @@ class ChiPhiDaoTaoChart extends ChartWidget
         ];
     }
 
-    private function getAvailableYears(): array
-    {
-        $years = HocVienHoanThanh::query()
-            ->selectRaw('DISTINCT YEAR(created_at) as y')
-            ->orderBy('y','desc')
-            ->pluck('y')
-            ->toArray();
-
-        if (empty($years)) { $years = [now()->year]; }
-
-        return collect($years)->mapWithKeys(fn ($y) => [$y => (string) $y])->all();
-    }
-
     /**
      * Trả về [RAW_VALUE => CLEAN_LABEL], bỏ "V/v" ở đầu nhãn.
      */
@@ -150,24 +140,100 @@ class ChiPhiDaoTaoChart extends ChartWidget
 
     private function sumCost(int $year, int $month, array $selectedLoaiHinh): float
     {
-        $hvht = (new HocVienHoanThanh)->getTable();
-        $dk   = (new DangKy)->getTable();
-        $kh   = (new KhoaHoc)->getTable();
+        $hvht    = (new HocVienHoanThanh)->getTable();
+        $dangKy  = (new DangKy)->getTable();
+        $khoaHoc = (new KhoaHoc)->getTable();
 
-        $q = HocVienHoanThanh::query()
-            ->whereYear("$hvht.created_at", $year)
-            ->whereMonth("$hvht.created_at", $month);
+        $query = HocVienHoanThanh::query();
+        $dateColumn = $this->resolveDateColumn($hvht, ['ngay_hoan_thanh', 'created_at', 'updated_at']);
 
-        if (Schema::hasTable($dk) && Schema::hasTable($kh) && Schema::hasColumn($kh, 'loai_hinh_dao_tao')) {
-            $q->leftJoin($dk, "$dk.id", '=', "$hvht.dang_ky_id")
-              ->leftJoin($kh, "$kh.id", '=', "$dk.khoa_hoc_id");
+        if ($dateColumn) {
+            $query->whereYear("$hvht.$dateColumn", $year)
+                ->whereMonth("$hvht.$dateColumn", $month);
+        }
 
-            if (!empty($selectedLoaiHinh)) {
-                $q->whereIn("$kh.loai_hinh_dao_tao", $selectedLoaiHinh); // dùng GIÁ TRỊ RAW
+        $joinedKhoaHoc = false;
+
+        if (Schema::hasTable($khoaHoc)) {
+            if (Schema::hasColumn($hvht, 'khoa_hoc_id')) {
+                $query->leftJoin($khoaHoc, "$khoaHoc.id", '=', "$hvht.khoa_hoc_id");
+                $joinedKhoaHoc = true;
+            } elseif (
+                Schema::hasTable($dangKy)
+                && Schema::hasColumn($dangKy, 'khoa_hoc_id')
+                && Schema::hasColumn($hvht, 'dang_ky_id')
+            ) {
+                $query->leftJoin($dangKy, "$dangKy.id", '=', "$hvht.dang_ky_id");
+                $query->leftJoin($khoaHoc, "$khoaHoc.id", '=', "$dangKy.khoa_hoc_id");
+                $joinedKhoaHoc = true;
+            }
+        } elseif (Schema::hasTable($dangKy) && Schema::hasColumn($hvht, 'dang_ky_id')) {
+            $query->leftJoin($dangKy, "$dangKy.id", '=', "$hvht.dang_ky_id");
+        }
+
+        if ($joinedKhoaHoc && Schema::hasColumn($khoaHoc, 'nam')) {
+            $query->where("$khoaHoc.nam", $year);
+        }
+
+        if (!empty($selectedLoaiHinh) && $joinedKhoaHoc && Schema::hasColumn($khoaHoc, 'loai_hinh_dao_tao')) {
+            $query->whereIn("$khoaHoc.loai_hinh_dao_tao", $selectedLoaiHinh);
+        }
+
+        return (float) $query->sum(DB::raw("COALESCE($hvht.tong_chi_phi, $hvht.chi_phi, $hvht.chi_phi_dao_tao, 0)"));
+    }
+
+    private function getDefaultYear(): int
+    {
+        return (int) ($this->planYears()->first() ?? now()->year);
+    }
+
+    private function getPlanYearOptions(): array
+    {
+        return $this->planYears()
+            ->mapWithKeys(fn ($year) => [$year => (string) $year])
+            ->all();
+    }
+
+    private function planYears(): Collection
+    {
+        if ($this->planYearCache !== null) {
+            return $this->planYearCache;
+        }
+
+        $years = collect();
+        $table = (new KhoaHoc)->getTable();
+
+        if (Schema::hasTable($table) && Schema::hasColumn($table, 'nam')) {
+            $years = KhoaHoc::query()
+                ->whereNotNull('nam')
+                ->distinct()
+                ->orderByDesc('nam')
+                ->pluck('nam');
+        }
+
+        if ($years->isEmpty()) {
+            $years = collect([now()->year]);
+        }
+
+        return $this->planYearCache = $years
+            ->map(fn ($value) => (int) $value)
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    private function resolveDateColumn(string $table, array $candidates, ?string $fallback = 'created_at'): ?string
+    {
+        foreach ($candidates as $column) {
+            if ($column && Schema::hasColumn($table, $column)) {
+                return $column;
             }
         }
 
-        $sum = (clone $q)->sum(DB::raw("COALESCE($hvht.tong_chi_phi, $hvht.chi_phi, 0)"));
-        return (float) $sum;
+        if ($fallback && Schema::hasColumn($table, $fallback)) {
+            return $fallback;
+        }
+
+        return null;
     }
 }
