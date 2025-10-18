@@ -52,44 +52,15 @@ class ThongKeHocVienChart extends ChartWidget
         if ($month) {
             $reg = $this->countDangKy($year, $month);
             $done = $this->countHoanThanh($year, $month);
-            [$totalNotDone, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
-            unset($totalNotDone);
+            [$_totalNotDone, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
 
             $datasets = [
-                [
-                    'label' => 'Đăng ký',
-                    'data' => [$reg],
-                    'borderRadius' => 8,
-                    'stack' => 'dang-ky',
-                ],
-                [
-                    'label' => 'Hoàn thành',
-                    'data' => [$done],
-                    'borderRadius' => 8,
-                    'stack' => 'hoan-thanh',
-                ],
-                [
-                    'label' => 'Không hoàn thành - Vắng P',
-                    'data' => [$vangP],
-                    'stack' => 'khong-hoan-thanh',
-                    'borderRadius' => 8,
-                ],
-                [
-                    'label' => 'Không hoàn thành - Vắng KP',
-                    'data' => [$vangKP],
-                    'stack' => 'khong-hoan-thanh',
-                    'borderRadius' => 8,
-                ],
+                $this->makeBarDataset('Đăng ký', [$reg], 'dang-ky', ['stack' => 'dang-ky']),
+                $this->makeBarDataset('Hoàn thành', [$done], 'hoan-thanh', ['stack' => 'hoan-thanh']),
+                $this->makeBarDataset('Không hoàn thành - Vắng P', [$vangP], 'vang-p', ['stack' => 'khong-hoan-thanh']),
+                $this->makeBarDataset('Không hoàn thành - Vắng KP', [$vangKP], 'vang-kp', ['stack' => 'khong-hoan-thanh']),
+                $this->makeBarDataset('Không hoàn thành - Khác', [$vangKhac], 'vang-khac', ['stack' => 'khong-hoan-thanh']),
             ];
-
-            if ($vangKhac > 0) {
-                $datasets[] = [
-                    'label' => 'Không hoàn thành - Khác',
-                    'data' => [$vangKhac],
-                    'stack' => 'khong-hoan-thanh',
-                    'borderRadius' => 8,
-                ];
-            }
 
             return [
                 'datasets' => $datasets,
@@ -104,21 +75,9 @@ class ThongKeHocVienChart extends ChartWidget
 
         return [
             'datasets' => [
-                [
-                    'label' => 'Đăng ký',
-                    'data' => $regs,
-                    'borderRadius' => 8,
-                ],
-                [
-                    'label' => 'Hoàn thành',
-                    'data' => $dones,
-                    'borderRadius' => 8,
-                ],
-                [
-                    'label' => 'Không hoàn thành',
-                    'data' => $notDones,
-                    'borderRadius' => 8,
-                ],
+                $this->makeBarDataset('Đăng ký', $regs, 'dang-ky'),
+                $this->makeBarDataset('Hoàn thành', $dones, 'hoan-thanh'),
+                $this->makeBarDataset('Không hoàn thành', $notDones, 'khong-hoan-thanh'),
             ],
             'labels'  => $labels,
         ];
@@ -171,13 +130,26 @@ class ThongKeHocVienChart extends ChartWidget
                     'intersect' => false,
                     'callbacks' => $tooltipCallbacks,
                 ],
+                'barValueLabels' => [
+                    'padding' => 6,
+                    'color' => '#111827',
+                    'font' => [
+                        'size' => 11,
+                        'weight' => '600',
+                    ],
+                ],
             ],
             'responsive' => true,
             'maintainAspectRatio' => false,
+            'layout' => [
+                'padding' => [ 'top' => 24, 'right' => 16, 'left' => 8 ],
+            ],
+            'interaction' => [ 'mode' => 'index', 'intersect' => false ],
             'scales' => [
                 'x' => [
                     'stacked' => (bool) $detail, // stack khi xem chi tiết tháng để nhóm Vắng P/KP
                     'ticks'   => [ 'font' => [ 'size' => 12 ]],
+                    'grid'    => [ 'display' => false ],
                 ],
                 'y' => [
                     'beginAtZero' => true,
@@ -185,6 +157,44 @@ class ThongKeHocVienChart extends ChartWidget
                     'grid'        => [ 'drawBorder' => false ],
                 ],
             ],
+        ];
+    }
+
+    private function makeBarDataset(string $label, array $data, string $colorKey, array $overrides = []): array
+    {
+        $color = $this->colorForKey($colorKey);
+
+        return array_merge([
+            'label' => $label,
+            'data' => $data,
+            'backgroundColor' => $color['background'],
+            'hoverBackgroundColor' => $color['border'],
+            'borderColor' => $color['border'],
+            'borderWidth' => 1,
+            'borderRadius' => 12,
+            'borderSkipped' => false,
+            'maxBarThickness' => 40,
+            'categoryPercentage' => 0.72,
+            'barPercentage' => 0.85,
+        ], $overrides);
+    }
+
+    private function colorForKey(string $key): array
+    {
+        $palette = [
+            'dang-ky'           => [59, 130, 246],
+            'hoan-thanh'        => [16, 185, 129],
+            'khong-hoan-thanh'  => [249, 115, 22],
+            'vang-p'            => [251, 191, 36],
+            'vang-kp'           => [239, 68, 68],
+            'vang-khac'         => [129, 140, 248],
+        ];
+
+        $rgb = $palette[$key] ?? [107, 114, 128];
+
+        return [
+            'background' => sprintf('rgba(%d, %d, %d, 0.85)', $rgb[0], $rgb[1], $rgb[2]),
+            'border' => sprintf('rgba(%d, %d, %d, 1)', $rgb[0], $rgb[1], $rgb[2]),
         ];
     }
 
