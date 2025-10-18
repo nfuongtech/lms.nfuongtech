@@ -252,6 +252,14 @@ class ChiPhiDaoTaoChart extends Widget
                     'usePointStyle' => true,
                     'padding' => 12,
                 ],
+                'barValueLabels' => [
+                    'padding' => 6,
+                    'color' => '#0f172a',
+                    'font' => [
+                        'size' => 11,
+                        'weight' => '600',
+                    ],
+                ],
             ],
             'datasets' => [
                 'bar' => [
@@ -369,6 +377,7 @@ class ChiPhiDaoTaoChart extends Widget
             ->mapWithKeys(fn ($label, $value) => [
                 $value => $this->formatTrainingTypeLabel($label),
             ])
+            ->filter(fn ($label) => trim((string) $label) !== '')
             ->sort(fn ($a, $b) => strcmp($a, $b))
             ->toArray();
     }
@@ -415,11 +424,25 @@ class ChiPhiDaoTaoChart extends Widget
 
     protected function formatTrainingTypeLabel(string $label): string
     {
-        $clean = preg_replace('/^\s*[Vv]\s*[-–—]?\s*/u', '', $label ?? '') ?? '';
+        $value = trim((string) $label);
+
+        $clean = preg_replace('/^(?:[Vv]\s+){2,}/u', '', $value, 1, $doubleRemoved) ?? $value;
+
+        if ($doubleRemoved) {
+            $clean = ltrim($clean, " \t\n\r\0\x0B-–—");
+        }
+
+        if (! $doubleRemoved) {
+            $clean = preg_replace('/^[Vv](?=\s|[-–—])/u', '', $clean, 1, $singleRemoved) ?? $clean;
+
+            if ($singleRemoved) {
+                $clean = ltrim($clean, " \t\n\r\0\x0B-–—");
+            }
+        }
 
         $normalized = trim($clean);
 
-        return $normalized !== '' ? $normalized : trim($label);
+        return $normalized !== '' ? $normalized : $value;
     }
 
     protected function sortTypesByLabel(array $types): array

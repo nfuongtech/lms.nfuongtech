@@ -14,7 +14,7 @@
                     <span>Năm</span>
                     <select
                         wire:model.live="year"
-                        class="mt-1 w-56 min-w-[12rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                        class="mt-1 w-72 min-w-[16rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
                     >
                         @foreach($yearOptions as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
