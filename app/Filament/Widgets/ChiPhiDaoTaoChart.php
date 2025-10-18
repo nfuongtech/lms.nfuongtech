@@ -9,7 +9,6 @@ use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Js;
 
 class ChiPhiDaoTaoChart extends Widget
 {
@@ -341,16 +340,13 @@ class ChiPhiDaoTaoChart extends Widget
                     'align' => 'left',
                     'verticalAlign' => 'middle',
                     'locale' => 'vi-VN',
-                    'formatter' => new Js(<<<'JS'
-                        (value) => {
-                            const numeric = Number(value || 0);
-                            if (!Number.isFinite(numeric)) {
-                                return '';
-                            }
-
-                            return `${numeric.toLocaleString('vi-VN')} đ`;
-                        }
-                    JS),
+                    'formatter' => [
+                        'type' => 'currency',
+                        'locale' => 'vi-VN',
+                        'currency' => 'VND',
+                        'suffix' => ' đ',
+                        'maximumFractionDigits' => 0,
+                    ],
                 ],
             ],
             'datasets' => [

@@ -6,6 +6,191 @@
 
                 const Chart = window.Chart;
 
+                const deepClone = (value) => {
+                    if (Array.isArray(value)) {
+                        return value.map(deepClone);
+                    }
+
+                    if (value && typeof value === 'object') {
+                        return Object.keys(value).reduce((carry, key) => {
+                            carry[key] = deepClone(value[key]);
+                            return carry;
+                        }, {});
+                    }
+
+                    return value;
+                };
+
+                const datasetValueTooltipFactory = (config = {}) => {
+                    const axis = (config.axis || 'y').toLowerCase();
+                    const locale = config.locale || 'vi-VN';
+                    const prefix = config.prefix || '';
+                    const suffix = config.suffix || '';
+
+                    return (ctx) => {
+                        if (!ctx) {
+                            return '';
+                        }
+
+                        const datasetLabel = ctx.dataset?.label ?? '';
+                        const parsed = ctx.parsed ?? {};
+                        const raw = axis === 'x' ? parsed.x : parsed.y;
+                        const numeric = Number(raw ?? 0);
+
+                        if (!Number.isFinite(numeric)) {
+                            return datasetLabel ? `${datasetLabel}: 0` : '0';
+                        }
+
+                        const formatted = `${prefix}${numeric.toLocaleString(locale)}${suffix}`;
+
+                        return datasetLabel ? `${datasetLabel}: ${formatted}` : formatted;
+                    };
+                };
+
+                const stackedSumTooltipFactory = (config = {}) => {
+                    const targetStack = config.stack ?? null;
+                    const locale = config.locale || 'vi-VN';
+                    const label = config.label || '';
+                    const prefix = config.prefix || '';
+                    const suffix = config.suffix || '';
+
+                    return (items) => {
+                        if (!Array.isArray(items) || !items.length) {
+                            return '';
+                        }
+
+                        const dataIndex = items[0]?.dataIndex ?? 0;
+                        const chart = items[0]?.chart;
+                        if (!chart || !chart.data || !Array.isArray(chart.data.datasets)) {
+                            return '';
+                        }
+
+                        const sum = chart.data.datasets.reduce((carry, dataset) => {
+                            if (targetStack && dataset.stack !== targetStack) {
+                                return carry;
+                            }
+
+                            const raw = Array.isArray(dataset.data)
+                                ? dataset.data[dataIndex]
+                                : dataset.data;
+                            const numeric = Number(raw ?? 0);
+
+                            if (!Number.isFinite(numeric)) {
+                                return carry;
+                            }
+
+                            return carry + numeric;
+                        }, 0);
+
+                        if (!sum) {
+                            return '';
+                        }
+
+                        const formatted = `${prefix}${sum.toLocaleString(locale)}${suffix}`;
+
+                        return label ? `${label}: ${formatted}` : formatted;
+                    };
+                };
+
+                const resolveTooltipCallback = (config) => {
+                    if (typeof config === 'function') {
+                        return config;
+                    }
+
+                    if (!config || typeof config !== 'object') {
+                        return config;
+                    }
+
+                    const type = String(config.type || config.mode || '').toLowerCase();
+
+                    if (type === 'dataset-value') {
+                        return datasetValueTooltipFactory(config);
+                    }
+
+                    if (type === 'stacked-sum') {
+                        return stackedSumTooltipFactory(config);
+                    }
+
+                    return config;
+                };
+
+                const applyTooltipCallbacks = (callbacks) => {
+                    if (!callbacks || typeof callbacks !== 'object') {
+                        return callbacks;
+                    }
+
+                    Object.keys(callbacks).forEach((key) => {
+                        callbacks[key] = resolveTooltipCallback(callbacks[key]);
+                    });
+
+                    return callbacks;
+                };
+
+                const transformChartOptions = (options) => {
+                    if (!options || typeof options !== 'object') {
+                        return options || {};
+                    }
+
+                    const plugins = options.plugins || {};
+
+                    if (plugins.tooltip && plugins.tooltip.callbacks) {
+                        plugins.tooltip.callbacks = applyTooltipCallbacks(plugins.tooltip.callbacks);
+                    }
+
+                    return options;
+                };
+
+                const buildValueFormatter = (formatterOption, pluginOptions = {}) => {
+                    if (typeof formatterOption === 'function') {
+                        return formatterOption;
+                    }
+
+                    const fallbackLocale = pluginOptions.locale || 'vi-VN';
+
+                    const resolveIntlFormatter = (config, { style, currency } = {}) => {
+                        const locale = config.locale || fallbackLocale;
+                        const minimumFractionDigits = config.minimumFractionDigits ?? 0;
+                        const maximumFractionDigits = config.maximumFractionDigits ?? minimumFractionDigits;
+
+                        return new Intl.NumberFormat(locale, {
+                            style,
+                            currency,
+                            minimumFractionDigits,
+                            maximumFractionDigits,
+                        });
+                    };
+
+                    if (formatterOption && typeof formatterOption === 'object') {
+                        const type = String(formatterOption.type || formatterOption.mode || formatterOption.format || '').toLowerCase();
+                        const prefix = formatterOption.prefix || '';
+                        const suffix = formatterOption.suffix || '';
+
+                        if (type === 'currency') {
+                            const currency = formatterOption.currency || 'VND';
+                            const intl = resolveIntlFormatter(formatterOption, { style: 'currency', currency });
+                            return (value) => `${prefix}${intl.format(value)}${suffix}`;
+                        }
+
+                        const intl = resolveIntlFormatter(formatterOption, {});
+                        return (value) => `${prefix}${intl.format(value)}${suffix}`;
+                    }
+
+                    if (typeof formatterOption === 'string') {
+                        const normalized = formatterOption.toLowerCase();
+                        if (normalized === 'currency') {
+                            const intl = resolveIntlFormatter({ locale: fallbackLocale }, { style: 'currency', currency: 'VND' });
+                            return (value) => intl.format(value);
+                        }
+
+                        if (normalized === 'number') {
+                            const intl = resolveIntlFormatter({ locale: fallbackLocale }, {});
+                            return (value) => intl.format(value);
+                        }
+                    }
+
+                    return (value) => Number(value ?? 0).toLocaleString(fallbackLocale);
+                };
+
                 // Tuỳ chỉnh mặc định nhẹ cho biểu đồ cột
                 Chart.defaults.animation.duration = 900;
                 Chart.defaults.animation.easing = 'easeOutQuart';
@@ -41,9 +226,7 @@
                             const color = options.color || '#111827';
                             const fontOptions = options.font || { size: 11, weight: '600' };
                             const showZero = options.showZero === true;
-                            const formatter = typeof options.formatter === 'function'
-                                ? options.formatter
-                                : (value) => Number(value).toLocaleString(options.locale || 'vi-VN');
+                    const valueFormatter = buildValueFormatter(options.formatter, options);
                             const font = helpers.toFont(fontOptions);
 
                             ctx.save();
@@ -76,7 +259,13 @@
                                         return;
                                     }
 
-                                    const label = formatter(numericValue);
+                                    const label = valueFormatter(numericValue, {
+                                        chart,
+                                        dataset,
+                                        datasetIndex,
+                                        dataIndex: index,
+                                        orientation,
+                                    });
                                     if (label === null || typeof label === 'undefined' || label === '') {
                                         return;
                                     }
@@ -183,7 +372,13 @@
                             },
 
                             normalizeOptions(payload) {
-                                return payload && typeof payload === 'object' ? payload : {};
+                                if (!payload || typeof payload !== 'object') {
+                                    return {};
+                                }
+
+                                const cloned = deepClone(payload);
+
+                                return transformChartOptions(cloned);
                             },
 
                             renderChart() {

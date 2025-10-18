@@ -98,40 +98,22 @@ class ThongKeHocVienChart extends ChartWidget
 
     protected function getOptions(): array
     {
-        $detail = !empty($this->filterFormData['month']);
+        $detail = ! empty($this->filterFormData['month']);
         $tooltipCallbacks = [
-            'label' => new \Illuminate\Support\Js(<<<'JS'
-                (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('vi-VN')}`
-            JS),
+            'label' => [
+                'type' => 'dataset-value',
+                'axis' => 'y',
+                'locale' => 'vi-VN',
+            ],
         ];
 
         if ($detail) {
-            $tooltipCallbacks['footer'] = new \Illuminate\Support\Js(<<<'JS'
-                (items) => {
-                    if (!items || !items.length) {
-                        return '';
-                    }
-
-                    const dataIndex = items[0].dataIndex;
-                    const chart = items[0].chart;
-                    if (!chart) {
-                        return '';
-                    }
-
-                    const sum = chart.data.datasets
-                        .filter((dataset) => dataset.stack === 'khong-hoan-thanh')
-                        .reduce((carry, dataset) => {
-                            const value = Array.isArray(dataset.data) ? dataset.data[dataIndex] ?? 0 : 0;
-                            return carry + Number(value || 0);
-                        }, 0);
-
-                    if (!sum) {
-                        return '';
-                    }
-
-                    return `Tổng không hoàn thành: ${sum.toLocaleString('vi-VN')}`;
-                }
-            JS);
+            $tooltipCallbacks['footer'] = [
+                'type' => 'stacked-sum',
+                'stack' => 'khong-hoan-thanh',
+                'label' => 'Tổng không hoàn thành',
+                'locale' => 'vi-VN',
+            ];
         }
 
         return [
@@ -151,6 +133,12 @@ class ThongKeHocVienChart extends ChartWidget
                         'weight' => '600',
                     ],
                     'showZero' => true,
+                    'locale' => 'vi-VN',
+                    'formatter' => [
+                        'type' => 'number',
+                        'locale' => 'vi-VN',
+                        'maximumFractionDigits' => 0,
+                    ],
                 ],
             ],
             'responsive' => true,
