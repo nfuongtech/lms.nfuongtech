@@ -128,7 +128,13 @@ class ChiPhiDaoTaoChart extends Widget
             $this->month = null;
         }
 
-        $year = $this->year ?? $this->resolveDefaultYear();
+        $year = (int) ($this->year ?? $this->resolveDefaultYear());
+        $this->year = $year;
+        $month = $this->month === null || $this->month === ''
+            ? null
+            : max(1, min(12, (int) $this->month));
+        $this->month = $month;
+
         $types = $resetSelections ? [] : $this->selectedTrainingTypes;
 
         if (! empty($types)) {
@@ -138,9 +144,9 @@ class ChiPhiDaoTaoChart extends Widget
 
         $this->selectedTrainingTypes = $types;
 
-        $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $this->month);
-        $this->chartData = $this->buildChartData($this->aggregatedCosts, $types, $this->month);
-        $this->chartOptions = $this->buildChartOptions($this->month);
+        $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $month);
+        $this->chartData = $this->buildChartData($this->aggregatedCosts, $types, $month);
+        $this->chartOptions = $this->buildChartOptions($month);
         $this->totalCost = $this->calculateTotalCost($this->aggregatedCosts);
         $this->typeTotals = $this->calculateTypeTotals($this->aggregatedCosts);
     }
@@ -270,7 +276,7 @@ class ChiPhiDaoTaoChart extends Widget
     {
         $labels = $selectedMonth === null
             ? $this->monthLabels()
-            : [sprintf('T%02d', $selectedMonth)];
+            : [sprintf('%02d/%d', $selectedMonth, $this->year ?? now()->year)];
         $datasets = [];
 
         $types = ! empty($selectedTypes)
@@ -318,7 +324,7 @@ class ChiPhiDaoTaoChart extends Widget
         return [
             'responsive' => true,
             'maintainAspectRatio' => false,
-            'indexAxis' => 'y',
+            'indexAxis' => 'x',
             'interaction' => [
                 'mode' => 'index',
                 'intersect' => false,
@@ -349,8 +355,10 @@ class ChiPhiDaoTaoChart extends Widget
                         'size' => 11,
                         'weight' => '600',
                     ],
-                    'align' => 'left',
-                    'verticalAlign' => 'middle',
+                    'verticalAlign' => 'bottom',
+                    'align' => 'center',
+                    'anchor' => 'end',
+                    'showZero' => true,
                     'locale' => 'vi-VN',
                     'formatter' => [
                         'type' => 'currency',
@@ -369,22 +377,22 @@ class ChiPhiDaoTaoChart extends Widget
             ],
             'scales' => [
                 'x' => [
-                    'beginAtZero' => true,
                     'grid' => [
-                        'color' => 'rgba(148, 163, 184, 0.15)',
-                        'drawBorder' => false,
+                        'display' => false,
                     ],
                     'ticks' => [
-                        'precision' => 0,
                         'color' => '#475569',
                         'font' => ['size' => 12, 'weight' => '500'],
                     ],
                 ],
                 'y' => [
+                    'beginAtZero' => true,
                     'grid' => [
-                        'display' => false,
+                        'color' => 'rgba(148, 163, 184, 0.18)',
+                        'drawBorder' => false,
                     ],
                     'ticks' => [
+                        'precision' => 0,
                         'color' => '#475569',
                         'font' => ['size' => 12, 'weight' => '500'],
                     ],
@@ -460,7 +468,7 @@ class ChiPhiDaoTaoChart extends Widget
     protected function monthLabels(): array
     {
         return collect(range(1, 12))
-            ->map(fn (int $month) => sprintf('T%02d', $month))
+            ->map(fn (int $month) => sprintf('%02d', $month))
             ->toArray();
     }
 
@@ -514,7 +522,7 @@ class ChiPhiDaoTaoChart extends Widget
         $options = [];
 
         foreach (range(1, 12) as $month) {
-            $options[$month] = sprintf('T%02d', $month);
+            $options[$month] = sprintf('%02d', $month);
         }
 
         return $options;
