@@ -9,7 +9,6 @@ use App\Models\KhoaHoc;
 use Filament\Forms;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -21,13 +20,6 @@ class ThongKeHocVienChart extends ChartWidget
     protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
     protected ?Collection $planYearCache = null;
-
-    /**
-     * Cache of course ids grouped by month for a given training plan year.
-     *
-     * @var array<int, array<int, array<int>>>
-     */
-    protected array $courseMonthCache = [];
 
     protected function getType(): string
     {
@@ -46,6 +38,7 @@ class ThongKeHocVienChart extends ChartWidget
             Forms\Components\Select::make('month')
                 ->label('Tháng')
                 ->placeholder('Tất cả các tháng')
+                ->default(null)
                 ->options(collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('%02d', $m)])->all())
                 ->live(),
         ];
@@ -250,25 +243,22 @@ class ThongKeHocVienChart extends ChartWidget
     private function compileMonthlySeries(int $year): array
     {
         return [
-            'dangKy' => $this->monthlyDangKyCounts($year),
-            'hoanThanh' => $this->monthlyHoanThanhCounts($year),
-            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($year),
+            'dangKy' => $this->aggregateMonthlyCounts(
+                DangKy::query(),
+                ['ngay_dang_ky', 'created_at', 'updated_at'],
+                $year
+            ),
+            'hoanThanh' => $this->aggregateMonthlyCounts(
+                HocVienHoanThanh::query(),
+                ['ngay_hoan_thanh', 'created_at', 'updated_at'],
+                $year
+            ),
+            'khongHoanThanh' => $this->aggregateMonthlyCounts(
+                HocVienKhongHoanThanh::query(),
+                ['ngay_khong_hoan_thanh', 'created_at', 'updated_at'],
+                $year
+            ),
         ];
-    }
-
-    private function monthlyDangKyCounts(int $year): array
-    {
-        return $this->countByMonthUsingCourseMap(DangKy::query(), $this->courseIdsByMonth($year));
-    }
-
-    private function monthlyHoanThanhCounts(int $year): array
-    {
-        return $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $this->courseIdsByMonth($year));
-    }
-
-    private function monthlyKhongHoanThanhCounts(int $year): array
-    {
-        return $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $this->courseIdsByMonth($year));
     }
 
     private function emptyMonthlyBuckets(): array
@@ -282,79 +272,39 @@ class ThongKeHocVienChart extends ChartWidget
         return $buckets;
     }
 
-    private function emptyMonthlyCourseBuckets(): array
-    {
-        $buckets = [];
-
-        for ($month = 1; $month <= 12; $month++) {
-            $buckets[$month] = [];
-        }
-
-        return $buckets;
-    }
-
-    private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
-    {
-        $buckets = $this->emptyMonthlyBuckets();
-        $courseIds = [];
-
-        foreach ($courseMap as $ids) {
-            foreach ($ids as $courseId) {
-                $courseIds[$courseId] = true;
-            }
-        }
-
-        if (empty($courseIds)) {
-            return $buckets;
-        }
-
-        $table = $query->getModel()->getTable();
-
-        $keyName = $query->getModel()->getQualifiedKeyName();
-
-        $rows = (clone $query)
-            ->whereIn("$table.khoa_hoc_id", array_keys($courseIds))
-            ->selectRaw("$table.khoa_hoc_id as course_id")
-            ->selectRaw('COUNT(DISTINCT ' . $keyName . ') as aggregate')
-            ->groupBy('course_id')
-            ->pluck('aggregate', 'course_id')
-            ->all();
-
-        foreach ($courseMap as $month => $ids) {
-            $total = 0;
-            foreach ($ids as $courseId) {
-                $total += (int) ($rows[$courseId] ?? 0);
-            }
-            $buckets[$month] = $total;
-        }
-
-        return $buckets;
-    }
-
     private function countKhongHoanThanhWithAbsence(int $year, int $month): array
     {
-        $courseIds = $this->courseIdsByMonth($year)[$month] ?? [];
+        $model = new HocVienKhongHoanThanh();
+        $table = $model->getTable();
+        $query = $model->newQuery();
+        $idColumn = $model->getQualifiedKeyName();
+        $dateExpression = $this->buildDateExpression($table, ['ngay_khong_hoan_thanh', 'created_at', 'updated_at']);
 
-        if (empty($courseIds)) {
+        if (! $dateExpression) {
             return [0, 0, 0, 0];
         }
 
-        $table = (new HocVienKhongHoanThanh)->getTable();
-        $query = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
-        $idColumn = "$table.id";
+        $notNullCondition = $dateExpression . ' IS NOT NULL';
+        $yearCondition = 'YEAR(' . $dateExpression . ') = ?';
+        $monthCondition = 'MONTH(' . $dateExpression . ') = ?';
 
-        $total = (clone $query)->distinct($idColumn)->count($idColumn);
+        $baseQuery = (clone $query)
+            ->whereRaw($notNullCondition)
+            ->whereRaw($yearCondition, [$year])
+            ->whereRaw($monthCondition, [$month]);
+
+        $total = (clone $baseQuery)->distinct()->count($idColumn);
         $vangP = 0;
         $vangKP = 0;
 
         if (Schema::hasColumn($table, 'vang_co_phep')) {
-            $vangP  = (clone $query)->where("$table.vang_co_phep", 1)->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $query)->where("$table.vang_co_phep", 0)->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $baseQuery)->where("$table.vang_co_phep", 1)->distinct()->count($idColumn);
+            $vangKP = (clone $baseQuery)->where("$table.vang_co_phep", 0)->distinct()->count($idColumn);
         } elseif (Schema::hasColumn($table, 'loai_vang')) {
-            $vangP  = (clone $query)->whereIn("$table.loai_vang", ['p', 'phep', 'vang_p', 'Vắng P', 'Vang P'])->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $query)->whereIn("$table.loai_vang", ['kp', 'khong_phep', 'vang_kp', 'Vắng KP', 'Vang KP'])->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $baseQuery)->whereIn("$table.loai_vang", ['p', 'phep', 'vang_p', 'Vắng P', 'Vang P'])->distinct()->count($idColumn);
+            $vangKP = (clone $baseQuery)->whereIn("$table.loai_vang", ['kp', 'khong_phep', 'vang_kp', 'Vắng KP', 'Vang KP'])->distinct()->count($idColumn);
         } elseif (Schema::hasColumn($table, 'tinh_trang')) {
-            $vangP  = (clone $query)->where(DB::raw('LOWER(' . $table . '.tinh_trang)'), 'like', '%p%')->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $baseQuery)->where(DB::raw('LOWER(' . $table . '.tinh_trang)'), 'like', '%p%')->distinct()->count($idColumn);
             $vangKP = max($total - $vangP, 0);
         }
 
@@ -363,59 +313,63 @@ class ThongKeHocVienChart extends ChartWidget
         return [$total, $vangP, $vangKP, $vangKhac];
     }
 
-    private function courseIdsByMonth(int $year): array
+    private function aggregateMonthlyCounts(Builder $query, array $dateColumns, int $year): array
     {
-        if (array_key_exists($year, $this->courseMonthCache)) {
-            return $this->courseMonthCache[$year];
+        $buckets = $this->emptyMonthlyBuckets();
+
+        $table = $query->getModel()->getTable();
+        $dateExpression = $this->buildDateExpression($table, $dateColumns);
+
+        if (! $dateExpression) {
+            return $buckets;
         }
 
-        $buckets = $this->emptyMonthlyCourseBuckets();
+        $keyName = $query->getModel()->getQualifiedKeyName();
 
-        if (! Schema::hasTable('lich_hocs')) {
-            return $this->courseMonthCache[$year] = $buckets;
-        }
+        $rows = (clone $query)
+            ->selectRaw('MONTH(' . $dateExpression . ') as month')
+            ->selectRaw('COUNT(DISTINCT ' . $keyName . ') as aggregate')
+            ->whereRaw($dateExpression . ' IS NOT NULL')
+            ->whereRaw('YEAR(' . $dateExpression . ') = ?', [$year])
+            ->groupBy('month')
+            ->pluck('aggregate', 'month')
+            ->all();
 
-        $query = DB::table('lich_hocs')
-            ->select(['khoa_hoc_id', 'thang', 'ngay_hoc'])
-            ->whereNotNull('khoa_hoc_id');
+        foreach ($rows as $month => $count) {
+            $index = (int) $month;
 
-        if (Schema::hasColumn('lich_hocs', 'nam')) {
-            $query->where('nam', $year);
-        } else {
-            $query->whereYear('ngay_hoc', $year);
-        }
-
-        $rows = $query->get();
-
-        foreach ($rows as $row) {
-            $month = (int) ($row->thang ?? 0);
-
-            if ($month < 1 || $month > 12) {
-                try {
-                    $month = $row->ngay_hoc ? (int) Carbon::parse($row->ngay_hoc)->month : 0;
-                } catch (\Throwable $e) {
-                    $month = 0;
-                }
-            }
-
-            if ($month < 1 || $month > 12) {
+            if ($index < 1 || $index > 12) {
                 continue;
             }
 
-            $courseId = (int) $row->khoa_hoc_id;
+            $buckets[$index] = (int) $count;
+        }
 
-            if ($courseId <= 0) {
-                continue;
+        return $buckets;
+    }
+
+    private function buildDateExpression(string $table, array $candidates): ?string
+    {
+        if (empty($candidates)) {
+            return null;
+        }
+
+        $qualified = [];
+
+        foreach ($candidates as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                $qualified[] = $table . '.' . $column;
             }
-
-            $buckets[$month][$courseId] = true;
         }
 
-        $normalized = [];
-        foreach ($buckets as $month => $ids) {
-            $normalized[$month] = array_values(array_keys($ids));
+        if (empty($qualified)) {
+            return null;
         }
 
-        return $this->courseMonthCache[$year] = $normalized;
+        if (count($qualified) === 1) {
+            return $qualified[0];
+        }
+
+        return 'COALESCE(' . implode(', ', $qualified) . ')';
     }
 }

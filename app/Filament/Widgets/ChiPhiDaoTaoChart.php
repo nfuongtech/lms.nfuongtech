@@ -41,13 +41,14 @@ class ChiPhiDaoTaoChart extends Widget
         $this->yearOptions = $this->formatYearOptions($this->getAvailableYears());
         $this->monthOptions = $this->formatMonthOptions();
         $this->year = $this->resolveDefaultYear();
-        $this->month = $this->resolveDefaultMonth();
+        $this->month = null;
         $this->trainingTypeOptions = $this->getTrainingTypeOptions();
         $this->refreshState();
     }
 
     public function updatedYear(): void
     {
+        $this->month = null;
         $this->refreshState(resetSelections: false);
     }
 
@@ -277,16 +278,18 @@ class ChiPhiDaoTaoChart extends Widget
                 'mode' => 'index',
                 'intersect' => false,
             ],
+            'indexAxis' => 'y',
             'layout' => [
-                'padding' => ['top' => 12, 'bottom' => 12, 'left' => 8, 'right' => 8],
+                'padding' => ['top' => 16, 'bottom' => 16, 'left' => 12, 'right' => 24],
             ],
             'plugins' => [
                 'legend' => [
                     'position' => 'bottom',
+                    'align' => 'center',
                     'labels' => [
                         'usePointStyle' => true,
-                        'padding' => 20,
-                        'boxWidth' => 12,
+                        'padding' => 16,
+                        'boxWidth' => 10,
                         'color' => '#1e293b',
                     ],
                 ],
@@ -297,8 +300,9 @@ class ChiPhiDaoTaoChart extends Widget
                     'padding' => 12,
                 ],
                 'barValueLabels' => [
-                    'padding' => 6,
+                    'padding' => 8,
                     'color' => '#0f172a',
+                    'position' => 'end',
                     'font' => [
                         'size' => 11,
                         'weight' => '600',
@@ -307,29 +311,30 @@ class ChiPhiDaoTaoChart extends Widget
             ],
             'datasets' => [
                 'bar' => [
-                    'borderRadius' => 10,
-                    'maxBarThickness' => 36,
+                    'borderRadius' => 12,
+                    'maxBarThickness' => 40,
+                    'barPercentage' => 0.8,
+                    'categoryPercentage' => 0.6,
                 ],
             ],
             'scales' => [
                 'x' => [
-                    'stacked' => false,
+                    'beginAtZero' => true,
                     'grid' => [
-                        'display' => false,
+                        'color' => 'rgba(148, 163, 184, 0.18)',
+                        'drawBorder' => false,
                     ],
                     'ticks' => [
+                        'precision' => 0,
                         'color' => '#475569',
                         'font' => ['size' => 12, 'weight' => '500'],
                     ],
                 ],
                 'y' => [
-                    'beginAtZero' => true,
                     'grid' => [
-                        'color' => 'rgba(148, 163, 184, 0.15)',
-                        'drawBorder' => false,
+                        'display' => false,
                     ],
                     'ticks' => [
-                        'precision' => 0,
                         'color' => '#475569',
                         'font' => ['size' => 12, 'weight' => '500'],
                     ],
@@ -438,11 +443,6 @@ class ChiPhiDaoTaoChart extends Widget
         return $years[0] ?? $currentYear;
     }
 
-    protected function resolveDefaultMonth(): int
-    {
-        return (int) now()->format('n');
-    }
-
     protected function formatYearOptions(array $years): array
     {
         $options = [];
@@ -486,8 +486,8 @@ class ChiPhiDaoTaoChart extends Widget
     {
         $value = trim((string) $label);
 
-        $clean = preg_replace('/^V\s*V\s*/iu', '', $value) ?? $value;
-        $clean = preg_replace('/^V\s*(?:[-–—])?\s*/iu', '', $clean) ?? $clean;
+        $clean = preg_replace('/^(?:V\s*)+/iu', '', $value) ?? $value;
+        $clean = preg_replace('/^[-–—\s]+/u', '', $clean) ?? $clean;
 
         $normalized = trim($clean, " \t\n\r\0\x0B-–—");
 
