@@ -9,7 +9,7 @@ use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\JsExpression;
+use Filament\Support\RawJs;
 
 class ChiPhiDaoTaoChart extends Widget
 {
@@ -240,7 +240,7 @@ class ChiPhiDaoTaoChart extends Widget
                     'backgroundColor' => 'rgba(15, 23, 42, 0.95)',
                     'titleFont' => ['weight' => '600'],
                     'callbacks' => [
-                        'label' => new JsExpression('function(context) {
+                        'label' => RawJs::make('function(context) {
                             var label = context.dataset.label || "";
                             var value = context.parsed.y || 0;
                             return label + ": " + new Intl.NumberFormat("vi-VN").format(value) + " VND";
@@ -262,7 +262,7 @@ class ChiPhiDaoTaoChart extends Widget
                         'color' => 'rgba(148, 163, 184, 0.2)',
                     ],
                     'ticks' => [
-                        'callback' => new JsExpression('function(value) {
+                        'callback' => RawJs::make('function(value) {
                             return new Intl.NumberFormat("vi-VN").format(value / 1000000) + " tr";
                         }'),
                     ],
