@@ -18,14 +18,24 @@ class ThongKeHocVienChart extends ChartWidget
 {
     protected static ?string $heading = 'Thống kê Học viên theo tháng';
     protected static ?string $maxHeight = '380px';
-    protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
-    protected ?Collection $planYearCache = null;
+    /** Đặt sort thấp hơn để nằm trước block Chi phí */
+    protected static ?int $sort = 10;
+
+    /** Full-width trên dashboard */
+    protected int|string|array $columnSpan = 12;
 
     /**
-     * @var array<int, array<int, array<int>>>
+     * @var Collection|null
      */
-    protected array $courseMonthCache = [];
+    protected $planYearCache = null;
+
+    /**
+     * Cache of course ids grouped by month for a given training plan year.
+     *
+     * @var array<int, array<int, int[]>>
+     */
+    protected $courseMonthCache = [];
 
     protected function getType(): string
     {
@@ -74,7 +84,7 @@ class ThongKeHocVienChart extends ChartWidget
 
             return [
                 'datasets' => $datasets,
-                'labels'   => [sprintf('Tháng %02d/%d', $month, $year)],
+                'labels'   => [sprintf('%02d/%d', $month, $year)],
             ];
         }
 
@@ -93,41 +103,67 @@ class ThongKeHocVienChart extends ChartWidget
 
     protected function getOptions(): array
     {
-        $detail = !empty($this->filterFormData['month']);
+        $detail           = ! empty($this->filterFormData['month']);
+        $tooltipCallbacks = [
+            'label' => [
+                'type'   => 'dataset-value',
+                'axis'   => 'y',
+                'locale' => 'vi-VN',
+            ],
+        ];
 
-        // KHÔNG đưa object callback vào state Livewire
+        if ($detail) {
+            $tooltipCallbacks['footer'] = [
+                'type'  => 'stacked-sum',
+                'stack' => 'khong-hoan-thanh',
+                'label' => 'Tổng không hoàn thành',
+                'locale' => 'vi-VN',
+            ];
+        }
+
         return [
             'animation' => [ 'duration' => 900, 'easing' => 'easeOutQuart' ],
             'plugins'   => [
-                'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ]],
+                'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ] ],
                 'tooltip' => [
                     'mode'      => 'index',
                     'intersect' => false,
+                    'callbacks' => $tooltipCallbacks,
                 ],
-                // Hiển thị Số lượng (chỉ số) trên mỗi cột
+                // Hiển thị SỐ LƯỢNG ngay trên mỗi cột
                 'barValueLabels' => [
-                    'padding' => 6,
-                    'color'   => '#111827',
-                    'font'    => [ 'size' => 11, 'weight' => '600' ],
-                    // yêu cầu "chỉ hiển thị số" => dùng formatter 'raw'
-                    'formatter' => 'raw',
+                    'padding'    => 6,
+                    'color'      => '#111827',
+                    'font'       => [
+                        'size'   => 11,
+                        'weight' => '600',
+                    ],
+                    'showZero'   => true,
+                    'align'      => 'center',
+                    'verticalAlign' => 'bottom',
+                    'locale'     => 'vi-VN',
+                    'formatter'  => [
+                        'type'                  => 'number',
+                        'locale'                => 'vi-VN',
+                        'maximumFractionDigits' => 0,
+                    ],
                 ],
             ],
-            'responsive' => true,
+            'responsive'          => true,
             'maintainAspectRatio' => false,
-            'layout' => [
+            'layout'    => [
                 'padding' => [ 'top' => 24, 'right' => 16, 'left' => 8 ],
             ],
             'interaction' => [ 'mode' => 'index', 'intersect' => false ],
             'scales' => [
                 'x' => [
                     'stacked' => (bool) $detail,
-                    'ticks'   => [ 'font' => [ 'size' => 12 ]],
+                    'ticks'   => [ 'font' => [ 'size' => 12 ] ],
                     'grid'    => [ 'display' => false ],
                 ],
                 'y' => [
                     'beginAtZero' => true,
-                    'ticks'       => [ 'font' => [ 'size' => 12 ]],
+                    'ticks'       => [ 'font' => [ 'size' => 12 ] ],
                     'grid'        => [ 'drawBorder' => false ],
                 ],
             ],
@@ -139,29 +175,29 @@ class ThongKeHocVienChart extends ChartWidget
         $color = $this->colorForKey($colorKey);
 
         return array_merge([
-            'label' => $label,
-            'data'  => $data,
-            'backgroundColor'     => $color['background'],
-            'hoverBackgroundColor'=> $color['border'],
-            'borderColor'         => $color['border'],
-            'borderWidth'         => 1,
-            'borderRadius'        => 12,
-            'borderSkipped'       => false,
-            'maxBarThickness'     => 40,
-            'categoryPercentage'  => 0.72,
-            'barPercentage'       => 0.85,
+            'label'           => $label,
+            'data'            => $data,
+            'backgroundColor' => $color['background'],
+            'hoverBackgroundColor' => $color['border'],
+            'borderColor'     => $color['border'],
+            'borderWidth'     => 1,
+            'borderRadius'    => 12,
+            'borderSkipped'   => false,
+            'maxBarThickness' => 40,
+            'categoryPercentage' => 0.72,
+            'barPercentage'   => 0.85,
         ], $overrides);
     }
 
     private function colorForKey(string $key): array
     {
         $palette = [
-            'dang-ky'           => [59, 130, 246],
-            'hoan-thanh'        => [16, 185, 129],
-            'khong-hoan-thanh'  => [249, 115, 22],
-            'vang-p'            => [251, 191, 36],
-            'vang-kp'           => [239, 68, 68],
-            'vang-khac'         => [129, 140, 248],
+            'dang-ky'          => [59, 130, 246],
+            'hoan-thanh'       => [16, 185, 129],
+            'khong-hoan-thanh' => [249, 115, 22],
+            'vang-p'           => [251, 191, 36],
+            'vang-kp'          => [239, 68, 68],
+            'vang-khac'        => [129, 140, 248],
         ];
 
         $rgb = $palette[$key] ?? [107, 114, 128];
@@ -190,7 +226,7 @@ class ThongKeHocVienChart extends ChartWidget
             return $this->planYearCache;
         }
 
-        $years = collect();
+        $years        = collect();
         $khoaHocTable = (new KhoaHoc)->getTable();
 
         if (Schema::hasTable($khoaHocTable) && Schema::hasColumn($khoaHocTable, 'nam')) {
@@ -215,9 +251,9 @@ class ThongKeHocVienChart extends ChartWidget
     private function compileMonthlySeries(int $year): array
     {
         return [
-            'dangKy'         => $this->monthlyDangKyCounts($year),
-            'hoanThanh'      => $this->monthlyHoanThanhCounts($year),
-            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($year),
+            'dangKy'          => $this->monthlyDangKyCounts($year),
+            'hoanThanh'       => $this->monthlyHoanThanhCounts($year),
+            'khongHoanThanh'  => $this->monthlyKhongHoanThanhCounts($year),
         ];
     }
 
@@ -239,24 +275,28 @@ class ThongKeHocVienChart extends ChartWidget
     private function emptyMonthlyBuckets(): array
     {
         $buckets = [];
+
         for ($month = 1; $month <= 12; $month++) {
             $buckets[$month] = 0;
         }
+
         return $buckets;
     }
 
     private function emptyMonthlyCourseBuckets(): array
     {
         $buckets = [];
+
         for ($month = 1; $month <= 12; $month++) {
             $buckets[$month] = [];
         }
+
         return $buckets;
     }
 
     private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
     {
-        $buckets = $this->emptyMonthlyBuckets();
+        $buckets   = $this->emptyMonthlyBuckets();
         $courseIds = [];
 
         foreach ($courseMap as $ids) {
@@ -269,7 +309,8 @@ class ThongKeHocVienChart extends ChartWidget
             return $buckets;
         }
 
-        $table   = $query->getModel()->getTable();
+        $table = $query->getModel()->getTable();
+
         $keyName = $query->getModel()->getQualifiedKeyName();
 
         $rows = (clone $query)
@@ -299,12 +340,12 @@ class ThongKeHocVienChart extends ChartWidget
             return [0, 0, 0, 0];
         }
 
-        $table = (new HocVienKhongHoanThanh)->getTable();
-        $query = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
+        $table    = (new HocVienKhongHoanThanh)->getTable();
+        $query    = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
         $idColumn = "$table.id";
 
-        $total = (clone $query)->distinct($idColumn)->count($idColumn);
-        $vangP = 0;
+        $total  = (clone $query)->distinct($idColumn)->count($idColumn);
+        $vangP  = 0;
         $vangKP = 0;
 
         if (Schema::hasColumn($table, 'vang_co_phep')) {
@@ -363,6 +404,7 @@ class ThongKeHocVienChart extends ChartWidget
             }
 
             $courseId = (int) $row->khoa_hoc_id;
+
             if ($courseId <= 0) {
                 continue;
             }
@@ -371,8 +413,8 @@ class ThongKeHocVienChart extends ChartWidget
         }
 
         $normalized = [];
-        foreach ($buckets as $m => $ids) {
-            $normalized[$m] = array_values(array_keys($ids));
+        foreach ($buckets as $month => $ids) {
+            $normalized[$month] = array_values(array_keys($ids));
         }
 
         return $this->courseMonthCache[$year] = $normalized;

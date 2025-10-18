@@ -14,28 +14,41 @@ class ChiPhiDaoTaoChart extends Widget
 {
     protected static string $view = 'filament.widgets.training-cost-chart';
 
-    public ?int $year = null;
-    public ?int $month = null;
+    /** Sắp xếp sau ThongKeHocVienChart (block #2) */
+    protected static ?int $sort = 20;
 
-    public array $selectedTrainingTypes = [];
-    public array $chartData = [];
-    public array $chartOptions = [];
-    public array $trainingTypeOptions = [];
-    public array $monthOptions = [];
+    /** Full-width, bố cục 3 cột + hàng dưới là biểu đồ */
+    protected int|string|array $columnSpan = 12;
 
-    protected array $aggregatedCosts = [];
-    public array $yearOptions = [];
-    public float $totalCost = 0.0;
-    public array $typeTotals = [];
+    /** @var int|null */
+    public $year = null;
+    /** @var int|null */
+    public $month = null;
+    /** @var array<int, string> */
+    public $selectedTrainingTypes = [];
+    /** @var array<string, mixed> */
+    public $chartData = [];
+    /** @var array<string, mixed> */
+    public $chartOptions = [];
+    /** @var array<string, string> */
+    public $trainingTypeOptions = [];
+    /** @var array<int, string> */
+    public $monthOptions = [];
+    /** @var array<int, array<string, float>> */
+    protected $aggregatedCosts = [];
+    /** @var array<int, string> */
+    public $yearOptions = [];
+    /** @var float */
+    public $totalCost = 0.0;
+    /** @var array<string, float> */
+    public $typeTotals = [];
 
     public function mount(): void
     {
-        $this->yearOptions  = $this->formatYearOptions($this->getAvailableYears());
-        $this->monthOptions = $this->formatMonthOptions();
-        // Mặc định: năm hiện hành, tháng = tất cả
-        $this->year  = $this->resolveDefaultYear();
-        $this->month = $this->resolveDefaultMonth();
-
+        $this->yearOptions         = $this->formatYearOptions($this->getAvailableYears());
+        $this->monthOptions        = $this->formatMonthOptions();
+        $this->year                = $this->resolveDefaultYear();
+        $this->month               = $this->resolveDefaultMonth();
         $this->trainingTypeOptions = $this->getTrainingTypeOptions();
         $this->refreshState();
     }
@@ -51,19 +64,35 @@ class ChiPhiDaoTaoChart extends Widget
         $this->refreshState(resetSelections: false);
     }
 
-    public function updatedSelectedTrainingTypes(): void
+    public function toggleTrainingType($value): void
     {
+        $value = (string) $value;
+
+        $current = $this->selectedTrainingTypes;
+
+        if (in_array($value, $current, true)) {
+            $current = array_values(array_filter($current, fn ($item) => $item !== $value));
+        } else {
+            $current[] = $value;
+        }
+
+        $this->selectedTrainingTypes = array_values(array_unique($current));
+
+        $this->refreshState(resetSelections: false);
+    }
+
+    public function clearTrainingTypeFilters(): void
+    {
+        $this->selectedTrainingTypes = [];
+
         $this->refreshState(resetSelections: false);
     }
 
     protected function refreshState(bool $resetSelections = true): void
     {
-        if ($resetSelections) {
-            $this->selectedTrainingTypes = [];
-        }
-
-        $this->yearOptions  = $this->formatYearOptions($this->getAvailableYears());
-        $this->monthOptions = $this->formatMonthOptions();
+        $this->trainingTypeOptions = $this->getTrainingTypeOptions();
+        $this->yearOptions         = $this->formatYearOptions($this->getAvailableYears());
+        $this->monthOptions        = $this->formatMonthOptions();
 
         if ($this->year !== null && ! array_key_exists($this->year, $this->yearOptions)) {
             $this->year = null;
@@ -73,51 +102,56 @@ class ChiPhiDaoTaoChart extends Widget
             $this->month = null;
         }
 
-        $year  = $this->year ?? $this->resolveDefaultYear();
-        $types = $this->selectedTrainingTypes;
+        $year       = (int) ($this->year ?? $this->resolveDefaultYear());
+        $this->year = $year;
+        $month      = $this->month === null || $this->month === ''
+            ? null
+            : max(1, min(12, (int) $this->month));
+        $this->month = $month;
 
-        $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $this->month);
-        $this->chartData       = $this->buildChartData($this->aggregatedCosts, $types, $this->month);
-        $this->chartOptions    = $this->buildChartOptions($this->month);
+        $types = $resetSelections ? [] : $this->selectedTrainingTypes;
+
+        if (! empty($types)) {
+            $allowedTypes = array_keys($this->trainingTypeOptions);
+            $types        = array_values(array_intersect($types, $allowedTypes));
+        }
+
+        $this->selectedTrainingTypes = $types;
+
+        $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $month);
+        $this->chartData       = $this->buildChartData($this->aggregatedCosts, $types, $month);
+        $this->chartOptions    = $this->buildChartOptions($month);
         $this->totalCost       = $this->calculateTotalCost($this->aggregatedCosts);
         $this->typeTotals      = $this->calculateTypeTotals($this->aggregatedCosts);
     }
 
     protected function buildCostMatrix(int $year, array $selectedTypes, ?int $selectedMonth = null): array
     {
-        $courseQuery = KhoaHoc::query()->where('nam', $year);
-
-        if (! empty($selectedTypes)) {
-            HocVienHoanThanhResource::applyTrainingTypeFilter($courseQuery, $selectedTypes);
-        }
-
-        $courseIds = $courseQuery
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
         $matrix = [];
+
         foreach (range(1, 12) as $month) {
             $matrix[$month] = [];
         }
 
-        if (empty($courseIds)) {
-            return $matrix;
-        }
-
         $records = HocVienHoanThanh::query()
             ->with(['khoaHoc.chuongTrinh'])
-            ->whereIn('khoa_hoc_id', $courseIds)
+            ->whereHas('khoaHoc', function (Builder $courseQuery) use ($selectedTypes) {
+                if (! empty($selectedTypes)) {
+                    HocVienHoanThanhResource::applyTrainingTypeFilter($courseQuery, $selectedTypes);
+                }
+            })
             ->whereNotNull('chi_phi_dao_tao')
             ->where(function (Builder $query) use ($year, $selectedMonth) {
                 $query->where(function (Builder $completed) use ($year, $selectedMonth) {
                     $completed->whereYear('ngay_hoan_thanh', $year);
+
                     if ($selectedMonth) {
                         $completed->whereMonth('ngay_hoan_thanh', $selectedMonth);
                     }
                 })->orWhere(function (Builder $sub) use ($year, $selectedMonth) {
                     $sub->whereNull('ngay_hoan_thanh')
                         ->whereYear('created_at', $year);
+
                     if ($selectedMonth) {
                         $sub->whereMonth('created_at', $selectedMonth);
                     }
@@ -127,29 +161,36 @@ class ChiPhiDaoTaoChart extends Widget
 
         foreach ($records as $record) {
             $dateValue = $record->ngay_hoan_thanh ?? $record->created_at;
+
             if (! $dateValue) {
                 continue;
             }
 
-            $date = $dateValue instanceof Carbon ? $dateValue : Carbon::parse($dateValue);
+            $date = $dateValue instanceof Carbon
+                ? $dateValue
+                : Carbon::parse($dateValue);
+
             $month = (int) $date->format('n');
 
             if ($selectedMonth !== null && $month !== $selectedMonth) {
                 continue;
             }
+
             if ($month < 1 || $month > 12) {
                 continue;
             }
 
             $course = $record->khoaHoc;
+
             if (! $course) {
                 continue;
             }
 
             $course->loadMissing('chuongTrinh');
+
             $type = $this->resolveTrainingType($course);
 
-            if ($type === null || ($selectedTypes && ! in_array($type, $selectedTypes, true))) {
+            if ($type === null) {
                 continue;
             }
 
@@ -174,43 +215,55 @@ class ChiPhiDaoTaoChart extends Widget
     protected function calculateTotalCost(array $matrix): float
     {
         $sum = 0.0;
+
         foreach ($matrix as $values) {
             foreach ($values as $amount) {
                 $sum += (float) $amount;
             }
         }
+
         return round($sum, 2);
     }
 
     protected function calculateTypeTotals(array $matrix): array
     {
         $totals = [];
+
         foreach ($matrix as $values) {
             foreach ($values as $type => $amount) {
                 $label = $this->formatTrainingTypeLabel($type);
+
                 if (! isset($totals[$label])) {
                     $totals[$label] = 0.0;
                 }
+
                 $totals[$label] += (float) $amount;
             }
         }
+
         ksort($totals);
+
         return array_map(fn ($value) => round($value, 2), $totals);
     }
 
     protected function buildChartData(array $matrix, array $selectedTypes, ?int $selectedMonth = null): array
     {
-        $labels = $selectedMonth === null
+        $labels   = $selectedMonth === null
             ? $this->monthLabels()
-            : [sprintf('Tháng %02d', $selectedMonth)];
-
+            : [sprintf('%02d/%d', $selectedMonth, $this->year ?? now()->year)];
         $datasets = [];
-        $types = ! empty($selectedTypes) ? $selectedTypes : $this->collectTypesFromMatrix($matrix);
-        $types   = $this->sortTypesByLabel($types);
+
+        $types = ! empty($selectedTypes)
+            ? $selectedTypes
+            : $this->collectTypesFromMatrix($matrix);
+
+        $types = $this->sortTypesByLabel($types);
+
         $palette = $this->buildPalette(count($types));
 
         foreach ($types as $index => $type) {
             $data = [];
+
             if ($selectedMonth === null) {
                 foreach (range(1, 12) as $month) {
                     $data[] = round(Arr::get($matrix, "$month.$type", 0), 2);
@@ -220,6 +273,7 @@ class ChiPhiDaoTaoChart extends Widget
             }
 
             $color = $palette[$index % count($palette)];
+
             $datasets[] = [
                 'label'           => $this->formatTrainingTypeLabel($type),
                 'data'            => $data,
@@ -228,7 +282,7 @@ class ChiPhiDaoTaoChart extends Widget
                 'borderWidth'     => 1,
                 'tension'         => 0.3,
                 'borderRadius'    => 8,
-                'hoverBorderWidth'=> 2,
+                'hoverBorderWidth' => 2,
                 'borderSkipped'   => false,
             ];
         }
@@ -241,12 +295,10 @@ class ChiPhiDaoTaoChart extends Widget
 
     protected function buildChartOptions(?int $selectedMonth = null): array
     {
-        // KHÔNG dùng Illuminate\Support\Js trong state Livewire
         return [
             'responsive'          => true,
             'maintainAspectRatio' => false,
-            // Hiển thị theo chiều ngang
-            'indexAxis'           => 'y',
+            'indexAxis'           => 'x', // dọc theo trục Y, hiển thị cột đứng
             'interaction'         => [
                 'mode'      => 'index',
                 'intersect' => false,
@@ -255,13 +307,6 @@ class ChiPhiDaoTaoChart extends Widget
                 'padding' => ['top' => 12, 'bottom' => 12, 'left' => 8, 'right' => 8],
             ],
             'plugins' => [
-                'title' => [
-                    'display' => true,
-                    'text'    => 'Thống kê chi phí đào tạo',
-                    'font'    => ['weight' => 600, 'size' => 14],
-                    'color'   => '#0f172a',
-                    'padding' => ['bottom' => 10],
-                ],
                 'legend' => [
                     'position' => 'bottom',
                     'labels'   => [
@@ -272,18 +317,30 @@ class ChiPhiDaoTaoChart extends Widget
                     ],
                 ],
                 'tooltip' => [
-                    'mode'      => 'index',
-                    'intersect' => false,
+                    'backgroundColor' => 'rgba(15, 23, 42, 0.95)',
+                    'titleFont'       => ['weight' => '600'],
+                    'usePointStyle'   => true,
+                    'padding'         => 12,
                 ],
-                // Plugin barValueLabels sẽ tự format (toLocaleString vi-VN)
                 'barValueLabels' => [
-                    'padding'      => 8,
-                    'color'        => '#0f172a',
-                    'font'         => ['size' => 11, 'weight' => '600'],
-                    'align'        => 'left',
-                    'verticalAlign'=> 'middle',
-                    // có thể chọn 'raw' để hiện số thô, hoặc để trống dùng locale
-                    // 'formatter'  => 'raw',
+                    'padding'    => 10,
+                    'color'      => '#0f172a',
+                    'font'       => [
+                        'size'   => 11,
+                        'weight' => '600',
+                    ],
+                    'verticalAlign' => 'bottom',
+                    'align'         => 'center',
+                    'anchor'        => 'end',
+                    'showZero'      => true,
+                    'locale'        => 'vi-VN',
+                    'formatter'     => [
+                        'type'                  => 'currency',
+                        'locale'                => 'vi-VN',
+                        'currency'              => 'VND',
+                        'suffix'                => ' đ',
+                        'maximumFractionDigits' => 0,
+                    ],
                 ],
             ],
             'datasets' => [
@@ -294,22 +351,24 @@ class ChiPhiDaoTaoChart extends Widget
             ],
             'scales' => [
                 'x' => [
-                    'beginAtZero' => true,
-                    'grid'        => [
-                        'color'      => 'rgba(148, 163, 184, 0.15)',
-                        'drawBorder' => false,
+                    'grid'  => [
+                        'display' => false,
                     ],
-                    'ticks'       => [
-                        'precision' => 0,
-                        'color'     => '#475569',
-                        'font'      => ['size' => 12, 'weight' => '500'],
-                    ],
-                ],
-                'y' => [
-                    'grid' => ['display' => false],
                     'ticks' => [
                         'color' => '#475569',
                         'font'  => ['size' => 12, 'weight' => '500'],
+                    ],
+                ],
+                'y' => [
+                    'beginAtZero' => true,
+                    'grid'        => [
+                        'color'      => 'rgba(148, 163, 184, 0.18)',
+                        'drawBorder' => false,
+                    ],
+                    'ticks' => [
+                        'precision' => 0,
+                        'color'     => '#475569',
+                        'font'      => ['size' => 12, 'weight' => '500'],
                     ],
                 ],
             ],
@@ -317,6 +376,13 @@ class ChiPhiDaoTaoChart extends Widget
                 'duration' => 900,
                 'easing'   => 'easeOutQuart',
                 'delay'    => 100,
+            ],
+            '__meta' => [
+                'tooltipLocale' => 'vi-VN',
+                'tooltipSuffix' => ' VND',
+                'tickLocale'    => 'vi-VN',
+                'tickDivisor'   => 1000000,
+                'tickSuffix'    => ' tr',
             ],
         ];
     }
@@ -346,9 +412,11 @@ class ChiPhiDaoTaoChart extends Widget
         }
 
         $palette = [];
+
         for ($i = 0; $i < $count; $i++) {
             $palette[] = $base[$i % count($base)];
         }
+
         return $palette;
     }
 
@@ -374,13 +442,14 @@ class ChiPhiDaoTaoChart extends Widget
     protected function monthLabels(): array
     {
         return collect(range(1, 12))
-            ->map(fn (int $month) => sprintf('Tháng %02d', $month))
+            ->map(fn (int $month) => sprintf('%02d', $month))
             ->toArray();
     }
 
     protected function getTrainingTypeOptions(): array
     {
         $options = HocVienHoanThanhResource::getTrainingTypeOptions();
+
         if (empty($options)) {
             return [];
         }
@@ -397,44 +466,62 @@ class ChiPhiDaoTaoChart extends Widget
     protected function resolveDefaultYear(): int
     {
         $currentYear = (int) now()->format('Y');
-        $years = $this->getAvailableYears();
+        $years       = $this->getAvailableYears();
+
         if (in_array($currentYear, $years, true)) {
             return $currentYear;
         }
+
         return $years[0] ?? $currentYear;
     }
 
     protected function resolveDefaultMonth(): ?int
     {
-        return null; // mặc định cả năm
+        return null;
     }
 
     protected function formatYearOptions(array $years): array
     {
         $options = [];
+
         foreach ($years as $year) {
             $options[$year] = (string) $year;
         }
+
         return $options;
     }
 
     protected function formatMonthOptions(): array
     {
         $options = [];
+
         foreach (range(1, 12) as $month) {
-            $options[$month] = sprintf('Tháng %02d', $month);
+            $options[$month] = sprintf('%02d', $month);
         }
+
         return $options;
     }
 
     protected function getAvailableYears(): array
     {
-        $years = KhoaHoc::query()
-            ->select('nam')
-            ->distinct()
-            ->orderBy('nam', 'desc')
+        $courseYears = KhoaHoc::query()
+            ->whereNotNull('nam')
             ->pluck('nam')
             ->map(fn ($year) => (int) $year)
+            ->all();
+
+        $completionYears = HocVienHoanThanh::query()
+            ->selectRaw('DISTINCT YEAR(COALESCE(ngay_hoan_thanh, created_at)) as year')
+            ->pluck('year')
+            ->map(fn ($year) => (int) $year)
+            ->all();
+
+        $years = collect($courseYears)
+            ->merge($completionYears)
+            ->filter(fn ($year) => $year !== null && $year > 0)
+            ->unique()
+            ->sortDesc()
+            ->values()
             ->all();
 
         if (empty($years)) {
@@ -446,23 +533,30 @@ class ChiPhiDaoTaoChart extends Widget
 
     protected function formatTrainingTypeLabel(string $label): string
     {
-        // Xoá tick/dấu thừa đầu chuỗi: V, v, ✓, ✔, •, - ...
         $value = trim((string) $label);
-        $clean = preg_replace('/^([Vv✓✔•\-\s])+/', '', $value) ?? $value;
+
+        $clean = preg_replace('/^[Vv✓✔☑✅•\-\/\s]+/u', '', $value) ?? $value;
         $clean = preg_replace('/^[-–—]\s*/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/[✓✔☑✅]+/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b[Vv]\b/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/\s{2,}/u', ' ', $clean) ?? $clean;
+
         $normalized = trim($clean, " \t\n\r\0\x0B-–—");
+
         return $normalized !== '' ? $normalized : $value;
     }
 
     protected function sortTypesByLabel(array $types): array
     {
         $sorted = $types;
+
         usort($sorted, function ($a, $b) {
             return strcmp(
                 $this->formatTrainingTypeLabel((string) $a),
                 $this->formatTrainingTypeLabel((string) $b)
             );
         });
+
         return $sorted;
     }
 }
