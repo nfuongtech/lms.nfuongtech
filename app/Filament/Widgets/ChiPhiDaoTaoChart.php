@@ -90,17 +90,33 @@ class ChiPhiDaoTaoChart extends Widget
         $this->refreshState(resetSelections: false);
     }
 
-    public function updatedSelectedTrainingTypes(): void
+    public function toggleTrainingType($value): void
     {
+        $value = (string) $value;
+
+        $current = $this->selectedTrainingTypes;
+
+        if (in_array($value, $current, true)) {
+            $current = array_values(array_filter($current, fn ($item) => $item !== $value));
+        } else {
+            $current[] = $value;
+        }
+
+        $this->selectedTrainingTypes = array_values(array_unique($current));
+
+        $this->refreshState(resetSelections: false);
+    }
+
+    public function clearTrainingTypeFilters(): void
+    {
+        $this->selectedTrainingTypes = [];
+
         $this->refreshState(resetSelections: false);
     }
 
     protected function refreshState(bool $resetSelections = true): void
     {
-        if ($resetSelections) {
-            $this->selectedTrainingTypes = [];
-        }
-
+        $this->trainingTypeOptions = $this->getTrainingTypeOptions();
         $this->yearOptions = $this->formatYearOptions($this->getAvailableYears());
         $this->monthOptions = $this->formatMonthOptions();
 
@@ -113,7 +129,14 @@ class ChiPhiDaoTaoChart extends Widget
         }
 
         $year = $this->year ?? $this->resolveDefaultYear();
-        $types = $this->selectedTrainingTypes;
+        $types = $resetSelections ? [] : $this->selectedTrainingTypes;
+
+        if (! empty($types)) {
+            $allowedTypes = array_keys($this->trainingTypeOptions);
+            $types = array_values(array_intersect($types, $allowedTypes));
+        }
+
+        $this->selectedTrainingTypes = $types;
 
         $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $this->month);
         $this->chartData = $this->buildChartData($this->aggregatedCosts, $types, $this->month);
@@ -531,6 +554,8 @@ class ChiPhiDaoTaoChart extends Widget
 
         $clean = preg_replace('/^[Vv✓✔☑✅•\-\/\s]+/u', '', $value) ?? $value;
         $clean = preg_replace('/^[-–—]\s*/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/[✓✔☑✅]+/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b[Vv]\b/u', '', $clean) ?? $clean;
         $clean = preg_replace('/\s{2,}/u', ' ', $clean) ?? $clean;
 
         $normalized = trim($clean, " \t\n\r\0\x0B-–—");

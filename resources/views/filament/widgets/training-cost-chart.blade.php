@@ -13,11 +13,11 @@
             $periodLabel = $month ? sprintf('T%02d/%d', $month, $resolvedYear) : 'Năm ' . $resolvedYear;
         @endphp
 
-        <div class="space-y-6">
-            <div class="grid gap-6 lg:grid-cols-5">
-                <div class="lg:col-span-2">
-                    <div class="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
-                        <div class="grid gap-4">
+        <div class="space-y-6 xl:space-y-8">
+            <div class="grid gap-6 lg:gap-8 xl:grid-cols-12 xl:items-start">
+                <div class="xl:col-span-4">
+                    <div class="space-y-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm">
+                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                             <label class="flex flex-col text-sm font-medium text-slate-600">
                                 <span>Năm</span>
                                 <select
@@ -44,24 +44,47 @@
                             </label>
                         </div>
 
-                        <label class="flex flex-col text-sm font-medium text-slate-600">
-                            <span>Loại hình đào tạo</span>
-                            <select
-                                wire:model.live="selectedTrainingTypes"
-                                multiple
-                                size="6"
-                                class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
-                            >
-                                @foreach($trainingTypeOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            <span class="mt-2 text-xs font-normal text-slate-400">Giữ Ctrl hoặc Cmd để chọn nhiều loại hình.</span>
-                        </label>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-600">Loại hình đào tạo</span>
+                                @if(!empty($selectedTrainingTypes))
+                                    <button
+                                        type="button"
+                                        wire:click="clearTrainingTypeFilters"
+                                        wire:loading.attr="disabled"
+                                        class="text-xs font-semibold text-primary-600 transition hover:text-primary-500"
+                                    >
+                                        Bỏ chọn
+                                    </button>
+                                @endif
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                @forelse($trainingTypeOptions as $value => $label)
+                                    @php
+                                        $isSelected = in_array($value, $selectedTrainingTypes ?? [], true);
+                                    @endphp
+                                    <button
+                                        type="button"
+                                        wire:key="training-type-{{ md5($value) }}"
+                                        wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
+                                        wire:loading.attr="disabled"
+                                        @class([
+                                            'rounded-full border px-3 py-1.5 text-xs font-semibold tracking-wide transition focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-500',
+                                            'border-primary-500 bg-primary-500 text-white shadow-sm shadow-primary-200' => $isSelected,
+                                            'border-slate-200 bg-white text-slate-600 hover:border-primary-400 hover:text-primary-600' => ! $isSelected,
+                                        ])
+                                    >
+                                        {{ $label }}
+                                    </button>
+                                @empty
+                                    <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
+                                @endforelse
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="space-y-6 lg:col-span-3">
+                <div class="space-y-6 xl:col-span-8">
                     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
                             <p class="text-xs font-semibold uppercase text-amber-500">Tổng chi phí</p>
