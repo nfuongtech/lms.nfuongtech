@@ -198,6 +198,11 @@ class ThongKeHocVienChart extends Widget
                     'borderWidth' => 1,
                     'tension' => 0.3,
                     'borderRadius' => 8,
+                    'maxBarThickness' => 36,
+                    'barPercentage' => 0.72,
+                    'categoryPercentage' => 0.6,
+                    'borderSkipped' => false,
+                    'hoverBorderWidth' => 2,
                 ],
                 [
                     'label' => 'Hoàn thành',
@@ -207,6 +212,11 @@ class ThongKeHocVienChart extends Widget
                     'borderWidth' => 1,
                     'tension' => 0.3,
                     'borderRadius' => 8,
+                    'maxBarThickness' => 36,
+                    'barPercentage' => 0.72,
+                    'categoryPercentage' => 0.6,
+                    'borderSkipped' => false,
+                    'hoverBorderWidth' => 2,
                 ],
                 [
                     'label' => 'Không hoàn thành',
@@ -216,6 +226,11 @@ class ThongKeHocVienChart extends Widget
                     'borderWidth' => 1,
                     'tension' => 0.3,
                     'borderRadius' => 8,
+                    'maxBarThickness' => 36,
+                    'barPercentage' => 0.72,
+                    'categoryPercentage' => 0.6,
+                    'borderSkipped' => false,
+                    'hoverBorderWidth' => 2,
                 ],
             ],
         ];
@@ -236,6 +251,9 @@ class ThongKeHocVienChart extends Widget
                     'labels' => [
                         'usePointStyle' => true,
                         'padding' => 20,
+                        'font' => [
+                            'size' => 12,
+                        ],
                     ],
                 ],
                 'tooltip' => [
@@ -251,23 +269,39 @@ class ThongKeHocVienChart extends Widget
                         'display' => false,
                     ],
                     'ticks' => [
-                        'font' => ['size' => 12],
+                        'font' => [
+                            'size' => 12,
+                            'weight' => '600',
+                        ],
                     ],
                 ],
                 'y' => [
                     'beginAtZero' => true,
                     'ticks' => [
                         'precision' => 0,
+                        'font' => [
+                            'size' => 12,
+                        ],
                         'stepSize' => 1,
                     ],
                     'grid' => [
                         'color' => 'rgba(148, 163, 184, 0.2)',
+                        'drawBorder' => false,
                     ],
                 ],
             ],
             'animation' => [
                 'duration' => 800,
                 'easing' => 'easeOutQuart',
+                'delay' => 60,
+            ],
+            'layout' => [
+                'padding' => [
+                    'top' => 12,
+                    'right' => 16,
+                    'left' => 12,
+                    'bottom' => 8,
+                ],
             ],
         ];
     }

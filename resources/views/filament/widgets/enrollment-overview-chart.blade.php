@@ -14,7 +14,7 @@
                     <span>Năm</span>
                     <select
                         wire:model.live="year"
-                        class="mt-1 w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
+                        class="mt-1 min-w-[11rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-700 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40"
                     >
                         @foreach($yearOptions as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
@@ -44,7 +44,7 @@
                     options: @entangle('chartOptions').live,
                 })"
             >
-                <canvas x-ref="canvas" class="rounded-xl bg-gradient-to-br from-slate-50 to-white"></canvas>
+                <canvas x-ref="canvas" class="rounded-xl bg-gradient-to-br from-slate-50 to-white shadow-inner"></canvas>
             </div>
 
             @if(!empty($this->month) && !empty($monthSummary['label']))
@@ -91,88 +91,4 @@
     </x-filament::card>
 </x-filament::widget>
 
-@once
-    @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-        <script>
-            document.addEventListener('alpine:init', () => {
-                if (window.__dashboardChartRegistered) {
-                    return;
-                }
-
-                window.__dashboardChartRegistered = true;
-
-                Alpine.data('dashboardChart', ({ type = 'bar', data, options }) => ({
-                    chartInstance: null,
-                    type,
-                    chartData: data,
-                    chartOptions: options,
-                    init() {
-                        this.$watch('chartData', () => this.refresh());
-                        this.$watch('chartOptions', () => this.refresh());
-                        this.render();
-                    },
-                    render() {
-                        const ctx = this.$refs.canvas.getContext('2d');
-
-                        const preparedData = this.prepareData(ctx);
-                        const config = {
-                            type: this.type,
-                            data: preparedData,
-                            options: this.chartOptions,
-                        };
-
-                        if (this.chartInstance) {
-                            this.chartInstance.destroy();
-                        }
-
-                        this.chartInstance = new Chart(ctx, config);
-                    },
-                    refresh() {
-                        if (! this.chartInstance) {
-                            this.render();
-                            return;
-                        }
-
-                        const ctx = this.$refs.canvas.getContext('2d');
-                        const preparedData = this.prepareData(ctx);
-                        this.chartInstance.data = preparedData;
-                        this.chartInstance.options = this.chartOptions;
-                        this.chartInstance.update('active');
-                    },
-                    prepareData(ctx) {
-                        if (! this.chartData?.datasets) {
-                            return this.chartData;
-                        }
-
-                        const gradient = (color) => {
-                            const match = /rgba?\(([^)]+)\)/.exec(color);
-                            if (! match) {
-                                return color;
-                            }
-
-                            const stops = match[1].split(',').map(part => part.trim());
-                            const alpha = stops.length === 4 ? parseFloat(stops[3]) : 0.8;
-                            const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-                            gradient.addColorStop(0, `rgba(${stops[0]}, ${stops[1]}, ${stops[2]}, ${alpha})`);
-                            gradient.addColorStop(1, `rgba(${stops[0]}, ${stops[1]}, ${stops[2]}, ${Math.max(alpha - 0.55, 0.1)})`);
-                            return gradient;
-                        };
-
-                        const datasets = this.chartData.datasets.map(dataset => ({
-                            ...dataset,
-                            backgroundColor: Array.isArray(dataset.backgroundColor)
-                                ? dataset.backgroundColor.map(color => gradient(color))
-                                : gradient(dataset.backgroundColor),
-                        }));
-
-                        return {
-                            ...this.chartData,
-                            datasets,
-                        };
-                    },
-                }));
-            });
-        </script>
-    @endpush
-@endonce
+@include('filament.widgets.includes.dashboard-chart-script')

@@ -9,6 +9,7 @@ use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class ChiPhiDaoTaoChart extends Widget
 {
@@ -176,9 +177,21 @@ class ChiPhiDaoTaoChart extends Widget
             }
         }
 
-        ksort($totals);
+        $displayTotals = [];
 
-        return array_map(fn ($value) => round($value, 2), $totals);
+        foreach ($totals as $type => $amount) {
+            $label = $this->formatTrainingTypeLabel($type);
+
+            if (! isset($displayTotals[$label])) {
+                $displayTotals[$label] = 0.0;
+            }
+
+            $displayTotals[$label] += (float) $amount;
+        }
+
+        ksort($displayTotals);
+
+        return array_map(fn ($value) => round($value, 2), $displayTotals);
     }
 
     protected function buildChartData(array $matrix, array $selectedTypes): array
@@ -200,15 +213,21 @@ class ChiPhiDaoTaoChart extends Widget
             }
 
             $color = $palette[$index % count($palette)];
+            $label = $this->formatTrainingTypeLabel($type);
 
             $datasets[] = [
-                'label' => $type,
+                'label' => $label,
                 'data' => $data,
                 'backgroundColor' => $color['background'],
                 'borderColor' => $color['border'],
                 'borderWidth' => 1,
                 'tension' => 0.3,
                 'borderRadius' => 8,
+                'maxBarThickness' => 42,
+                'barPercentage' => 0.68,
+                'categoryPercentage' => 0.58,
+                'borderSkipped' => false,
+                'hoverBorderWidth' => 2,
             ];
         }
 
@@ -233,6 +252,9 @@ class ChiPhiDaoTaoChart extends Widget
                     'labels' => [
                         'usePointStyle' => true,
                         'padding' => 20,
+                        'font' => [
+                            'size' => 12,
+                        ],
                     ],
                 ],
                 'tooltip' => [
@@ -247,20 +269,39 @@ class ChiPhiDaoTaoChart extends Widget
                     'grid' => [
                         'display' => false,
                     ],
+                    'ticks' => [
+                        'font' => [
+                            'size' => 12,
+                            'weight' => '600',
+                        ],
+                    ],
                 ],
                 'y' => [
                     'beginAtZero' => true,
                     'grid' => [
                         'color' => 'rgba(148, 163, 184, 0.2)',
+                        'drawBorder' => false,
                     ],
                     'ticks' => [
                         'precision' => 0,
+                        'font' => [
+                            'size' => 12,
+                        ],
                     ],
                 ],
             ],
             'animation' => [
                 'duration' => 900,
                 'easing' => 'easeOutQuart',
+                'delay' => 80,
+            ],
+            'layout' => [
+                'padding' => [
+                    'top' => 12,
+                    'right' => 16,
+                    'left' => 12,
+                    'bottom' => 8,
+                ],
             ],
             '__meta' => [
                 'tooltipLocale' => 'vi-VN',
@@ -290,6 +331,8 @@ class ChiPhiDaoTaoChart extends Widget
             ['background' => 'rgba(168, 85, 247, 0.85)', 'border' => 'rgba(147, 51, 234, 1)'],
             ['background' => 'rgba(14, 165, 233, 0.85)', 'border' => 'rgba(2, 132, 199, 1)'],
             ['background' => 'rgba(244, 114, 182, 0.85)', 'border' => 'rgba(236, 72, 153, 1)'],
+            ['background' => 'rgba(34, 197, 94, 0.85)', 'border' => 'rgba(22, 163, 74, 1)'],
+            ['background' => 'rgba(99, 102, 241, 0.85)', 'border' => 'rgba(79, 70, 229, 1)'],
         ];
 
         if ($count <= count($base)) {
@@ -339,7 +382,12 @@ class ChiPhiDaoTaoChart extends Widget
             return [];
         }
 
-        return $options;
+        return collect($options)
+            ->mapWithKeys(fn ($label, $value) => [
+                $value => $this->formatTrainingTypeLabel($label),
+            ])
+            ->sortBy(fn ($label) => Str::lower($label))
+            ->toArray();
     }
 
     protected function resolveDefaultYear(): int
@@ -380,5 +428,23 @@ class ChiPhiDaoTaoChart extends Widget
         }
 
         return $years;
+    }
+
+    protected function formatTrainingTypeLabel(?string $label): string
+    {
+        if ($label === null) {
+            return 'Khác';
+        }
+
+        $value = preg_replace('/\s+/', ' ', trim((string) $label));
+
+        foreach (['V ', 'V-', 'V_', 'V:', 'V.', 'V/'] as $prefix) {
+            if (Str::startsWith($value, $prefix)) {
+                $value = ltrim(mb_substr($value, 1), " .-_/\t:");
+                break;
+            }
+        }
+
+        return $value !== '' ? $value : (string) $label;
     }
 }
