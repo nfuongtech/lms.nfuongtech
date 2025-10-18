@@ -22,6 +22,8 @@
                 if (!Chart.registry.plugins.get('barValueLabels')) {
                     const helpers = Chart.helpers;
 
+                    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
                     const barValueLabels = {
                         id: 'barValueLabels',
                         afterDatasetsDraw(chart, args, opts) {
@@ -30,16 +32,22 @@
                                 return;
                             }
 
+                            const orientation = (chart?.config?.options?.indexAxis === 'y' || chart?.options?.indexAxis === 'y')
+                                ? 'horizontal'
+                                : 'vertical';
+
                             const { ctx } = chart;
                             const padding = options.padding ?? 6;
                             const color = options.color || '#111827';
                             const fontOptions = options.font || { size: 11, weight: '600' };
+                            const formatter = typeof options.formatter === 'function'
+                                ? options.formatter
+                                : (value) => Number(value).toLocaleString(options.locale || 'vi-VN');
                             const font = helpers.toFont(fontOptions);
 
                             ctx.save();
                             ctx.font = font.string;
                             ctx.fillStyle = color;
-                            ctx.textAlign = 'center';
 
                             chart.data.datasets.forEach((dataset, datasetIndex) => {
                                 const meta = chart.getDatasetMeta(datasetIndex);
@@ -61,33 +69,69 @@
                                         }
                                     }
 
-                                    if (value === null || Number(value) === 0) {
+                                    const numericValue = Number(value);
+
+                                    if (!Number.isFinite(numericValue) || numericValue === 0) {
                                         return;
                                     }
 
-                                    const numericValue = Number(value);
-                                    const x = element.x;
-                                    let y = element.y;
+                                    const label = formatter(numericValue);
+                                    if (label === null || typeof label === 'undefined' || label === '') {
+                                        return;
+                                    }
+
+                                    let { x, y } = element;
 
                                     if (Number.isNaN(x) || Number.isNaN(y)) {
                                         return;
                                     }
 
-                                    if (numericValue >= 0) {
-                                        ctx.textBaseline = 'bottom';
-                                        y -= padding;
-                                        if (y < chart.chartArea.top + 4) {
-                                            y = chart.chartArea.top + 4;
+                                    if (orientation === 'horizontal') {
+                                        const chartArea = chart.chartArea;
+                                        ctx.textBaseline = typeof options.verticalAlign === 'string'
+                                            ? options.verticalAlign
+                                            : 'middle';
+
+                                        if (numericValue >= 0) {
+                                            ctx.textAlign = typeof options.align === 'string' ? options.align : 'left';
+                                            x += padding;
+                                            if (x > chartArea.right - 4) {
+                                                x = chartArea.right - 4;
+                                                ctx.textAlign = 'right';
+                                            }
+                                        } else {
+                                            ctx.textAlign = typeof options.negativeAlign === 'string' ? options.negativeAlign : 'right';
+                                            x -= padding;
+                                            if (x < chartArea.left + 4) {
+                                                x = chartArea.left + 4;
+                                                ctx.textAlign = 'left';
+                                            }
                                         }
+
+                                        y = clamp(y, chartArea.top + 4, chartArea.bottom - 4);
                                     } else {
-                                        ctx.textBaseline = 'top';
-                                        y += padding;
-                                        if (y > chart.chartArea.bottom - 4) {
-                                            y = chart.chartArea.bottom - 4;
+                                        ctx.textAlign = 'center';
+
+                                        if (numericValue >= 0) {
+                                            ctx.textBaseline = typeof options.verticalAlign === 'string' ? options.verticalAlign : 'bottom';
+                                            y -= padding;
+                                            if (y < chart.chartArea.top + 4) {
+                                                y = chart.chartArea.top + 4;
+                                                ctx.textBaseline = 'top';
+                                            }
+                                        } else {
+                                            ctx.textBaseline = typeof options.negativeBaseline === 'string' ? options.negativeBaseline : 'top';
+                                            y += padding;
+                                            if (y > chart.chartArea.bottom - 4) {
+                                                y = chart.chartArea.bottom - 4;
+                                                ctx.textBaseline = 'bottom';
+                                            }
                                         }
+
+                                        x = clamp(x, chart.chartArea.left + 4, chart.chartArea.right - 4);
                                     }
 
-                                    ctx.fillText(numericValue.toLocaleString('vi-VN'), x, y);
+                                    ctx.fillText(label, x, y);
                                 });
                             });
 
