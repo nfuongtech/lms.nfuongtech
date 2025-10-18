@@ -9,6 +9,7 @@ use App\Models\KhoaHoc;
 use Filament\Forms;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -20,6 +21,13 @@ class ThongKeHocVienChart extends ChartWidget
     protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
     protected ?Collection $planYearCache = null;
+
+    /**
+     * Cache of course ids grouped by month for a given training plan year.
+     *
+     * @var array<int, array<int, array<int>>>
+     */
+    protected array $courseMonthCache = [];
 
     protected function getType(): string
     {
@@ -148,7 +156,7 @@ class ThongKeHocVienChart extends ChartWidget
             'interaction' => [ 'mode' => 'index', 'intersect' => false ],
             'scales' => [
                 'x' => [
-                    'stacked' => (bool) $detail, // stack khi xem chi tiết tháng để nhóm Vắng P/KP
+                    'stacked' => (bool) $detail,
                     'ticks'   => [ 'font' => [ 'size' => 12 ]],
                     'grid'    => [ 'display' => false ],
                 ],
@@ -250,72 +258,17 @@ class ThongKeHocVienChart extends ChartWidget
 
     private function monthlyDangKyCounts(int $year): array
     {
-        $table = (new DangKy)->getTable();
-        $dateColumn = $this->resolveDateColumn($table, ['created_at', 'ngay_dang_ky']);
-
-        if (! $dateColumn) {
-            return $this->emptyMonthlyBuckets();
-        }
-
-        $query = DangKy::query();
-        $this->applyPlanYearFilter($query, $table, $year);
-
-        return $this->runMonthlyAggregation($query, "$table.$dateColumn", $year);
+        return $this->countByMonthUsingCourseMap(DangKy::query(), $this->courseIdsByMonth($year));
     }
 
     private function monthlyHoanThanhCounts(int $year): array
     {
-        $table = (new HocVienHoanThanh)->getTable();
-        $dateColumn = $this->resolveDateColumn($table, ['ngay_hoan_thanh', 'created_at', 'updated_at']);
-
-        if (! $dateColumn) {
-            return $this->emptyMonthlyBuckets();
-        }
-
-        $query = HocVienHoanThanh::query();
-        $this->applyPlanYearFilter($query, $table, $year, 'khoa_hoc_id');
-
-        return $this->runMonthlyAggregation($query, "$table.$dateColumn", $year);
+        return $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $this->courseIdsByMonth($year));
     }
 
     private function monthlyKhongHoanThanhCounts(int $year): array
     {
-        $table = (new HocVienKhongHoanThanh)->getTable();
-        $dateColumn = $this->resolveDateColumn($table, ['ngay_khong_hoan_thanh', 'created_at', 'updated_at']);
-
-        if (! $dateColumn) {
-            return $this->emptyMonthlyBuckets();
-        }
-
-        $query = HocVienKhongHoanThanh::query();
-        $this->applyPlanYearFilter($query, $table, $year, 'khoa_hoc_id');
-
-        return $this->runMonthlyAggregation($query, "$table.$dateColumn", $year);
-    }
-
-    private function runMonthlyAggregation(Builder $query, string $qualifiedDateColumn, int $year): array
-    {
-        $buckets = $this->emptyMonthlyBuckets();
-        $keyName = $query->getModel()->getQualifiedKeyName();
-
-        $rows = (clone $query)
-            ->whereYear($qualifiedDateColumn, $year)
-            ->selectRaw('MONTH(' . $qualifiedDateColumn . ') as month')
-            ->selectRaw('COUNT(DISTINCT ' . $keyName . ') as aggregate')
-            ->groupBy('month')
-            ->pluck('aggregate', 'month')
-            ->all();
-
-        foreach ($rows as $month => $value) {
-            $index = (int) $month;
-            if ($index < 1 || $index > 12) {
-                continue;
-            }
-
-            $buckets[$index] = (int) $value;
-        }
-
-        return $buckets;
+        return $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $this->courseIdsByMonth($year));
     }
 
     private function emptyMonthlyBuckets(): array
@@ -329,23 +282,79 @@ class ThongKeHocVienChart extends ChartWidget
         return $buckets;
     }
 
+    private function emptyMonthlyCourseBuckets(): array
+    {
+        $buckets = [];
+
+        for ($month = 1; $month <= 12; $month++) {
+            $buckets[$month] = [];
+        }
+
+        return $buckets;
+    }
+
+    private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
+    {
+        $buckets = $this->emptyMonthlyBuckets();
+        $courseIds = [];
+
+        foreach ($courseMap as $ids) {
+            foreach ($ids as $courseId) {
+                $courseIds[$courseId] = true;
+            }
+        }
+
+        if (empty($courseIds)) {
+            return $buckets;
+        }
+
+        $table = $query->getModel()->getTable();
+
+        $keyName = $query->getModel()->getQualifiedKeyName();
+
+        $rows = (clone $query)
+            ->whereIn("$table.khoa_hoc_id", array_keys($courseIds))
+            ->selectRaw("$table.khoa_hoc_id as course_id")
+            ->selectRaw('COUNT(DISTINCT ' . $keyName . ') as aggregate')
+            ->groupBy('course_id')
+            ->pluck('aggregate', 'course_id')
+            ->all();
+
+        foreach ($courseMap as $month => $ids) {
+            $total = 0;
+            foreach ($ids as $courseId) {
+                $total += (int) ($rows[$courseId] ?? 0);
+            }
+            $buckets[$month] = $total;
+        }
+
+        return $buckets;
+    }
+
     private function countKhongHoanThanhWithAbsence(int $year, int $month): array
     {
+        $courseIds = $this->courseIdsByMonth($year)[$month] ?? [];
+
+        if (empty($courseIds)) {
+            return [0, 0, 0, 0];
+        }
+
         $table = (new HocVienKhongHoanThanh)->getTable();
-        $base  = $this->buildKhongHoanThanhQuery($year, $month);
+        $query = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
         $idColumn = "$table.id";
-        $total = (clone $base)->distinct($idColumn)->count($idColumn);
+
+        $total = (clone $query)->distinct($idColumn)->count($idColumn);
         $vangP = 0;
         $vangKP = 0;
 
         if (Schema::hasColumn($table, 'vang_co_phep')) {
-            $vangP  = (clone $base)->where("$table.vang_co_phep", 1)->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $base)->where("$table.vang_co_phep", 0)->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->where("$table.vang_co_phep", 1)->distinct($idColumn)->count($idColumn);
+            $vangKP = (clone $query)->where("$table.vang_co_phep", 0)->distinct($idColumn)->count($idColumn);
         } elseif (Schema::hasColumn($table, 'loai_vang')) {
-            $vangP  = (clone $base)->whereIn("$table.loai_vang", ['p', 'phep', 'vang_p', 'Vắng P', 'Vang P'])->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $base)->whereIn("$table.loai_vang", ['kp', 'khong_phep', 'vang_kp', 'Vắng KP', 'Vang KP'])->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->whereIn("$table.loai_vang", ['p', 'phep', 'vang_p', 'Vắng P', 'Vang P'])->distinct($idColumn)->count($idColumn);
+            $vangKP = (clone $query)->whereIn("$table.loai_vang", ['kp', 'khong_phep', 'vang_kp', 'Vắng KP', 'Vang KP'])->distinct($idColumn)->count($idColumn);
         } elseif (Schema::hasColumn($table, 'tinh_trang')) {
-            $vangP  = (clone $base)->where(DB::raw('LOWER(' . $table . '.tinh_trang)'), 'like', '%p%')->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->where(DB::raw('LOWER(' . $table . '.tinh_trang)'), 'like', '%p%')->distinct($idColumn)->count($idColumn);
             $vangKP = max($total - $vangP, 0);
         }
 
@@ -354,53 +363,59 @@ class ThongKeHocVienChart extends ChartWidget
         return [$total, $vangP, $vangKP, $vangKhac];
     }
 
-    private function buildKhongHoanThanhQuery(int $year, ?int $month = null): Builder
+    private function courseIdsByMonth(int $year): array
     {
-        $table = (new HocVienKhongHoanThanh)->getTable();
-        $dateColumn = $this->resolveDateColumn($table, ['ngay_khong_hoan_thanh', 'created_at', 'updated_at']);
+        if (array_key_exists($year, $this->courseMonthCache)) {
+            return $this->courseMonthCache[$year];
+        }
 
-        $query = HocVienKhongHoanThanh::query();
+        $buckets = $this->emptyMonthlyCourseBuckets();
 
-        $this->applyPlanYearFilter($query, $table, $year, 'khoa_hoc_id');
+        if (! Schema::hasTable('lich_hocs')) {
+            return $this->courseMonthCache[$year] = $buckets;
+        }
 
-        if ($dateColumn) {
-            $query->whereYear("$table.$dateColumn", $year);
-            if ($month) {
-                $query->whereMonth("$table.$dateColumn", $month);
+        $query = DB::table('lich_hocs')
+            ->select(['khoa_hoc_id', 'thang', 'ngay_hoc'])
+            ->whereNotNull('khoa_hoc_id');
+
+        if (Schema::hasColumn('lich_hocs', 'nam')) {
+            $query->where('nam', $year);
+        } else {
+            $query->whereYear('ngay_hoc', $year);
+        }
+
+        $rows = $query->get();
+
+        foreach ($rows as $row) {
+            $month = (int) ($row->thang ?? 0);
+
+            if ($month < 1 || $month > 12) {
+                try {
+                    $month = $row->ngay_hoc ? (int) Carbon::parse($row->ngay_hoc)->month : 0;
+                } catch (\Throwable $e) {
+                    $month = 0;
+                }
             }
-        }
 
-        return $query;
-    }
-
-    private function applyPlanYearFilter(Builder $query, string $table, int $year, string $foreignKey = 'khoa_hoc_id'): void
-    {
-        $khoaHocTable = (new KhoaHoc)->getTable();
-
-        if (!Schema::hasTable($khoaHocTable) || !Schema::hasColumn($khoaHocTable, 'nam')) {
-            return;
-        }
-
-        if (!Schema::hasTable($table) || !Schema::hasColumn($table, $foreignKey)) {
-            return;
-        }
-
-        $query->join($khoaHocTable, "$khoaHocTable.id", '=', "$table.$foreignKey")
-            ->where("$khoaHocTable.nam", $year);
-    }
-
-    private function resolveDateColumn(string $table, array $candidates, ?string $fallback = 'created_at'): ?string
-    {
-        foreach ($candidates as $column) {
-            if ($column && Schema::hasColumn($table, $column)) {
-                return $column;
+            if ($month < 1 || $month > 12) {
+                continue;
             }
+
+            $courseId = (int) $row->khoa_hoc_id;
+
+            if ($courseId <= 0) {
+                continue;
+            }
+
+            $buckets[$month][$courseId] = true;
         }
 
-        if ($fallback && Schema::hasColumn($table, $fallback)) {
-            return $fallback;
+        $normalized = [];
+        foreach ($buckets as $month => $ids) {
+            $normalized[$month] = array_values(array_keys($ids));
         }
 
-        return null;
+        return $this->courseMonthCache[$year] = $normalized;
     }
 }

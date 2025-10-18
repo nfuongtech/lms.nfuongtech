@@ -16,6 +16,8 @@ class ChiPhiDaoTaoChart extends Widget
 
     public ?int $year = null;
 
+    public ?int $month = null;
+
     public array $selectedTrainingTypes = [];
 
     public array $chartData = [];
@@ -23,6 +25,8 @@ class ChiPhiDaoTaoChart extends Widget
     public array $chartOptions = [];
 
     public array $trainingTypeOptions = [];
+
+    public array $monthOptions = [];
 
     protected array $aggregatedCosts = [];
 
@@ -35,13 +39,21 @@ class ChiPhiDaoTaoChart extends Widget
     public function mount(): void
     {
         $this->yearOptions = $this->formatYearOptions($this->getAvailableYears());
+        $this->monthOptions = $this->formatMonthOptions();
         $this->year = $this->resolveDefaultYear();
+        $this->month = $this->resolveDefaultMonth();
         $this->trainingTypeOptions = $this->getTrainingTypeOptions();
         $this->refreshState();
     }
 
     public function updatedYear(): void
     {
+        $this->refreshState(resetSelections: false);
+    }
+
+    public function updatedMonth($value): void
+    {
+        $this->month = $value === '' ? null : (int) $value;
         $this->refreshState(resetSelections: false);
     }
 
@@ -57,22 +69,27 @@ class ChiPhiDaoTaoChart extends Widget
         }
 
         $this->yearOptions = $this->formatYearOptions($this->getAvailableYears());
+        $this->monthOptions = $this->formatMonthOptions();
 
         if ($this->year !== null && ! array_key_exists($this->year, $this->yearOptions)) {
             $this->year = null;
         }
 
+        if ($this->month !== null && ($this->month < 1 || $this->month > 12)) {
+            $this->month = null;
+        }
+
         $year = $this->year ?? $this->resolveDefaultYear();
         $types = $this->selectedTrainingTypes;
 
-        $this->aggregatedCosts = $this->buildCostMatrix($year, $types);
-        $this->chartData = $this->buildChartData($this->aggregatedCosts, $types);
-        $this->chartOptions = $this->buildChartOptions();
+        $this->aggregatedCosts = $this->buildCostMatrix($year, $types, $this->month);
+        $this->chartData = $this->buildChartData($this->aggregatedCosts, $types, $this->month);
+        $this->chartOptions = $this->buildChartOptions($this->month);
         $this->totalCost = $this->calculateTotalCost($this->aggregatedCosts);
         $this->typeTotals = $this->calculateTypeTotals($this->aggregatedCosts);
     }
 
-    protected function buildCostMatrix(int $year, array $selectedTypes): array
+    protected function buildCostMatrix(int $year, array $selectedTypes, ?int $selectedMonth = null): array
     {
         $courseQuery = KhoaHoc::query()->where('nam', $year);
 
@@ -99,12 +116,21 @@ class ChiPhiDaoTaoChart extends Widget
             ->with(['khoaHoc.chuongTrinh'])
             ->whereIn('khoa_hoc_id', $courseIds)
             ->whereNotNull('chi_phi_dao_tao')
-            ->where(function (Builder $query) use ($year) {
-                $query->whereYear('ngay_hoan_thanh', $year)
-                    ->orWhere(function (Builder $sub) use ($year) {
-                        $sub->whereNull('ngay_hoan_thanh')
-                            ->whereYear('created_at', $year);
-                    });
+            ->where(function (Builder $query) use ($year, $selectedMonth) {
+                $query->where(function (Builder $completed) use ($year, $selectedMonth) {
+                    $completed->whereYear('ngay_hoan_thanh', $year);
+
+                    if ($selectedMonth) {
+                        $completed->whereMonth('ngay_hoan_thanh', $selectedMonth);
+                    }
+                })->orWhere(function (Builder $sub) use ($year, $selectedMonth) {
+                    $sub->whereNull('ngay_hoan_thanh')
+                        ->whereYear('created_at', $year);
+
+                    if ($selectedMonth) {
+                        $sub->whereMonth('created_at', $selectedMonth);
+                    }
+                });
             })
             ->get();
 
@@ -120,6 +146,10 @@ class ChiPhiDaoTaoChart extends Widget
                 : Carbon::parse($dateValue);
 
             $month = (int) $date->format('n');
+
+            if ($selectedMonth !== null && $month !== $selectedMonth) {
+                continue;
+            }
 
             if ($month < 1 || $month > 12) {
                 continue;
@@ -144,6 +174,14 @@ class ChiPhiDaoTaoChart extends Widget
             }
 
             $matrix[$month][$type] += (float) $record->chi_phi_dao_tao;
+        }
+
+        if ($selectedMonth !== null) {
+            foreach (array_keys($matrix) as $monthIndex) {
+                if ($monthIndex !== $selectedMonth) {
+                    $matrix[$monthIndex] = [];
+                }
+            }
         }
 
         return $matrix;
@@ -183,9 +221,11 @@ class ChiPhiDaoTaoChart extends Widget
         return array_map(fn ($value) => round($value, 2), $totals);
     }
 
-    protected function buildChartData(array $matrix, array $selectedTypes): array
+    protected function buildChartData(array $matrix, array $selectedTypes, ?int $selectedMonth = null): array
     {
-        $labels = $this->monthLabels();
+        $labels = $selectedMonth === null
+            ? $this->monthLabels()
+            : ['Tháng ' . $selectedMonth];
         $datasets = [];
 
         $types = ! empty($selectedTypes)
@@ -199,8 +239,12 @@ class ChiPhiDaoTaoChart extends Widget
         foreach ($types as $index => $type) {
             $data = [];
 
-            foreach (range(1, 12) as $month) {
-                $data[] = round(Arr::get($matrix, "$month.$type", 0), 2);
+            if ($selectedMonth === null) {
+                foreach (range(1, 12) as $month) {
+                    $data[] = round(Arr::get($matrix, "$month.$type", 0), 2);
+                }
+            } else {
+                $data[] = round(Arr::get($matrix, "$selectedMonth.$type", 0), 2);
             }
 
             $color = $palette[$index % count($palette)];
@@ -224,7 +268,7 @@ class ChiPhiDaoTaoChart extends Widget
         ];
     }
 
-    protected function buildChartOptions(): array
+    protected function buildChartOptions(?int $selectedMonth = null): array
     {
         return [
             'responsive' => true,
@@ -394,12 +438,28 @@ class ChiPhiDaoTaoChart extends Widget
         return $years[0] ?? $currentYear;
     }
 
+    protected function resolveDefaultMonth(): int
+    {
+        return (int) now()->format('n');
+    }
+
     protected function formatYearOptions(array $years): array
     {
         $options = [];
 
         foreach ($years as $year) {
             $options[$year] = (string) $year;
+        }
+
+        return $options;
+    }
+
+    protected function formatMonthOptions(): array
+    {
+        $options = [];
+
+        foreach (range(1, 12) as $month) {
+            $options[$month] = sprintf('Tháng %02d', $month);
         }
 
         return $options;
@@ -426,21 +486,10 @@ class ChiPhiDaoTaoChart extends Widget
     {
         $value = trim((string) $label);
 
-        $clean = preg_replace('/^(?:[Vv]\s+){2,}/u', '', $value, 1, $doubleRemoved) ?? $value;
+        $clean = preg_replace('/^V\s*V\s*/iu', '', $value) ?? $value;
+        $clean = preg_replace('/^V\s*(?:[-–—])?\s*/iu', '', $clean) ?? $clean;
 
-        if ($doubleRemoved) {
-            $clean = ltrim($clean, " \t\n\r\0\x0B-–—");
-        }
-
-        if (! $doubleRemoved) {
-            $clean = preg_replace('/^[Vv](?=\s|[-–—])/u', '', $clean, 1, $singleRemoved) ?? $clean;
-
-            if ($singleRemoved) {
-                $clean = ltrim($clean, " \t\n\r\0\x0B-–—");
-            }
-        }
-
-        $normalized = trim($clean);
+        $normalized = trim($clean, " \t\n\r\0\x0B-–—");
 
         return $normalized !== '' ? $normalized : $value;
     }
