@@ -67,27 +67,52 @@
 
                                     const numericValue = Number(value);
                                     const x = element.x;
-                                    let y = element.y;
+                                    const yCenter = element.y;
+                                    const indexAxis = chart?.config?.options?.indexAxis || 'x';
+                                    let drawX = x;
+                                    let drawY = yCenter;
 
-                                    if (Number.isNaN(x) || Number.isNaN(y)) {
+                                    if (Number.isNaN(x) || Number.isNaN(yCenter)) {
                                         return;
                                     }
 
-                                    if (numericValue >= 0) {
-                                        ctx.textBaseline = 'bottom';
-                                        y -= padding;
-                                        if (y < chart.chartArea.top + 4) {
-                                            y = chart.chartArea.top + 4;
+                                    if (indexAxis === 'y') {
+                                        ctx.textBaseline = 'middle';
+                                        if (numericValue >= 0) {
+                                            ctx.textAlign = 'left';
+                                            drawX += padding;
+                                            if (drawX > chart.chartArea.right - 4) {
+                                                drawX = chart.chartArea.right - 4;
+                                                ctx.textAlign = 'right';
+                                            }
+                                        } else {
+                                            ctx.textAlign = 'right';
+                                            drawX -= padding;
+                                            if (drawX < chart.chartArea.left + 4) {
+                                                drawX = chart.chartArea.left + 4;
+                                                ctx.textAlign = 'left';
+                                            }
                                         }
                                     } else {
-                                        ctx.textBaseline = 'top';
-                                        y += padding;
-                                        if (y > chart.chartArea.bottom - 4) {
-                                            y = chart.chartArea.bottom - 4;
+                                        ctx.textAlign = 'center';
+                                        if (numericValue >= 0) {
+                                            ctx.textBaseline = 'bottom';
+                                            drawY = yCenter - padding;
+                                            if (drawY < chart.chartArea.top + 4) {
+                                                drawY = chart.chartArea.top + 4;
+                                                ctx.textBaseline = 'top';
+                                            }
+                                        } else {
+                                            ctx.textBaseline = 'top';
+                                            drawY = yCenter + padding;
+                                            if (drawY > chart.chartArea.bottom - 4) {
+                                                drawY = chart.chartArea.bottom - 4;
+                                                ctx.textBaseline = 'bottom';
+                                            }
                                         }
                                     }
 
-                                    ctx.fillText(numericValue.toLocaleString('vi-VN'), x, y);
+                                    ctx.fillText(numericValue.toLocaleString('vi-VN'), drawX, drawY);
                                 });
                             });
 
