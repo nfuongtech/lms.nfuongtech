@@ -18,12 +18,7 @@ class ThongKeHocVienChart extends ChartWidget
 {
     protected static ?string $heading = 'Thống kê Học viên theo tháng';
     protected static ?string $maxHeight = '380px';
-
-    /** Đặt sort thấp hơn để nằm trước block Chi phí */
-    protected static ?int $sort = 10;
-
-    /** Full-width trên dashboard */
-    protected int|string|array $columnSpan = 12;
+    protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
     /**
      * @var Collection|null
@@ -54,7 +49,7 @@ class ThongKeHocVienChart extends ChartWidget
             Forms\Components\Select::make('month')
                 ->label('Tháng')
                 ->placeholder('Tất cả các tháng')
-                ->options(collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('%02d', $m)])->all())
+                ->options(collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('T%02d', $m)])->all())
                 ->default(null)
                 ->live(),
         ];
@@ -84,11 +79,11 @@ class ThongKeHocVienChart extends ChartWidget
 
             return [
                 'datasets' => $datasets,
-                'labels'   => [sprintf('%02d/%d', $month, $year)],
+                'labels' => [sprintf('T%02d/%d', $month, $year)],
             ];
         }
 
-        $labels   = collect(range(1, 12))->map(fn ($m) => sprintf('%02d', $m))->all();
+        $labels   = collect(range(1, 12))->map(fn ($m) => sprintf('T%02d', $m))->all();
         $datasets = [
             $this->makeBarDataset('Đăng ký', array_values($monthlySeries['dangKy']), 'dang-ky'),
             $this->makeBarDataset('Hoàn thành', array_values($monthlySeries['hoanThanh']), 'hoan-thanh'),
@@ -97,24 +92,24 @@ class ThongKeHocVienChart extends ChartWidget
 
         return [
             'datasets' => $datasets,
-            'labels'   => $labels,
+            'labels'  => $labels,
         ];
     }
 
     protected function getOptions(): array
     {
-        $detail           = ! empty($this->filterFormData['month']);
+        $detail = ! empty($this->filterFormData['month']);
         $tooltipCallbacks = [
             'label' => [
-                'type'   => 'dataset-value',
-                'axis'   => 'y',
+                'type' => 'dataset-value',
+                'axis' => 'y',
                 'locale' => 'vi-VN',
             ],
         ];
 
         if ($detail) {
             $tooltipCallbacks['footer'] = [
-                'type'  => 'stacked-sum',
+                'type' => 'stacked-sum',
                 'stack' => 'khong-hoan-thanh',
                 'label' => 'Tổng không hoàn thành',
                 'locale' => 'vi-VN',
@@ -124,46 +119,43 @@ class ThongKeHocVienChart extends ChartWidget
         return [
             'animation' => [ 'duration' => 900, 'easing' => 'easeOutQuart' ],
             'plugins'   => [
-                'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ] ],
+                'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ]],
                 'tooltip' => [
-                    'mode'      => 'index',
+                    'mode' => 'index',
                     'intersect' => false,
                     'callbacks' => $tooltipCallbacks,
                 ],
-                // Hiển thị SỐ LƯỢNG ngay trên mỗi cột
                 'barValueLabels' => [
-                    'padding'    => 6,
-                    'color'      => '#111827',
-                    'font'       => [
-                        'size'   => 11,
+                    'padding' => 6,
+                    'color' => '#111827',
+                    'font' => [
+                        'size' => 11,
                         'weight' => '600',
                     ],
-                    'showZero'   => true,
-                    'align'      => 'center',
-                    'verticalAlign' => 'bottom',
-                    'locale'     => 'vi-VN',
-                    'formatter'  => [
-                        'type'                  => 'number',
-                        'locale'                => 'vi-VN',
+                    'showZero' => true,
+                    'locale' => 'vi-VN',
+                    'formatter' => [
+                        'type' => 'number',
+                        'locale' => 'vi-VN',
                         'maximumFractionDigits' => 0,
                     ],
                 ],
             ],
-            'responsive'          => true,
+            'responsive' => true,
             'maintainAspectRatio' => false,
-            'layout'    => [
+            'layout' => [
                 'padding' => [ 'top' => 24, 'right' => 16, 'left' => 8 ],
             ],
             'interaction' => [ 'mode' => 'index', 'intersect' => false ],
             'scales' => [
                 'x' => [
                     'stacked' => (bool) $detail,
-                    'ticks'   => [ 'font' => [ 'size' => 12 ] ],
+                    'ticks'   => [ 'font' => [ 'size' => 12 ]],
                     'grid'    => [ 'display' => false ],
                 ],
                 'y' => [
                     'beginAtZero' => true,
-                    'ticks'       => [ 'font' => [ 'size' => 12 ] ],
+                    'ticks'       => [ 'font' => [ 'size' => 12 ]],
                     'grid'        => [ 'drawBorder' => false ],
                 ],
             ],
@@ -175,36 +167,36 @@ class ThongKeHocVienChart extends ChartWidget
         $color = $this->colorForKey($colorKey);
 
         return array_merge([
-            'label'           => $label,
-            'data'            => $data,
+            'label' => $label,
+            'data' => $data,
             'backgroundColor' => $color['background'],
             'hoverBackgroundColor' => $color['border'],
-            'borderColor'     => $color['border'],
-            'borderWidth'     => 1,
-            'borderRadius'    => 12,
-            'borderSkipped'   => false,
+            'borderColor' => $color['border'],
+            'borderWidth' => 1,
+            'borderRadius' => 12,
+            'borderSkipped' => false,
             'maxBarThickness' => 40,
             'categoryPercentage' => 0.72,
-            'barPercentage'   => 0.85,
+            'barPercentage' => 0.85,
         ], $overrides);
     }
 
     private function colorForKey(string $key): array
     {
         $palette = [
-            'dang-ky'          => [59, 130, 246],
-            'hoan-thanh'       => [16, 185, 129],
-            'khong-hoan-thanh' => [249, 115, 22],
-            'vang-p'           => [251, 191, 36],
-            'vang-kp'          => [239, 68, 68],
-            'vang-khac'        => [129, 140, 248],
+            'dang-ky'           => [59, 130, 246],
+            'hoan-thanh'        => [16, 185, 129],
+            'khong-hoan-thanh'  => [249, 115, 22],
+            'vang-p'            => [251, 191, 36],
+            'vang-kp'           => [239, 68, 68],
+            'vang-khac'         => [129, 140, 248],
         ];
 
         $rgb = $palette[$key] ?? [107, 114, 128];
 
         return [
             'background' => sprintf('rgba(%d, %d, %d, 0.85)', $rgb[0], $rgb[1], $rgb[2]),
-            'border'     => sprintf('rgba(%d, %d, %d, 1)', $rgb[0], $rgb[1], $rgb[2]),
+            'border' => sprintf('rgba(%d, %d, %d, 1)', $rgb[0], $rgb[1], $rgb[2]),
         ];
     }
 
@@ -226,7 +218,7 @@ class ThongKeHocVienChart extends ChartWidget
             return $this->planYearCache;
         }
 
-        $years        = collect();
+        $years = collect();
         $khoaHocTable = (new KhoaHoc)->getTable();
 
         if (Schema::hasTable($khoaHocTable) && Schema::hasColumn($khoaHocTable, 'nam')) {
@@ -251,9 +243,9 @@ class ThongKeHocVienChart extends ChartWidget
     private function compileMonthlySeries(int $year): array
     {
         return [
-            'dangKy'          => $this->monthlyDangKyCounts($year),
-            'hoanThanh'       => $this->monthlyHoanThanhCounts($year),
-            'khongHoanThanh'  => $this->monthlyKhongHoanThanhCounts($year),
+            'dangKy' => $this->monthlyDangKyCounts($year),
+            'hoanThanh' => $this->monthlyHoanThanhCounts($year),
+            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($year),
         ];
     }
 
@@ -296,7 +288,7 @@ class ThongKeHocVienChart extends ChartWidget
 
     private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
     {
-        $buckets   = $this->emptyMonthlyBuckets();
+        $buckets = $this->emptyMonthlyBuckets();
         $courseIds = [];
 
         foreach ($courseMap as $ids) {
@@ -340,12 +332,12 @@ class ThongKeHocVienChart extends ChartWidget
             return [0, 0, 0, 0];
         }
 
-        $table    = (new HocVienKhongHoanThanh)->getTable();
-        $query    = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
+        $table = (new HocVienKhongHoanThanh)->getTable();
+        $query = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
         $idColumn = "$table.id";
 
-        $total  = (clone $query)->distinct($idColumn)->count($idColumn);
-        $vangP  = 0;
+        $total = (clone $query)->distinct($idColumn)->count($idColumn);
+        $vangP = 0;
         $vangKP = 0;
 
         if (Schema::hasColumn($table, 'vang_co_phep')) {

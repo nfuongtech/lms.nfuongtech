@@ -191,15 +191,16 @@
                     return (value) => Number(value ?? 0).toLocaleString(fallbackLocale);
                 };
 
-                // Tuỳ chỉnh nhẹ Chart.js
+                // Tuỳ chỉnh mặc định nhẹ cho biểu đồ cột
                 Chart.defaults.animation.duration = 900;
                 Chart.defaults.animation.easing = 'easeOutQuart';
 
-                // Bo góc bar mặc định
+                // Bo góc cột mặc định nếu là bar
                 const origBar = Chart.controllers.bar;
                 Chart.controllers.bar = class extends origBar {
                     draw() {
                         super.draw(arguments);
+                        // (đã set borderRadius ở datasets trong PHP)
                     }
                 };
 
@@ -225,7 +226,7 @@
                             const color = options.color || '#111827';
                             const fontOptions = options.font || { size: 11, weight: '600' };
                             const showZero = options.showZero === true;
-                            const valueFormatter = buildValueFormatter(options.formatter, options);
+                    const valueFormatter = buildValueFormatter(options.formatter, options);
                             const font = helpers.toFont(fontOptions);
 
                             ctx.save();
