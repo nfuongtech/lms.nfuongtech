@@ -147,30 +147,19 @@ class ChiPhiDaoTaoChart extends Widget
 
     protected function buildCostMatrix(int $year, array $selectedTypes, ?int $selectedMonth = null): array
     {
-        $courseQuery = KhoaHoc::query()->where('nam', $year);
-
-        if (! empty($selectedTypes)) {
-            HocVienHoanThanhResource::applyTrainingTypeFilter($courseQuery, $selectedTypes);
-        }
-
-        $courseIds = $courseQuery
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
         $matrix = [];
 
         foreach (range(1, 12) as $month) {
             $matrix[$month] = [];
         }
 
-        if (empty($courseIds)) {
-            return $matrix;
-        }
-
         $records = HocVienHoanThanh::query()
             ->with(['khoaHoc.chuongTrinh'])
-            ->whereIn('khoa_hoc_id', $courseIds)
+            ->whereHas('khoaHoc', function (Builder $courseQuery) use ($selectedTypes) {
+                if (! empty($selectedTypes)) {
+                    HocVienHoanThanhResource::applyTrainingTypeFilter($courseQuery, $selectedTypes);
+                }
+            })
             ->whereNotNull('chi_phi_dao_tao')
             ->where(function (Builder $query) use ($year, $selectedMonth) {
                 $query->where(function (Builder $completed) use ($year, $selectedMonth) {
@@ -533,12 +522,24 @@ class ChiPhiDaoTaoChart extends Widget
 
     protected function getAvailableYears(): array
     {
-        $years = KhoaHoc::query()
-            ->select('nam')
-            ->distinct()
-            ->orderBy('nam', 'desc')
+        $courseYears = KhoaHoc::query()
+            ->whereNotNull('nam')
             ->pluck('nam')
             ->map(fn ($year) => (int) $year)
+            ->all();
+
+        $completionYears = HocVienHoanThanh::query()
+            ->selectRaw('DISTINCT YEAR(COALESCE(ngay_hoan_thanh, created_at)) as year')
+            ->pluck('year')
+            ->map(fn ($year) => (int) $year)
+            ->all();
+
+        $years = collect($courseYears)
+            ->merge($completionYears)
+            ->filter(fn ($year) => $year !== null && $year > 0)
+            ->unique()
+            ->sortDesc()
+            ->values()
             ->all();
 
         if (empty($years)) {
