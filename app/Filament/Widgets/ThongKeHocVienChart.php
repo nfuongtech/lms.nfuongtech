@@ -162,6 +162,121 @@ class ThongKeHocVienChart extends ChartWidget
         ];
     }
 
+    public function getSummaryTableData(): array
+    {
+        $year  = (int) ($this->filterFormData['year'] ?? $this->getDefaultYear());
+        $month = $this->filterFormData['month'] ?? null;
+        $month = ($month === '' || $month === null) ? null : (int) $month;
+
+        return $this->buildSummaryTableData($year, $month);
+    }
+
+    protected function buildSummaryTableData(int $year, ?int $month = null): array
+    {
+        $series = $this->compileMonthlySeries($year);
+
+        $rows = [];
+        $columnTotals = [];
+        $labels = [];
+        $displayMode = $month ? 'detail' : 'monthly';
+
+        if ($month) {
+            $labels = [sprintf('Tháng %02d/%d', $month, $year)];
+
+            $dangKy = (int) ($series['dangKy'][$month] ?? 0);
+            $hoanThanh = (int) ($series['hoanThanh'][$month] ?? 0);
+            [$tongKhongHoanThanh, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
+
+            $rows = [
+                [
+                    'label'  => 'Đăng ký',
+                    'values' => [$dangKy],
+                ],
+                [
+                    'label'  => 'Hoàn thành',
+                    'values' => [$hoanThanh],
+                ],
+                [
+                    'label'  => 'Không hoàn thành - Vắng P',
+                    'values' => [$vangP],
+                ],
+                [
+                    'label'  => 'Không hoàn thành - Vắng KP',
+                    'values' => [$vangKP],
+                ],
+                [
+                    'label'  => 'Không hoàn thành - Khác',
+                    'values' => [$vangKhac],
+                ],
+                [
+                    'label'       => 'Tổng không hoàn thành',
+                    'values'      => [$tongKhongHoanThanh],
+                    'is_emphasis' => true,
+                ],
+            ];
+
+            $columnTotals = [$dangKy + $hoanThanh + $tongKhongHoanThanh];
+        } else {
+            $labels = collect(range(1, 12))
+                ->map(fn ($m) => sprintf('T%02d', $m))
+                ->all();
+
+            $seriesLabels = [
+                'dangKy' => 'Đăng ký',
+                'hoanThanh' => 'Hoàn thành',
+                'khongHoanThanh' => 'Không hoàn thành',
+            ];
+
+            foreach ($seriesLabels as $key => $label) {
+                $values = [];
+                foreach (range(1, 12) as $monthIndex) {
+                    $values[] = (int) ($series[$key][$monthIndex] ?? 0);
+                }
+
+                $rows[] = [
+                    'label'  => $label,
+                    'values' => $values,
+                ];
+            }
+
+            $columnTotals = [];
+            $columns = count($labels);
+            for ($i = 0; $i < $columns; $i++) {
+                $columnTotals[$i] = array_reduce($rows, function ($carry, $row) use ($i) {
+                    $value = $row['values'][$i] ?? 0;
+                    return $carry + (int) $value;
+                }, 0);
+            }
+        }
+
+        $rows = array_map(function (array $row) {
+            $values = $row['values'] ?? [];
+            $row['total'] = array_reduce($values, fn ($carry, $value) => $carry + (int) $value, 0);
+
+            return $row;
+        }, $rows);
+
+        $grandTotal = array_reduce($columnTotals, fn ($carry, $value) => $carry + (int) $value, 0);
+        $hasData = $grandTotal > 0;
+
+        if (! $hasData) {
+            $hasData = collect($rows)
+                ->pluck('total')
+                ->contains(fn ($value) => (int) $value > 0);
+        }
+
+        return [
+            'labels'       => $labels,
+            'rows'         => $rows,
+            'columnTotals' => $columnTotals,
+            'grandTotal'   => $grandTotal,
+            'hasData'      => $hasData,
+            'displayMode'  => $displayMode,
+            'year'         => $year,
+            'month'        => $month,
+        ];
+    }
+
     private function makeBarDataset(string $label, array $data, string $colorKey, array $overrides = []): array
     {
         $color = $this->colorForKey($colorKey);

@@ -42,6 +42,8 @@ class ChiPhiDaoTaoChart extends Widget
     public $totalCost = 0.0;
     /** @var array<string, float> */
     public $typeTotals = [];
+    /** @var array<string, mixed> */
+    public $tableData = [];
 
     public function mount(): void
     {
@@ -123,6 +125,7 @@ class ChiPhiDaoTaoChart extends Widget
         $this->chartOptions    = $this->buildChartOptions($month);
         $this->totalCost       = $this->calculateTotalCost($this->aggregatedCosts);
         $this->typeTotals      = $this->calculateTypeTotals($this->aggregatedCosts);
+        $this->tableData       = $this->buildTableData($this->chartData);
     }
 
     protected function buildCostMatrix(int $year, array $selectedTypes, ?int $selectedMonth = null): array
@@ -384,6 +387,44 @@ class ChiPhiDaoTaoChart extends Widget
                 'tickDivisor'   => 1000000,
                 'tickSuffix'    => ' tr',
             ],
+        ];
+    }
+
+    protected function buildTableData(array $chartData): array
+    {
+        $labels = array_values($chartData['labels'] ?? []);
+        $datasets = $chartData['datasets'] ?? [];
+
+        $columns = count($labels);
+        $columnTotals = array_fill(0, $columns, 0.0);
+
+        $rows = [];
+
+        foreach ($datasets as $dataset) {
+            $values = [];
+
+            for ($index = 0; $index < $columns; $index++) {
+                $rawValue = $dataset['data'][$index] ?? 0;
+                $value = is_numeric($rawValue) ? (float) $rawValue : 0.0;
+                $values[] = $value;
+                $columnTotals[$index] += $value;
+            }
+
+            $rows[] = [
+                'label'  => (string) ($dataset['label'] ?? 'Loại'),
+                'values' => $values,
+                'total'  => array_sum($values),
+            ];
+        }
+
+        $grandTotal = array_sum($columnTotals);
+
+        return [
+            'labels'       => $labels,
+            'rows'         => $rows,
+            'columnTotals' => $columnTotals,
+            'grandTotal'   => $grandTotal,
+            'hasData'      => $grandTotal > 0,
         ];
     }
 
