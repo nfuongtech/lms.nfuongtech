@@ -179,7 +179,18 @@ class ChiPhiDaoTaoChart extends ChartWidget
             $query->whereIn("$khoaHoc.loai_hinh_dao_tao", $selectedLoaiHinh);
         }
 
-        return (float) $query->sum(DB::raw("COALESCE($hvht.tong_chi_phi, $hvht.chi_phi, $hvht.chi_phi_dao_tao, 0)"));
+        $costColumns = collect(['tong_chi_phi', 'chi_phi', 'chi_phi_dao_tao'])
+            ->filter(fn ($column) => Schema::hasColumn($hvht, $column))
+            ->map(fn ($column) => "$hvht.$column")
+            ->values();
+
+        if ($costColumns->isEmpty()) {
+            return 0.0;
+        }
+
+        $coalesceExpression = 'COALESCE(' . $costColumns->implode(', ') . ', 0)';
+
+        return (float) $query->sum(DB::raw($coalesceExpression));
     }
 
     private function getDefaultYear(): int
