@@ -1,38 +1,39 @@
 <x-filament::widget>
-    <x-filament::card>
-        <div class="text-base font-semibold text-slate-800 mb-2">
-            {{ static::$heading ?? 'Thống kê Học viên theo tháng' }}
+    <x-filament::card class="space-y-6 p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="space-y-1.5">
+                <h2 class="text-xl font-bold text-slate-800">
+                    {{ static::$heading ?? 'Thống kê Học viên theo tháng' }}
+                </h2>
+                <p class="text-sm text-slate-500">
+                    Theo dõi số lượng học viên đăng ký, hoàn thành và không hoàn thành theo từng tháng hoặc tháng cụ thể.
+                </p>
+            </div>
+
+            @php
+                $hasFilterForm = property_exists($this, 'form');
+            @endphp
+
+            @if ($hasFilterForm)
+                <div class="w-full shrink-0 space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 shadow-sm sm:w-auto sm:space-y-0 sm:border-0 sm:bg-transparent sm:p-0">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+                        {{ $this->form }}
+                    </div>
+                </div>
+            @endif
         </div>
 
-        {{-- CSS fix responsive (không dựa vào grid Laravel nữa) --}}
-        <style>
-            [data-dashboard-chart-wrapper]{width:100%;min-width:0;}
-            [data-dashboard-chart-canvas]{width:100% !important;height:320px !important;display:block;}
-            @media (min-width:1024px){
-                [data-dashboard-chart-canvas]{height:360px !important;}
-            }
-            .fi-widget canvas{max-width:100% !important;width:100% !important;display:block;}
-        </style>
-
-        {{-- Alpine + Chart.js tự khởi tạo (dùng script chung) --}}
-        <div
-            data-dashboard-chart-wrapper
-            x-data="dashboardChart({
-                type: 'bar',
-                data: @js($this->getData()),
-                options: @js($this->getOptions()),
-            })"
-            x-init="init()"
-            style="position:relative;"
-        >
-            <canvas x-ref="canvas" data-dashboard-chart-canvas></canvas>
+        <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div
+                x-data="dashboardChart()"
+                x-init="init(); refresh({ type: 'bar', data: @js($this->getData()), options: @js($this->getOptions()) })"
+                x-effect="refresh({ type: 'bar', data: @js($this->getData()), options: @js($this->getOptions()) })"
+                class="relative w-full min-h-[260px] sm:min-h-[320px] lg:min-h-[360px]"
+            >
+                <canvas x-ref="canvas" class="h-full w-full"></canvas>
+            </div>
         </div>
 
-        @once
-            @push('scripts')
-                {{-- Nạp script chung cho toàn Dashboard (đăng ký plugin + helpers) --}}
-                @include('filament.widgets.partials.dashboard-chart-script')
-            @endpush
-        @endonce
+        @include('filament.widgets.partials.dashboard-chart-script')
     </x-filament::card>
 </x-filament::widget>

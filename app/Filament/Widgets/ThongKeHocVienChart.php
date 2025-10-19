@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
 class ThongKeHocVienChart extends ChartWidget
 {
     protected static ?string $heading = 'Thống kê Học viên theo tháng';
+    protected static string $view = 'filament.widgets.thong-ke-hoc-vien-widget';
     protected static ?string $maxHeight = '380px';
     protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
 
