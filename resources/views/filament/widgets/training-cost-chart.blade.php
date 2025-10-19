@@ -118,7 +118,7 @@
         <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
             <div class="relative h-[380px] w-full">
-                <canvas 
+                <canvas
                     id="training-cost-chart-canvas"
                     wire:ignore
                     x-data="trainingCostChart"
@@ -133,6 +133,100 @@
                     )"
                 ></canvas>
             </div>
+        </div>
+
+        <div class="mt-6">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Bảng thống kê chi phí đào tạo</h3>
+                @if(!empty($tableData['labels']))
+                    <span class="text-xs text-slate-500">
+                        @if(count($tableData['labels']) > 1)
+                            Theo tháng
+                        @else
+                            {{ $tableData['labels'][0] }}
+                        @endif
+                    </span>
+                @endif
+            </div>
+
+            @if($tableData['hasData'] ?? false)
+                @if(count($tableData['labels'] ?? []) > 1)
+                    <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
+                                    @foreach($tableData['labels'] as $label)
+                                        <th class="px-3 py-3 text-center font-semibold text-slate-600">{{ $label }}</th>
+                                    @endforeach
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Tổng</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                @foreach($tableData['rows'] as $row)
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-4 py-3 font-medium text-slate-800">{{ $row['label'] }}</td>
+                                        @foreach($row['values'] as $value)
+                                            <td class="px-3 py-3 text-center text-slate-700">
+                                                {{ number_format((float) $value, 0, ',', '.') }}
+                                            </td>
+                                        @endforeach
+                                        <td class="px-4 py-3 text-right font-semibold text-slate-800">
+                                            {{ number_format((float) $row['total'], 0, ',', '.') }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng theo tháng</th>
+                                    @foreach($tableData['columnTotals'] as $total)
+                                        <th class="px-3 py-3 text-center font-semibold text-slate-700">
+                                            {{ number_format((float) $total, 0, ',', '.') }}
+                                        </th>
+                                    @endforeach
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-800">
+                                        {{ number_format((float) $tableData['grandTotal'], 0, ',', '.') }}
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @else
+                    <div class="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Chi phí (VND)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                @foreach($tableData['rows'] as $row)
+                                    <tr class="hover:bg-slate-50 text-slate-700">
+                                        <td class="px-4 py-3 font-medium">{{ $row['label'] }}</td>
+                                        <td class="px-4 py-3 text-right font-semibold text-slate-800">
+                                            {{ number_format((float) ($row['values'][0] ?? 0), 0, ',', '.') }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="bg-slate-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng chi phí</th>
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-800">
+                                        {{ number_format((float) ($tableData['columnTotals'][0] ?? 0), 0, ',', '.') }}
+                                    </th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @endif
+            @else
+                <p class="mt-3 rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
+                    Chưa có dữ liệu chi phí cho bộ lọc hiện tại.
+                </p>
+            @endif
         </div>
     </x-filament::card>
 </x-filament::widget>

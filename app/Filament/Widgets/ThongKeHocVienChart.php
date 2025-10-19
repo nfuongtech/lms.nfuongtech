@@ -133,6 +133,8 @@ class ThongKeHocVienChart extends ChartWidget
                         'weight' => '600',
                     ],
                     'showZero' => true,
+                    'align' => 'center',
+                    'verticalAlign' => 'bottom',
                     'locale' => 'vi-VN',
                     'formatter' => [
                         'type' => 'number',

@@ -2,16 +2,17 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Widgets\ChiPhiDaoTaoChart;
-use App\Filament\Widgets\ThongKeHocVienChart;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
+use App\Filament\Widgets\ChiPhiDaoTaoChart;
+use App\Filament\Widgets\ThongKeHocVienChart;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -39,12 +40,9 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-                // Thứ tự + $sort ở từng widget đảm bảo đúng:
-                ThongKeHocVienChart::class,   // Block 1: Học viên theo tháng
-                ChiPhiDaoTaoChart::class,     // Block 2: Chi phí đào tạo (full-width 3 cột + chart dưới)
+                ThongKeHocVienChart::class,
+                ChiPhiDaoTaoChart::class,
             ])
-            // NẠP SCRIPT CHUNG CHO CẢ HAI BIỂU ĐỒ (plugin số trên cột, helpers, ...)
-            ->renderHook('panels::body.end', fn () => view('filament.widgets.partials.dashboard-chart-script'))
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -59,15 +57,22 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            // Sắp xếp và định nghĩa các nhóm menu
             ->navigationGroups([
                 NavigationGroup::make()
-                    ->label('Đào tạo'),
+                     ->label('Đào tạo'),
                 NavigationGroup::make()
                     ->label('Báo cáo'),
                 NavigationGroup::make()
                     ->label('Thiết lập')
                     ->items([
-                        // Nhóm con tùy chỉnh (nếu cần)
+                        // Đưa nhóm "User & Phân quyền" vào đây
+                        NavigationGroup::make()
+                            ->label('User & Phân quyền')
+                            ->items([
+                                // Tự động thêm các mục từ resource
+                            ]),
+                        // Tự động thêm các mục khác của "Thiết lập"
                     ]),
             ]);
     }
