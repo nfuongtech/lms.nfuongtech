@@ -17,8 +17,9 @@ use Illuminate\Support\Facades\Schema;
 class ThongKeHocVienChart extends ChartWidget
 {
     protected static ?string $heading = 'Thống kê Học viên theo tháng';
-    protected static ?string $maxHeight = '380px';
-    protected int|string|array $columnSpan = ['md' => 12, 'xl' => 6];
+    protected static ?int $sort = 10;
+    protected int|string|array $columnSpan = 12;
+    protected static ?string $maxHeight = '420px';
 
     /**
      * @var Collection|null
@@ -99,35 +100,33 @@ class ThongKeHocVienChart extends ChartWidget
     protected function getOptions(): array
     {
         $detail = ! empty($this->filterFormData['month']);
-        $tooltipCallbacks = [
-            'label' => [
-                'type' => 'dataset-value',
-                'axis' => 'y',
-                'locale' => 'vi-VN',
-            ],
-        ];
-
-        if ($detail) {
-            $tooltipCallbacks['footer'] = [
-                'type' => 'stacked-sum',
-                'stack' => 'khong-hoan-thanh',
-                'label' => 'Tổng không hoàn thành',
-                'locale' => 'vi-VN',
-            ];
-        }
 
         return [
-            'animation' => [ 'duration' => 900, 'easing' => 'easeOutQuart' ],
-            'plugins'   => [
-                'legend'  => [ 'position' => 'top', 'labels' => [ 'usePointStyle' => true ]],
+            'animation' => [ 
+                'duration' => 900, 
+                'easing' => 'easeOutQuart' 
+            ],
+            'plugins' => [
+                'legend' => [ 
+                    'position' => 'bottom', 
+                    'labels' => [ 
+                        'usePointStyle' => true,
+                        'padding' => 20,
+                        'boxWidth' => 12,
+                        'color' => '#1e293b',
+                    ]
+                ],
                 'tooltip' => [
                     'mode' => 'index',
                     'intersect' => false,
-                    'callbacks' => $tooltipCallbacks,
+                    'backgroundColor' => 'rgba(15, 23, 42, 0.95)',
+                    'titleFont' => ['weight' => '600'],
+                    'usePointStyle' => true,
+                    'padding' => 12,
                 ],
                 'barValueLabels' => [
-                    'padding' => 6,
-                    'color' => '#111827',
+                    'padding' => 10,
+                    'color' => '#0f172a',
                     'font' => [
                         'size' => 11,
                         'weight' => '600',
@@ -135,6 +134,7 @@ class ThongKeHocVienChart extends ChartWidget
                     'showZero' => true,
                     'align' => 'center',
                     'verticalAlign' => 'bottom',
+                    'anchor' => 'end',
                     'locale' => 'vi-VN',
                     'formatter' => [
                         'type' => 'number',
@@ -146,19 +146,33 @@ class ThongKeHocVienChart extends ChartWidget
             'responsive' => true,
             'maintainAspectRatio' => false,
             'layout' => [
-                'padding' => [ 'top' => 24, 'right' => 16, 'left' => 8 ],
+                'padding' => [ 'top' => 24, 'right' => 16, 'bottom' => 12, 'left' => 8 ],
             ],
-            'interaction' => [ 'mode' => 'index', 'intersect' => false ],
+            'interaction' => [ 
+                'mode' => 'index', 
+                'intersect' => false 
+            ],
             'scales' => [
                 'x' => [
                     'stacked' => (bool) $detail,
-                    'ticks'   => [ 'font' => [ 'size' => 12 ]],
-                    'grid'    => [ 'display' => false ],
+                    'ticks' => [ 
+                        'font' => [ 'size' => 12 ],
+                        'color' => '#475569',
+                    ],
+                    'grid' => [ 'display' => false ],
                 ],
                 'y' => [
+                    'stacked' => (bool) $detail,
                     'beginAtZero' => true,
-                    'ticks'       => [ 'font' => [ 'size' => 12 ]],
-                    'grid'        => [ 'drawBorder' => false ],
+                    'ticks' => [ 
+                        'font' => [ 'size' => 12 ],
+                        'color' => '#475569',
+                        'precision' => 0,
+                    ],
+                    'grid' => [ 
+                        'drawBorder' => false,
+                        'color' => 'rgba(148, 163, 184, 0.18)',
+                    ],
                 ],
             ],
         ];
@@ -175,9 +189,9 @@ class ThongKeHocVienChart extends ChartWidget
             'hoverBackgroundColor' => $color['border'],
             'borderColor' => $color['border'],
             'borderWidth' => 1,
-            'borderRadius' => 12,
+            'borderRadius' => 10,
             'borderSkipped' => false,
-            'maxBarThickness' => 40,
+            'maxBarThickness' => 46,
             'categoryPercentage' => 0.72,
             'barPercentage' => 0.85,
         ], $overrides);
