@@ -676,6 +676,14 @@ class ListHocVienHoanThanhs extends ListRecords
             $query->where('khoa_hoc_id', $filters['course_id']);
         }
 
+        if (! empty($filters['training_types'])) {
+            TrainingTypeFilter::applyViaCourse(
+                $query,
+                $query->getModel()->getTable() . '.khoa_hoc_id',
+                $filters['training_types']
+            );
+        }
+
         // Áp dụng phạm vi thời gian vào bảng dưới nếu cần:
         if (!empty($filters['from_date']) || !empty($filters['to_date'])) {
             $from = $filters['from_date'];

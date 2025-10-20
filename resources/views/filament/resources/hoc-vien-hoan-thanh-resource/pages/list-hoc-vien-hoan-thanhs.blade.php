@@ -77,39 +77,42 @@
                             <th class="px-3 py-2 font-semibold">Ghi chú</th>
                         </tr>
                     </thead>
+                    @php($summaryRows = $this->summaryRows)
                     <tbody class="divide-y divide-gray-200">
                         @php($map = array_flip($selectedCourses ?? []))
-                        @forelse($this->summaryRows as $row)
-                            @php($isSelected = isset($map[$row['id']]))
-                            <tr
-                                wire:key="summary-{{ $row['id'] }}"
-                                wire:click="selectCourseFromSummary({{ $row['id'] }})"
-                                class="cursor-pointer transition {{ $isSelected ? 'bg-primary-50' : 'bg-white hover:bg-primary-50' }}"
-                            >
-                                <td class="px-3 py-2 text-center font-medium text-gray-900">{{ $row['index'] }}</td>
-                                <td class="px-3 py-2 font-medium text-gray-900">{{ $row['ma_khoa'] }}</td>
-                                <td class="px-3 py-2 text-gray-700">{{ $row['ten_khoa'] }}</td>
-                                <td class="px-3 py-2">
-                                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ $this->statusBadgeClass($row['trang_thai'] ?? null) }} whitespace-nowrap">
-                                        {{ $row['trang_thai'] ?? '-' }}
-                                    </span>
-                                </td>
-                                <td class="px-3 py-2 text-center text-gray-700">{{ $row['tong_gio'] }}</td>
-                                <td class="px-3 py-2 text-gray-700">{{ $row['giang_vien'] }}</td>
-                                <td class="px-3 py-2 text-gray-700 whitespace-pre-line">{{ $row['thoi_gian'] }}</td>
-                                <td class="px-3 py-2 text-center text-gray-700">{{ number_format($row['so_luong_hv'], 0, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-center text-emerald-600 font-semibold">{{ number_format($row['hoan_thanh'], 0, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-center text-rose-600 font-semibold">{{ number_format($row['khong_hoan_thanh'], 0, ',', '.') }}</td>
-                                <td class="px-3 py-2 text-center text-gray-700">{{ $row['tong_thu'] > 0 ? number_format($row['tong_thu'], 0, ',', '.') : '-' }}</td>
-                                <td class="px-3 py-2 text-gray-600">{{ $row['ghi_chu'] ?? '-' }}</td>
-                            </tr>
-                        @empty
+                        @if($summaryRows->isNotEmpty())
+                            @foreach($summaryRows as $row)
+                                @php($isSelected = isset($map[$row['id']]))
+                                <tr
+                                    wire:key="summary-{{ $row['id'] }}"
+                                    wire:click="selectCourseFromSummary({{ $row['id'] }})"
+                                    class="cursor-pointer transition {{ $isSelected ? 'bg-primary-50' : 'bg-white hover:bg-primary-50' }}"
+                                >
+                                    <td class="px-3 py-2 text-center font-medium text-gray-900">{{ $row['index'] }}</td>
+                                    <td class="px-3 py-2 font-medium text-gray-900">{{ $row['ma_khoa'] }}</td>
+                                    <td class="px-3 py-2 text-gray-700">{{ $row['ten_khoa'] }}</td>
+                                    <td class="px-3 py-2">
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium {{ $this->statusBadgeClass($row['trang_thai'] ?? null) }} whitespace-nowrap">
+                                            {{ $row['trang_thai'] ?? '-' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 text-center text-gray-700">{{ $row['tong_gio'] }}</td>
+                                    <td class="px-3 py-2 text-gray-700">{{ $row['giang_vien'] }}</td>
+                                    <td class="px-3 py-2 text-gray-700 whitespace-pre-line">{{ $row['thoi_gian'] }}</td>
+                                    <td class="px-3 py-2 text-center text-gray-700">{{ number_format($row['so_luong_hv'], 0, ',', '.') }}</td>
+                                    <td class="px-3 py-2 text-center text-emerald-600 font-semibold">{{ number_format($row['hoan_thanh'], 0, ',', '.') }}</td>
+                                    <td class="px-3 py-2 text-center text-rose-600 font-semibold">{{ number_format($row['khong_hoan_thanh'], 0, ',', '.') }}</td>
+                                    <td class="px-3 py-2 text-center text-gray-700">{{ $row['tong_thu'] > 0 ? number_format($row['tong_thu'], 0, ',', '.') : '-' }}</td>
+                                    <td class="px-3 py-2 text-gray-600">{{ $row['ghi_chu'] ?? '-' }}</td>
+                                </tr>
+                            @endforeach
+                        @else
                             <tr>
                                 <td colspan="12" class="px-3 py-4 text-center text-sm text-gray-500">Chưa có khóa học phù hợp với bộ lọc.</td>
                             </tr>
-                        @endforelse
+                        @endif
                     </tbody>
-                    @if($this->summaryRows->isNotEmpty())
+                    @if($summaryRows->isNotEmpty())
                         @php($totals = $this->summaryTotals)
                         <tfoot class="bg-slate-50 text-sm font-semibold text-gray-700">
                             <tr>
@@ -222,24 +225,26 @@
                             @endif
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            @forelse($trainingTypeOptions as $value => $label)
-                                @php $isSelected = in_array($value, $selectedTrainingTypes ?? [], true); @endphp
-                                <button
-                                    type="button"
-                                    wire:key="training-type-{{ md5($value) }}"
-                                    wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
-                                    wire:loading.attr="disabled"
-                                    @class([
-                                        'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
-                                        'border-primary-500 bg-primary-500 text-white' => $isSelected,
-                                        'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelected,
-                                    ])
-                                >
-                                    {{ $label }}
-                                </button>
-                            @empty
+                            @if(!empty($trainingTypeOptions))
+                                @foreach($trainingTypeOptions as $value => $label)
+                                    @php $isSelected = in_array($value, $selectedTrainingTypes ?? [], true); @endphp
+                                    <button
+                                        type="button"
+                                        wire:key="training-type-{{ md5($value) }}"
+                                        wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
+                                        wire:loading.attr="disabled"
+                                        @class([
+                                            'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
+                                            'border-primary-500 bg-primary-500 text-white' => $isSelected,
+                                            'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelected,
+                                        ])
+                                    >
+                                        {{ $label }}
+                                    </button>
+                                @endforeach
+                            @else
                                 <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
-                            @endforelse
+                            @endif
                         </div>
                     </div>
 
