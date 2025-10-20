@@ -121,16 +121,9 @@
                 <canvas
                     id="training-cost-chart-canvas"
                     wire:ignore
-                    x-data="trainingCostChart"
-                    x-init="initChart(
-                        $el,
-                        @js($chartData),
-                        @js($chartOptions)
-                    )"
-                    @refresh-chart.window="updateChart(
-                        @js($chartData),
-                        @js($chartOptions)
-                    )"
+                    x-data="trainingCostChartFactory($el)"
+                    x-init="setupChart(@js($chartData), @js($chartOptions))"
+                    @refresh-chart.window="updateChart(@js($chartData), @js($chartOptions))"
                 ></canvas>
             </div>
         </div>
@@ -233,97 +226,111 @@
 
 @push('scripts')
 <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('trainingCostChart', () => ({
-        chartInstance: null,
-        
-        initChart(canvas, data, options) {
-            if (!canvas || typeof Chart === 'undefined') {
-                console.error('Canvas or Chart.js not available');
-                return;
-            }
-            if (this.chartInstance) this.chartInstance.destroy();
+(function () {
+    'use strict';
 
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                console.error('Cannot get canvas context');
-                return;
-            }
-            
-            this.chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: data || { labels: [], datasets: [] },
-                options: this.normalizeOptions(options || {})
-            });
-        },
-        
-        updateChart(data, options) {
-            if (!this.chartInstance) return;
-            this.chartInstance.data = data || { labels: [], datasets: [] };
-            this.chartInstance.options = this.normalizeOptions(options || {});
-            this.chartInstance.update();
-        },
-        
-        // Thu hẹp khe hở giữa các cột, giữ font & layout như cũ
-        normalizeOptions(opts) {
-            const base = {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: { top: 6, right: 8, bottom: 6, left: 8 } },
-                datasets: {
-                    bar: {
-                        categoryPercentage: 0.95,  // ~kín nhóm
-                        barPercentage: 0.98,       // cột phủ gần hết nhóm
-                        maxBarThickness: 44,
-                        borderRadius: 3,
-                        borderSkipped: false,
-                        borderWidth: 0,            // bỏ viền để nhìn “đầy” hơn
-                    },
-                },
-                scales: {
-                    x: {
-                        offset: false,             // bỏ đệm hai đầu trục
-                        grid: { display: false },
-                        ticks: { maxRotation: 0, autoSkip: true },
-                        stacked: false,
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: { drawBorder: false, color: 'rgba(0,0,0,0.06)' },
-                        ticks: { precision: 0 },
-                        stacked: false,
-                    },
-                },
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: { mode: 'index', intersect: false },
-                },
-            };
+    window.trainingCostChartFactory = function (canvas) {
+        return {
+            chartInstance: null,
 
-            const o = opts || {};
-            return {
-                ...base,
-                ...o,
-                scales: {
-                    x: { ...base.scales.x, ...(o.scales?.x ?? {}) },
-                    y: { ...base.scales.y, ...(o.scales?.y ?? {}) },
-                },
-                plugins: {
-                    ...base.plugins,
-                    ...(o.plugins ?? {}),
-                },
-                datasets: {
-                    bar: { ...base.datasets.bar, ...(o.datasets?.bar ?? {}) },
-                },
-            };
-        }
-    }));
-});
+            setupChart(data, options) {
+                if (!canvas || typeof Chart === 'undefined') {
+                    console.error('Canvas or Chart.js not available');
+                    return;
+                }
 
-document.addEventListener('livewire:initialized', () => {
-    Livewire.hook('message.processed', () => {
-        window.dispatchEvent(new CustomEvent('refresh-chart'));
+                if (this.chartInstance) {
+                    this.chartInstance.destroy();
+                    this.chartInstance = null;
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                if (!ctx) {
+                    console.error('Cannot get canvas context');
+                    return;
+                }
+
+                this.chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: data || { labels: [], datasets: [] },
+                    options: this.normalizeOptions(options || {}),
+                });
+            },
+
+            updateChart(data, options) {
+                if (!this.chartInstance) {
+                    this.setupChart(data, options);
+                    return;
+                }
+
+                this.chartInstance.data = data || { labels: [], datasets: [] };
+                this.chartInstance.options = this.normalizeOptions(options || {});
+                this.chartInstance.update();
+            },
+
+            // Thu hẹp khe hở giữa các cột, giữ font & layout như cũ
+            normalizeOptions(opts) {
+                const base = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 6, right: 8, bottom: 6, left: 8 } },
+                    datasets: {
+                        bar: {
+                            categoryPercentage: 0.95,
+                            barPercentage: 0.98,
+                            maxBarThickness: 44,
+                            borderRadius: 3,
+                            borderSkipped: false,
+                            borderWidth: 0,
+                        },
+                    },
+                    scales: {
+                        x: {
+                            offset: false,
+                            grid: { display: false },
+                            ticks: { maxRotation: 0, autoSkip: true },
+                            stacked: false,
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { drawBorder: false, color: 'rgba(0,0,0,0.06)' },
+                            ticks: { precision: 0 },
+                            stacked: false,
+                        },
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { mode: 'index', intersect: false },
+                    },
+                };
+
+                const o = opts || {};
+
+                return {
+                    ...base,
+                    ...o,
+                    scales: {
+                        x: { ...base.scales.x, ...(o.scales?.x ?? {}) },
+                        y: { ...base.scales.y, ...(o.scales?.y ?? {}) },
+                    },
+                    plugins: {
+                        ...base.plugins,
+                        ...(o.plugins ?? {}),
+                    },
+                    datasets: {
+                        bar: { ...base.datasets.bar, ...(o.datasets?.bar ?? {}) },
+                    },
+                };
+            },
+        };
+    };
+
+    document.addEventListener('livewire:initialized', () => {
+        Livewire.hook('message.processed', () => {
+            window.dispatchEvent(new CustomEvent('refresh-chart'));
+        });
     });
-});
+})();
 </script>
 @endpush
