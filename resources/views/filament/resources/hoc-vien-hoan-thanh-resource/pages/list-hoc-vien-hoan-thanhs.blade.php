@@ -225,7 +225,11 @@
                             @endif
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            @if(!empty($trainingTypeOptions))
+                            @php($trainingTypeOptions = $trainingTypeOptions ?? [])
+
+                            @if(count($trainingTypeOptions) === 0)
+                                <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
+                            @else
                                 @foreach($trainingTypeOptions as $value => $label)
                                     @php $isSelected = in_array($value, $selectedTrainingTypes ?? [], true); @endphp
                                     <button
@@ -242,8 +246,6 @@
                                         {{ $label }}
                                     </button>
                                 @endforeach
-                            @else
-                                <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
                             @endif
                         </div>
                     </div>
