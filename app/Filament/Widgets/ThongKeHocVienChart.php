@@ -6,425 +6,280 @@ use App\Models\DangKy;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
-use Filament\Forms;
-use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-class ThongKeHocVienChart extends ChartWidget
+class ThongKeHocVienChart extends Widget
 {
-    protected static ?string $heading = 'Thống kê Học viên theo tháng';
-    protected static ?int $sort = 10;
-    protected int|string|array $columnSpan = 12;
-    protected static ?string $maxHeight = '420px';
+    protected static string $view = 'filament.widgets.thong-ke-hoc-vien-chart';
+    protected int|string|array $columnSpan = ['md' => 12, 'xl' => 12];
 
-    /**
-     * @var Collection|null
-     */
-    protected $planYearCache = null;
+    /** UI state */
+    public int $year;
+    public ?int $month = null;
+    /** @var array<int,string> */
+    public array $selectedTrainingTypes = [];
 
-    /**
-     * Cache of course ids grouped by month for a given training plan year.
-     *
-     * @var array<int, array<int, int[]>>
-     */
-    protected $courseMonthCache = [];
+    /** cache: [year => [month => int[] courseIds]] */
+    protected array $courseMonthCache = [];
 
-    protected function getType(): string
+    public function mount(): void
     {
-        return 'bar';
+        $this->year = $this->defaultYear();
+        $this->selectedTrainingTypes = [];
     }
 
-    protected function getFormSchema(): array
+    /** Toggle multi-select Loại hình */
+    public function toggleTrainingType(string $value): void
     {
-        return [
-            Forms\Components\Select::make('year')
-                ->label('Năm')
-                ->options($this->getPlanYearOptions())
-                ->default($this->getDefaultYear())
-                ->live(),
-
-            Forms\Components\Select::make('month')
-                ->label('Tháng')
-                ->placeholder('Tất cả các tháng')
-                ->options(collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('T%02d', $m)])->all())
-                ->default(null)
-                ->live(),
-        ];
+        $idx = array_search($value, $this->selectedTrainingTypes, true);
+        if ($idx === false) {
+            $this->selectedTrainingTypes[] = $value;
+        } else {
+            array_splice($this->selectedTrainingTypes, $idx, 1);
+        }
     }
 
-    protected function getData(): array
+    /** ===== Options for Blade ===== */
+    public function getYearOptionsProperty(): array
     {
-        $year  = (int) ($this->filterFormData['year'] ?? $this->getDefaultYear());
-        $month = $this->filterFormData['month'] ?? null;
-        $month = ($month === '' || $month === null) ? null : (int) $month;
+        $years = collect();
 
-        $monthlySeries = $this->compileMonthlySeries($year);
-
-        if ($month) {
-            $reg  = $monthlySeries['dangKy'][$month] ?? 0;
-            $done = $monthlySeries['hoanThanh'][$month] ?? 0;
-
-            [$_totalNotDone, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
-
-            $datasets = [
-                $this->makeBarDataset('Đăng ký', [$reg], 'dang-ky', ['stack' => 'dang-ky']),
-                $this->makeBarDataset('Hoàn thành', [$done], 'hoan-thanh', ['stack' => 'hoan-thanh']),
-                $this->makeBarDataset('Không hoàn thành - Vắng P', [$vangP], 'vang-p', ['stack' => 'khong-hoan-thanh']),
-                $this->makeBarDataset('Không hoàn thành - Vắng KP', [$vangKP], 'vang-kp', ['stack' => 'khong-hoan-thanh']),
-                $this->makeBarDataset('Không hoàn thành - Khác', [$vangKhac], 'vang-khac', ['stack' => 'khong-hoan-thanh']),
-            ];
-
-            return [
-                'datasets' => $datasets,
-                'labels' => [sprintf('T%02d/%d', $month, $year)],
-            ];
+        if (Schema::hasTable('lich_hocs')) {
+            if (Schema::hasColumn('lich_hocs', 'nam')) {
+                $years = $years->merge(
+                    DB::table('lich_hocs')->whereNotNull('nam')->distinct()->orderByDesc('nam')->pluck('nam')
+                );
+            } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
+                $years = $years->merge(
+                    DB::table('lich_hocs')->whereNotNull('ngay_hoc')->selectRaw('DISTINCT YEAR(ngay_hoc) as y')->orderByDesc('y')->pluck('y')
+                );
+            }
         }
 
-        $labels   = collect(range(1, 12))->map(fn ($m) => sprintf('T%02d', $m))->all();
-        $datasets = [
-            $this->makeBarDataset('Đăng ký', array_values($monthlySeries['dangKy']), 'dang-ky'),
-            $this->makeBarDataset('Hoàn thành', array_values($monthlySeries['hoanThanh']), 'hoan-thanh'),
-            $this->makeBarDataset('Không hoàn thành', array_values($monthlySeries['khongHoanThanh']), 'khong-hoan-thanh'),
-        ];
+        if ($years->isEmpty() && Schema::hasTable('khoa_hocs')) {
+            $col = Schema::hasColumn('khoa_hocs', 'ngay_bat_dau') ? 'ngay_bat_dau' : 'created_at';
+            $years = DB::table('khoa_hocs')->whereNotNull($col)->selectRaw("DISTINCT YEAR($col) as y")->orderByDesc('y')->pluck('y');
+        }
 
-        return [
-            'datasets' => $datasets,
-            'labels'  => $labels,
-        ];
+        if ($years->isEmpty()) $years = collect([(int) now()->format('Y')]);
+
+        return $years->mapWithKeys(fn ($y) => [$y => (string) $y])->all();
     }
 
-    protected function getOptions(): array
+    public function getMonthOptionsProperty(): array
     {
-        $detail = ! empty($this->filterFormData['month']);
-
-        return [
-            'animation' => [ 
-                'duration' => 900, 
-                'easing' => 'easeOutQuart' 
-            ],
-            'plugins' => [
-                'legend' => [ 
-                    'position' => 'bottom', 
-                    'labels' => [ 
-                        'usePointStyle' => true,
-                        'padding' => 20,
-                        'boxWidth' => 12,
-                        'color' => '#1e293b',
-                    ]
-                ],
-                'tooltip' => [
-                    'mode' => 'index',
-                    'intersect' => false,
-                    'backgroundColor' => 'rgba(15, 23, 42, 0.95)',
-                    'titleFont' => ['weight' => '600'],
-                    'usePointStyle' => true,
-                    'padding' => 12,
-                ],
-                'barValueLabels' => [
-                    'padding' => 10,
-                    'color' => '#0f172a',
-                    'font' => [
-                        'size' => 11,
-                        'weight' => '600',
-                    ],
-                    'showZero' => true,
-                    'align' => 'center',
-                    'verticalAlign' => 'bottom',
-                    'anchor' => 'end',
-                    'locale' => 'vi-VN',
-                    'formatter' => [
-                        'type' => 'number',
-                        'locale' => 'vi-VN',
-                        'maximumFractionDigits' => 0,
-                    ],
-                ],
-            ],
-            'responsive' => true,
-            'maintainAspectRatio' => false,
-            'layout' => [
-                'padding' => [ 'top' => 24, 'right' => 16, 'bottom' => 12, 'left' => 8 ],
-            ],
-            'interaction' => [ 
-                'mode' => 'index', 
-                'intersect' => false 
-            ],
-            'scales' => [
-                'x' => [
-                    'stacked' => (bool) $detail,
-                    'ticks' => [ 
-                        'font' => [ 'size' => 12 ],
-                        'color' => '#475569',
-                    ],
-                    'grid' => [ 'display' => false ],
-                ],
-                'y' => [
-                    'stacked' => (bool) $detail,
-                    'beginAtZero' => true,
-                    'ticks' => [ 
-                        'font' => [ 'size' => 12 ],
-                        'color' => '#475569',
-                        'precision' => 0,
-                    ],
-                    'grid' => [ 
-                        'drawBorder' => false,
-                        'color' => 'rgba(148, 163, 184, 0.18)',
-                    ],
-                ],
-            ],
-        ];
+        return collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('T%02d', $m)])->all();
     }
 
-    private function makeBarDataset(string $label, array $data, string $colorKey, array $overrides = []): array
+    public function getTrainingTypeOptionsProperty(): array
     {
-        $color = $this->colorForKey($colorKey);
+        if (! Schema::hasTable('khoa_hocs') || ! Schema::hasColumn('khoa_hocs', 'loai_hinh_dao_tao')) {
+            return [];
+        }
 
-        return array_merge([
-            'label' => $label,
-            'data' => $data,
-            'backgroundColor' => $color['background'],
-            'hoverBackgroundColor' => $color['border'],
-            'borderColor' => $color['border'],
-            'borderWidth' => 1,
-            'borderRadius' => 10,
-            'borderSkipped' => false,
-            'maxBarThickness' => 46,
-            'categoryPercentage' => 0.72,
-            'barPercentage' => 0.85,
-        ], $overrides);
-    }
-
-    private function colorForKey(string $key): array
-    {
-        $palette = [
-            'dang-ky'           => [59, 130, 246],
-            'hoan-thanh'        => [16, 185, 129],
-            'khong-hoan-thanh'  => [249, 115, 22],
-            'vang-p'            => [251, 191, 36],
-            'vang-kp'           => [239, 68, 68],
-            'vang-khac'         => [129, 140, 248],
-        ];
-
-        $rgb = $palette[$key] ?? [107, 114, 128];
-
-        return [
-            'background' => sprintf('rgba(%d, %d, %d, 0.85)', $rgb[0], $rgb[1], $rgb[2]),
-            'border' => sprintf('rgba(%d, %d, %d, 1)', $rgb[0], $rgb[1], $rgb[2]),
-        ];
-    }
-
-    private function getDefaultYear(): int
-    {
-        return (int) ($this->planYears()->first() ?? now()->year);
-    }
-
-    private function getPlanYearOptions(): array
-    {
-        return $this->planYears()
-            ->mapWithKeys(fn ($year) => [$year => (string) $year])
+        return KhoaHoc::query()
+            ->whereNotNull('loai_hinh_dao_tao')
+            ->where('loai_hinh_dao_tao', '!=', '')
+            ->distinct()
+            ->orderBy('loai_hinh_dao_tao')
+            ->pluck('loai_hinh_dao_tao', 'loai_hinh_dao_tao')
             ->all();
     }
 
-    private function planYears(): Collection
+    /** ===== Chart payloads (read in Blade via $this->chartData / chartOptions) ===== */
+    public function getChartDataProperty(): array
     {
-        if ($this->planYearCache !== null) {
-            return $this->planYearCache;
+        $year  = (int) $this->year;
+        $month = $this->month ?: null;
+
+        $series = $this->compileMonthlySeries($year);
+
+        if ($month) {
+            $reg  = $series['dangKy'][$month] ?? 0;
+            $done = $series['hoanThanh'][$month] ?? 0;
+            [$_total, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
+
+            return [
+                'labels'   => [sprintf('T%02d/%d', $month, $year)],
+                'datasets' => [
+                    $this->makeBarDataset('Đăng ký', [$reg], 'dang-ky', ['stack' => 'dang-ky']),
+                    $this->makeBarDataset('Hoàn thành', [$done], 'hoan-thanh', ['stack' => 'hoan-thanh']),
+                    $this->makeBarDataset('Không hoàn thành - Vắng P', [$vangP], 'vang-p', ['stack' => 'khong-hoan-thanh']),
+                    $this->makeBarDataset('Không hoàn thành - Vắng KP', [$vangKP], 'vang-kp', ['stack' => 'khong-hoan-thanh']),
+                    $this->makeBarDataset('Không hoàn thành - Khác', [$vangKhac], 'vang-khac', ['stack' => 'khong-hoan-thanh']),
+                ],
+            ];
         }
 
-        $years = collect();
-        $khoaHocTable = (new KhoaHoc)->getTable();
-
-        if (Schema::hasTable($khoaHocTable) && Schema::hasColumn($khoaHocTable, 'nam')) {
-            $years = KhoaHoc::query()
-                ->whereNotNull('nam')
-                ->distinct()
-                ->orderByDesc('nam')
-                ->pluck('nam');
-        }
-
-        if ($years->isEmpty()) {
-            $years = collect([now()->year]);
-        }
-
-        return $this->planYearCache = $years
-            ->map(fn ($value) => (int) $value)
-            ->filter()
-            ->unique()
-            ->values();
-    }
-
-    private function compileMonthlySeries(int $year): array
-    {
         return [
-            'dangKy' => $this->monthlyDangKyCounts($year),
-            'hoanThanh' => $this->monthlyHoanThanhCounts($year),
-            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($year),
+            'labels'   => collect(range(1, 12))->map(fn ($m) => sprintf('T%02d', $m))->all(),
+            'datasets' => [
+                $this->makeBarDataset('Đăng ký', array_values($series['dangKy']), 'dang-ky'),
+                $this->makeBarDataset('Hoàn thành', array_values($series['hoanThanh']), 'hoan-thanh'),
+                $this->makeBarDataset('Không hoàn thành', array_values($series['khongHoanThanh']), 'khong-hoan-thanh'),
+            ],
         ];
     }
 
-    private function monthlyDangKyCounts(int $year): array
+    public function getChartOptionsProperty(): array
     {
-        return $this->countByMonthUsingCourseMap(DangKy::query(), $this->courseIdsByMonth($year));
+        return [
+            'plugins' => [
+                'legend'  => ['position' => 'top', 'labels' => ['usePointStyle' => true]],
+                'tooltip' => ['mode' => 'index', 'intersect' => false],
+            ],
+            'responsive' => true,
+            'maintainAspectRatio' => false,
+            'interaction' => ['mode' => 'index', 'intersect' => false],
+            'layout' => ['padding' => ['top' => 24, 'right' => 16, 'bottom' => 12, 'left' => 8]],
+            'scales' => [
+                'x' => ['grid' => ['display' => false]],
+                'y' => ['beginAtZero' => true, 'ticks' => ['precision' => 0]],
+            ],
+        ];
     }
 
-    private function monthlyHoanThanhCounts(int $year): array
+    /** ===== Core ===== */
+    private function compileMonthlySeries(int $year): array
     {
-        return $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $this->courseIdsByMonth($year));
+        $map = $this->courseIdsByMonth($year);
+        return [
+            'dangKy'        => $this->countByMonthUsingCourseMap(DangKy::query(), $map),
+            'hoanThanh'     => $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $map),
+            'khongHoanThanh'=> $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $map),
+        ];
     }
 
-    private function monthlyKhongHoanThanhCounts(int $year): array
+    private function emptyMonthlyBuckets(): array      { return array_fill(1, 12, 0); }
+    private function emptyMonthlyCourseBuckets(): array{ return array_fill(1, 12, []); }
+
+    private function makeBarDataset(string $label, array $data, string $key, array $extra = []): array
     {
-        return $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $this->courseIdsByMonth($year));
+        $base = [
+            'label' => $label,
+            'data'  => array_values($data),
+            'backgroundColor' => match ($key) {
+                'dang-ky' => 'rgba(59,130,246,0.80)',
+                'hoan-thanh' => 'rgba(34,197,94,0.80)',
+                'khong-hoan-thanh' => 'rgba(239,68,68,0.80)',
+                'vang-p' => 'rgba(250,204,21,0.85)',
+                'vang-kp' => 'rgba(248,113,113,0.85)',
+                'vang-khac' => 'rgba(148,163,184,0.85)',
+                default => 'rgba(99,102,241,0.80)',
+            },
+            'borderRadius'    => 6,
+            'maxBarThickness' => 44,
+        ];
+        return array_replace_recursive($base, $extra);
     }
 
-    private function emptyMonthlyBuckets(): array
+    private function getSelectedTrainingTypes(): array
     {
-        $buckets = [];
-
-        for ($month = 1; $month <= 12; $month++) {
-            $buckets[$month] = 0;
-        }
-
-        return $buckets;
-    }
-
-    private function emptyMonthlyCourseBuckets(): array
-    {
-        $buckets = [];
-
-        for ($month = 1; $month <= 12; $month++) {
-            $buckets[$month] = [];
-        }
-
-        return $buckets;
+        return array_values(array_filter($this->selectedTrainingTypes, fn ($v) => $v !== null && $v !== ''));
     }
 
     private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
     {
         $buckets = $this->emptyMonthlyBuckets();
         $courseIds = [];
-
-        foreach ($courseMap as $ids) {
-            foreach ($ids as $courseId) {
-                $courseIds[$courseId] = true;
-            }
-        }
-
-        if (empty($courseIds)) {
-            return $buckets;
-        }
+        foreach ($courseMap as $ids) foreach ($ids as $cid) $courseIds[$cid] = true;
+        if (empty($courseIds)) return $buckets;
 
         $table = $query->getModel()->getTable();
-
-        $keyName = $query->getModel()->getQualifiedKeyName();
+        $pk    = $query->getModel()->getQualifiedKeyName();
 
         $rows = (clone $query)
             ->whereIn("$table.khoa_hoc_id", array_keys($courseIds))
             ->selectRaw("$table.khoa_hoc_id as course_id")
-            ->selectRaw('COUNT(DISTINCT ' . $keyName . ') as aggregate')
+            ->selectRaw("COUNT(DISTINCT $pk) as aggregate")
             ->groupBy('course_id')
             ->pluck('aggregate', 'course_id')
             ->all();
 
         foreach ($courseMap as $month => $ids) {
-            $total = 0;
-            foreach ($ids as $courseId) {
-                $total += (int) ($rows[$courseId] ?? 0);
-            }
-            $buckets[$month] = $total;
+            $sum = 0;
+            foreach ($ids as $cid) $sum += (int) ($rows[$cid] ?? 0);
+            $buckets[$month] = $sum;
         }
-
         return $buckets;
     }
 
-    private function countKhongHoanThanhWithAbsence(int $year, int $month): array
+    private function countKhongHoanThanhWithAbsence(int $year, ?int $month = null): array
     {
-        $courseIds = $this->courseIdsByMonth($year)[$month] ?? [];
-
-        if (empty($courseIds)) {
-            return [0, 0, 0, 0];
-        }
+        $map = $this->courseIdsByMonth($year);
+        $courseIds = $month ? ($map[$month] ?? []) : collect($map)->flatten()->unique()->values()->all();
+        if (empty($courseIds)) return [0, 0, 0, 0];
 
         $table = (new HocVienKhongHoanThanh)->getTable();
         $query = HocVienKhongHoanThanh::query()->whereIn("$table.khoa_hoc_id", $courseIds);
-        $idColumn = "$table.id";
+        $idCol = "$table.id";
 
-        $total = (clone $query)->distinct($idColumn)->count($idColumn);
-        $vangP = 0;
-        $vangKP = 0;
+        $total = (clone $query)->distinct($idCol)->count($idCol);
+        $vangP = 0; $vangKP = 0;
 
         if (Schema::hasColumn($table, 'vang_co_phep')) {
-            $vangP  = (clone $query)->where("$table.vang_co_phep", 1)->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $query)->where("$table.vang_co_phep", 0)->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->where("$table.vang_co_phep", 1)->distinct($idCol)->count($idCol);
+            $vangKP = (clone $query)->where("$table.vang_co_phep", 0)->distinct($idCol)->count($idCol);
         } elseif (Schema::hasColumn($table, 'loai_vang')) {
-            $vangP  = (clone $query)->whereIn("$table.loai_vang", ['p', 'phep', 'vang_p', 'Vắng P', 'Vang P'])->distinct($idColumn)->count($idColumn);
-            $vangKP = (clone $query)->whereIn("$table.loai_vang", ['kp', 'khong_phep', 'vang_kp', 'Vắng KP', 'Vang KP'])->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->whereIn("$table.loai_vang", ['P','p','Vắng P','Vang P'])->distinct($idCol)->count($idCol);
+            $vangKP = (clone $query)->whereIn("$table.loai_vang", ['KP','kp','Vắng KP','Vang KP'])->distinct($idCol)->count($idCol);
         } elseif (Schema::hasColumn($table, 'tinh_trang')) {
-            $vangP  = (clone $query)->where(DB::raw('LOWER(' . $table . '.tinh_trang)'), 'like', '%p%')->distinct($idColumn)->count($idColumn);
+            $vangP  = (clone $query)->where("$table.tinh_trang", 'like', '%P%')->distinct($idCol)->count($idCol);
             $vangKP = max($total - $vangP, 0);
         }
 
         $vangKhac = max($total - $vangP - $vangKP, 0);
-
         return [$total, $vangP, $vangKP, $vangKhac];
     }
 
     private function courseIdsByMonth(int $year): array
     {
-        if (array_key_exists($year, $this->courseMonthCache)) {
-            return $this->courseMonthCache[$year];
-        }
+        if (isset($this->courseMonthCache[$year])) return $this->courseMonthCache[$year];
 
         $buckets = $this->emptyMonthlyCourseBuckets();
+        if (! Schema::hasTable('lich_hocs')) return $this->courseMonthCache[$year] = $buckets;
 
-        if (! Schema::hasTable('lich_hocs')) {
-            return $this->courseMonthCache[$year] = $buckets;
-        }
-
-        $query = DB::table('lich_hocs')
+        $q = DB::table('lich_hocs')
             ->select(['khoa_hoc_id', 'thang', 'ngay_hoc'])
             ->whereNotNull('khoa_hoc_id');
 
-        if (Schema::hasColumn('lich_hocs', 'nam')) {
-            $query->where('nam', $year);
-        } else {
-            $query->whereYear('ngay_hoc', $year);
+        if (Schema::hasColumn('lich_hocs', 'nam')) $q->where('nam', $year);
+        else $q->whereYear('ngay_hoc', $year);
+
+        $selected = $this->getSelectedTrainingTypes();
+        if (!empty($selected) && Schema::hasTable('khoa_hocs')) {
+            $allowedIds = KhoaHoc::query()->whereIn('loai_hinh_dao_tao', $selected)->pluck('id')->all();
+            if (!empty($allowedIds)) $q->whereIn('khoa_hoc_id', $allowedIds);
+            else return $this->courseMonthCache[$year] = $buckets;
         }
 
-        $rows = $query->get();
+        $rows = $q->get();
 
-        foreach ($rows as $row) {
-            $month = (int) ($row->thang ?? 0);
-
+        foreach ($rows as $r) {
+            $month = (int) ($r->thang ?? 0);
             if ($month < 1 || $month > 12) {
-                try {
-                    $month = $row->ngay_hoc ? (int) Carbon::parse($row->ngay_hoc)->month : 0;
-                } catch (\Throwable $e) {
-                    $month = 0;
-                }
+                try { $month = $r->ngay_hoc ? (int) Carbon::parse($r->ngay_hoc)->month : 0; } catch (\Throwable) { $month = 0; }
             }
+            if ($month < 1 || $month > 12) continue;
 
-            if ($month < 1 || $month > 12) {
-                continue;
-            }
+            $cid = (int) $r->khoa_hoc_id;
+            if ($cid <= 0) continue;
 
-            $courseId = (int) $row->khoa_hoc_id;
-
-            if ($courseId <= 0) {
-                continue;
-            }
-
-            $buckets[$month][$courseId] = true;
+            $buckets[$month][$cid] = true;
         }
 
-        $normalized = [];
-        foreach ($buckets as $month => $ids) {
-            $normalized[$month] = array_values(array_keys($ids));
-        }
+        foreach ($buckets as $m => $ids) $buckets[$m] = array_values(array_keys($ids));
+        return $this->courseMonthCache[$year] = $buckets;
+    }
 
-        return $this->courseMonthCache[$year] = $normalized;
+    private function defaultYear(): int
+    {
+        $opts = $this->yearOptions;
+        $now = (int) now()->format('Y');
+        return array_key_exists($now, $opts) ? $now : (int) array_key_first($opts);
     }
 }

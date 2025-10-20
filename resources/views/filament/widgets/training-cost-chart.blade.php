@@ -9,68 +9,52 @@
         @php
             $resolvedYear = $year ?? ($yearOptions ? array_key_first($yearOptions) : (int) now()->format('Y'));
             $periodLabel = $month ? ('Tháng ' . sprintf('%02d/%d', $month, $resolvedYear)) : 'Năm ' . $resolvedYear;
+            $__id = $this->getId();
+            $canvasId = 'training-cost-chart-canvas-' . $__id;
         @endphp
 
-        {{-- Lưới 3 cột gọn --}}
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {{-- Cột 1: Bộ lọc --}}
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
-                            <span class="mb-1.5">Năm</span>
-                            <select
-                                wire:model.live="year"
-                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                            >
-                                @foreach($yearOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
+            {{-- BỘ LỌC --}}
+            <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Bộ lọc</h3>
+                    <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{{ $periodLabel }}</span>
+                </div>
 
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
-                            <span class="mb-1.5">Tháng</span>
-                            <select
-                                wire:model.live="month"
-                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                            >
-                                <option value="">Tất cả</option>
-                                @foreach($monthOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
+                <div class="mt-3 space-y-3">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Năm</label>
+                        <select wire:model.live="year" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                            @foreach($yearOptions as $y => $label)
+                                <option value="{{ $y }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
 
-                    {{-- Loại hình đào tạo --}}
-                    <div class="space-y-2.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-slate-700">Loại hình đào tạo</span>
-                            @if(!empty($selectedTrainingTypes))
-                                <button
-                                    type="button"
-                                    wire:click="clearTrainingTypeFilters"
-                                    wire:loading.attr="disabled"
-                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
-                                >
-                                    Bỏ chọn
-                                </button>
-                            @endif
-                        </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Tháng</label>
+                        <select wire:model.live="month" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+                            <option value="">Cả năm</option>
+                            @foreach($monthOptions as $m => $label)
+                                <option value="{{ $m }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-slate-600">Loại hình đào tạo</label>
                         <div class="flex flex-wrap gap-2">
                             @forelse($trainingTypeOptions as $value => $label)
-                                @php $isSelected = in_array($value, $selectedTrainingTypes ?? [], true); @endphp
                                 <button
                                     type="button"
-                                    wire:key="training-type-{{ md5($value) }}"
-                                    wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
-                                    wire:loading.attr="disabled"
-                                    @class([
-                                        'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
-                                        'border-primary-500 bg-primary-500 text-white' => $isSelected,
-                                        'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelected,
-                                    ])
+                                    wire:click="toggleTrainingType('{{ $value }}')"
+                                    class="rounded-full border px-3 py-1 text-xs transition
+                                        @if(in_array($value, $selectedTrainingTypes ?? []))
+                                            border-indigo-600 bg-indigo-50 text-indigo-700
+                                        @else
+                                            border-slate-300 bg-white text-slate-700 hover:bg-slate-50
+                                        @endif
+                                    "
                                 >
                                     {{ $label }}
                                 </button>
@@ -82,248 +66,186 @@
                 </div>
             </div>
 
-            {{-- Cột 2: Chi phí theo loại hình --}}
+            {{-- TỔNG THEO LOẠI HÌNH --}}
             <div class="rounded-lg border border-indigo-200 bg-white p-4 shadow-sm">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-600">Chi phí theo loại hình</p>
+                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-700">Chi phí theo loại hình</p>
+                <ul class="space-y-2 text-sm">
+                    @forelse(($typeTotals ?? []) as $key => $row)
+                        @php
+                            $isArray = is_array($row);
+                            $isObject = is_object($row);
+                            $label = $isArray ? ($row['label'] ?? (string) $key) : ($isObject ? ($row->label ?? (string) $key) : (string) $key);
+                            $value = $isArray ? ($row['value'] ?? 0) : ($isObject ? ($row->value ?? 0) : (float) $row);
+                        @endphp
+                        <li class="flex items-center justify-between">
+                            <span class="text-slate-700">{{ $label }}</span>
+                            <span class="font-semibold text-slate-900">{{ number_format((float) $value, 0, ',', '.') }}</span>
+                        </li>
+                    @empty
+                        <li class="text-xs text-slate-400">Không có dữ liệu.</li>
+                    @endforelse
+                </ul>
 
-                @if(!empty($typeTotals))
-                    <ul class="rounded-md border border-indigo-100 bg-indigo-50/40 divide-y divide-indigo-100">
-                        @foreach($typeTotals as $type => $value)
-                            <li class="flex items-center justify-between gap-4 px-3 py-2">
-                                <span class="text-xs font-medium text-indigo-700">{{ $type }}</span>
-                                <span class="text-lg font-bold text-indigo-900">
-                                    {{ number_format($value, 0, ',', '.') }}
-                                    <span class="text-xs font-normal text-indigo-500">VND</span>
-                                </span>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <p class="text-sm text-indigo-400">Chưa có dữ liệu chi phí cho bộ lọc hiện tại.</p>
-                @endif
+                <div class="mt-4 rounded-lg bg-slate-50 p-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-semibold text-slate-700">Tổng chi phí</span>
+                        <span class="text-lg font-bold text-slate-900">{{ number_format((float) ($totalCost ?? 0), 0, ',', '.') }} đ</span>
+                    </div>
+                </div>
             </div>
 
-            {{-- Cột 3: Tổng chi phí --}}
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-600">Tổng chi phí</p>
-                <p class="text-4xl font-bold text-amber-700" style="font-size: calc(1.5rem + 2pt);">
-                    {{ number_format($totalCost, 0, ',', '.') }}
-                    <span class="text-base font-medium text-amber-500">VND</span>
-                </p>
-                <p class="mt-2 text-sm text-amber-600/80">{{ $periodLabel }}</p>
-            </div>
-        </div>
+            {{-- BIỂU ĐỒ CHI PHÍ --}}
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
+                <div class="relative h-[380px] w-full">
+                    <canvas id="{{ $canvasId }}" wire:ignore></canvas>
+                </div>
 
-        {{-- Biểu đồ chi phí --}}
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div class="relative h-[380px] w-full">
-                <canvas
-                    id="training-cost-chart-canvas"
-                    wire:ignore
-                    x-data="trainingCostChart"
-                    x-init="initChart(
-                        $el,
-                        @js($chartData),
-                        @js($chartOptions)
-                    )"
-                    @refresh-chart.window="updateChart(
-                        @js($chartData),
-                        @js($chartOptions)
-                    )"
-                ></canvas>
-            </div>
-        </div>
+                {{-- JSON đặt ngoài canvas --}}
+                <script type="application/json" id="chart-data-{{ $__id }}">@json($chartData)</script>
+                <script type="application/json" id="chart-options-{{ $__id }}">@json($chartOptions)</script>
 
-        <div class="mt-6">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Bảng thống kê chi phí đào tạo</h3>
-                @if(!empty($tableData['labels']))
-                    <span class="text-xs text-slate-500">
-                        @if(count($tableData['labels']) > 1)
-                            Theo tháng
-                        @else
+                @if(($tableData['hasData'] ?? false) && count($tableData['labels'] ?? []) === 1)
+                    <div class="mt-2 flex justify-center">
+                        <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                             {{ $tableData['labels'][0] }}
-                        @endif
-                    </span>
+                        </span>
+                    </div>
                 @endif
             </div>
-
-            @if($tableData['hasData'] ?? false)
-                @if(count($tableData['labels'] ?? []) > 1)
-                    <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-                        <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
-                                    @foreach($tableData['labels'] as $label)
-                                        <th class="px-3 py-3 text-center font-semibold text-slate-600">{{ $label }}</th>
-                                    @endforeach
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Tổng</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 bg-white">
-                                @foreach($tableData['rows'] as $row)
-                                    <tr class="hover:bg-slate-50">
-                                        <td class="px-4 py-3 font-medium text-slate-800">{{ $row['label'] }}</td>
-                                        @foreach($row['values'] as $value)
-                                            <td class="px-3 py-3 text-center text-slate-700">
-                                                {{ number_format((float) $value, 0, ',', '.') }}
-                                            </td>
-                                        @endforeach
-                                        <td class="px-4 py-3 text-right font-semibold text-slate-800">
-                                            {{ number_format((float) $row['total'], 0, ',', '.') }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng theo tháng</th>
-                                    @foreach($tableData['columnTotals'] as $total)
-                                        <th class="px-3 py-3 text-center font-semibold text-slate-700">
-                                            {{ number_format((float) $total, 0, ',', '.') }}
-                                        </th>
-                                    @endforeach
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-800">
-                                        {{ number_format((float) $tableData['grandTotal'], 0, ',', '.') }}
-                                    </th>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                @else
-                    <div class="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                        <table class="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Chi phí (VND)</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 bg-white">
-                                @foreach($tableData['rows'] as $row)
-                                    <tr class="hover:bg-slate-50 text-slate-700">
-                                        <td class="px-4 py-3 font-medium">{{ $row['label'] }}</td>
-                                        <td class="px-4 py-3 text-right font-semibold text-slate-800">
-                                            {{ number_format((float) ($row['values'][0] ?? 0), 0, ',', '.') }}
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="bg-slate-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng chi phí</th>
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-800">
-                                        {{ number_format((float) ($tableData['columnTotals'][0] ?? 0), 0, ',', '.') }}
-                                    </th>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                @endif
-            @else
-                <p class="mt-3 rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
-                    Chưa có dữ liệu chi phí cho bộ lọc hiện tại.
-                </p>
-            @endif
         </div>
+
+        {{-- BẢNG DƯỚI BIỂU ĐỒ (nếu có nhiều cột) --}}
+        @if($tableData['hasData'] ?? false)
+            @if(count($tableData['labels'] ?? []) > 1)
+                <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
+                                @foreach($tableData['labels'] as $label)
+                                    <th class="px-3 py-3 text-center font-semibold text-slate-600">{{ $label }}</th>
+                                @endforeach
+                                <th class="px-4 py-3 text-right font-semibold text-slate-600">Tổng</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            @foreach($tableData['rows'] as $row)
+                                @php
+                                    $rLabel = is_array($row) ? ($row['label'] ?? '') : (is_object($row) ? ($row->label ?? '') : '');
+                                    $rVals  = is_array($row) ? ($row['values'] ?? []) : (is_object($row) ? ($row->values ?? []) : []);
+                                    $rTotal = is_array($row) ? ($row['total'] ?? 0) : (is_object($row) ? ($row->total ?? 0) : 0);
+                                @endphp
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-4 py-3 font-medium text-slate-800">{{ $rLabel }}</td>
+                                    @foreach($rVals as $value)
+                                        <td class="px-3 py-3 text-center text-slate-700">
+                                            {{ number_format((float) $value, 0, ',', '.') }}
+                                        </td>
+                                    @endforeach
+                                    <td class="px-4 py-3 text-right font-semibold text-slate-800">
+                                        {{ number_format((float) $rTotal, 0, ',', '.') }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot class="bg-slate-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng</th>
+                                @foreach(($tableData['columnTotals'] ?? []) as $value)
+                                    <th class="px-3 py-3 text-center font-semibold text-slate-800">
+                                        {{ number_format((float) $value, 0, ',', '.') }}
+                                    </th>
+                                @endforeach
+                                <th class="px-4 py-3 text-right text-indigo-700">
+                                    {{ number_format((float) ($totalCost ?? 0), 0, ',', '.') }} đ
+                                </th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            @endif
+        @else
+            <div class="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                Chưa có dữ liệu để hiển thị.
+            </div>
+        @endif
     </x-filament::card>
 </x-filament::widget>
 
 @push('scripts')
 <script>
-document.addEventListener('alpine:init', () => {
-    Alpine.data('trainingCostChart', () => ({
-        chartInstance: null,
-        
-        initChart(canvas, data, options) {
-            if (!canvas || typeof Chart === 'undefined') {
-                console.error('Canvas or Chart.js not available');
-                return;
-            }
-            if (this.chartInstance) this.chartInstance.destroy();
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                console.error('Cannot get canvas context');
-                return;
-            }
-            
-            this.chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: data || { labels: [], datasets: [] },
-                options: this.normalizeOptions(options || {})
-            });
-        },
-        
-        updateChart(data, options) {
-            if (!this.chartInstance) return;
-            this.chartInstance.data = data || { labels: [], datasets: [] };
-            this.chartInstance.options = this.normalizeOptions(options || {});
-            this.chartInstance.update();
-        },
-        
-        // Thu hẹp khe hở giữa các cột, giữ font & layout như cũ
-        normalizeOptions(opts) {
-            const base = {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: { padding: { top: 6, right: 8, bottom: 6, left: 8 } },
-                datasets: {
-                    bar: {
-                        categoryPercentage: 0.95,  // ~kín nhóm
-                        barPercentage: 0.98,       // cột phủ gần hết nhóm
-                        maxBarThickness: 44,
-                        borderRadius: 3,
-                        borderSkipped: false,
-                        borderWidth: 0,            // bỏ viền để nhìn “đầy” hơn
-                    },
-                },
-                scales: {
-                    x: {
-                        offset: false,             // bỏ đệm hai đầu trục
-                        grid: { display: false },
-                        ticks: { maxRotation: 0, autoSkip: true },
-                        stacked: false,
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: { drawBorder: false, color: 'rgba(0,0,0,0.06)' },
-                        ticks: { precision: 0 },
-                        stacked: false,
-                    },
-                },
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: { mode: 'index', intersect: false },
-                },
-            };
-
-            const o = opts || {};
-            return {
-                ...base,
-                ...o,
-                scales: {
-                    x: { ...base.scales.x, ...(o.scales?.x ?? {}) },
-                    y: { ...base.scales.y, ...(o.scales?.y ?? {}) },
-                },
-                plugins: {
-                    ...base.plugins,
-                    ...(o.plugins ?? {}),
-                },
-                datasets: {
-                    bar: { ...base.datasets.bar, ...(o.datasets?.bar ?? {}) },
-                },
-            };
-        }
-    }));
-});
-
-document.addEventListener('livewire:initialized', () => {
-    Livewire.hook('message.processed', () => {
-        window.dispatchEvent(new CustomEvent('refresh-chart'));
+(function () {
+    const loadScriptSequence = (urls) => new Promise((resolve, reject) => {
+        const tryNext = (i) => {
+            if (i >= urls.length) return reject(new Error('Chart.js load failed'));
+            const s = document.createElement('script');
+            s.src = urls[i];
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => tryNext(i + 1);
+            document.head.appendChild(s);
+        };
+        tryNext(0);
     });
-});
+
+    const ensureChart = () => {
+        if (window.Chart) return Promise.resolve();
+        const candidates = [
+            '/vendor/chart.js/chart.umd.min.js',
+            '/vendor/chart.js/chart.min.js',
+            '/build/assets/chart.umd.js',
+            '/build/assets/chart.js',
+            '/js/chart.umd.min.js',
+            'https://cdn.jsdelivr.net/npm/chart.js',
+        ];
+        return loadScriptSequence(candidates);
+    };
+
+    const init = () => {
+        const id = @js($this->getId());
+        const canvas = document.getElementById('training-cost-chart-canvas-' + id);
+        if (!canvas) return;
+
+        const parse = (elId) => {
+            const el = document.getElementById(elId);
+            if (!el) return null;
+            try { return JSON.parse(el.textContent); } catch { return null; }
+        };
+
+        const getData = () => parse('chart-data-' + id) || { labels: [], datasets: [] };
+        const getOpts = () => parse('chart-options-' + id) || {};
+
+        const ctx = canvas.getContext('2d');
+        window.__costCharts ??= {};
+        const key = id;
+
+        const render = () => {
+            const data = getData();
+            const options = getOpts();
+            if (window.__costCharts[key]) {
+                const c = window.__costCharts[key];
+                c.config.type = 'bar';
+                c.data = data;
+                c.options = options;
+                c.update();
+            } else if (window.Chart) {
+                window.__costCharts[key] = new Chart(ctx, { type: 'bar', data, options });
+            }
+        };
+
+        render();
+        document.addEventListener('livewire:load', render);
+        document.addEventListener('livewire:navigated', render);
+        if (window.Livewire?.hook) Livewire.hook('message.processed', () => render());
+        new MutationObserver(render).observe(document.getElementById('chart-data-' + id), { childList: true });
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => ensureChart().then(init));
+    } else {
+        ensureChart().then(init);
+    }
+})();
 </script>
 @endpush
