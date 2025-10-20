@@ -12,6 +12,7 @@ use App\Models\EmailTemplate;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
 use App\Models\KhoaHoc;
+use App\Support\TrainingTypeFilter;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -43,6 +44,9 @@ class ListHocVienHoanThanhs extends ListRecords
 
     /** Danh sách ID khóa học đã chọn (multi-select) */
     public array $selectedCourseIds = [];
+
+    /** Loại hình đào tạo đã chọn */
+    public array $selectedTrainingTypes = [];
 
     /* ==========================================================
      |  ACTIONS
@@ -264,8 +268,10 @@ class ListHocVienHoanThanhs extends ListRecords
     public function mount(): void
     {
         parent::mount();
-        $this->selectedCourseIds = [];
-        $this->applyFilterState($this->defaultFilterState());
+        $defaults = $this->defaultFilterState();
+        $this->selectedCourseIds = $defaults['course_ids'];
+        $this->selectedTrainingTypes = $defaults['training_types'];
+        $this->applyFilterState($defaults);
     }
 
     /* ===================== EXPORT ===================== */
@@ -350,19 +356,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function getTrainingTypeOptions(): array
     {
-        $options = HocVienHoanThanhResource::getTrainingTypeOptions();
-
-        return collect($options)
-            ->filter(fn ($label, $value) => ($label ?? '') !== '')
-            ->mapWithKeys(function ($label, $value) {
-                $label = trim((string) $label);
-                $value = trim((string) $value);
-
-                return [$value => $label];
-            })
-            ->unique()
-            ->sort()
-            ->toArray();
+        return TrainingTypeFilter::options();
     }
 
     /* ===================== TÓM TẮT (bảng trên) ===================== */
@@ -388,11 +382,7 @@ class ListHocVienHoanThanhs extends ListRecords
             });
 
         $trainingTypes = $filters['training_types'] ?? [];
-        if (! empty($trainingTypes)) {
-            $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
-                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $trainingTypes);
-            });
-        }
+        TrainingTypeFilter::apply($courseQuery, $trainingTypes);
 
         if ($filters['course_id']) {
             $courseQuery->where('id', $filters['course_id']);
@@ -517,6 +507,35 @@ class ListHocVienHoanThanhs extends ListRecords
         $this->applyQuickFilters();
     }
 
+    public function toggleTrainingType(string $value): void
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return;
+        }
+
+        $current = collect($this->selectedTrainingTypes)
+            ->map(fn ($type) => (string) $type)
+            ->values();
+
+        if ($current->containsStrict($value)) {
+            $current = $current->reject(fn ($type) => $type === $value)->values();
+        } else {
+            $current = $current->push($value)->unique()->values();
+        }
+
+        $this->selectedTrainingTypes = $current->all();
+        $this->applyQuickFilters();
+    }
+
+    public function clearTrainingTypeFilters(): void
+    {
+        $this->selectedTrainingTypes = [];
+        data_set($this->tableFilters, 'bo_loc.data.training_types', []);
+        $this->applyQuickFilters();
+    }
+
     /* ===================== STATE HELPERS ===================== */
 
     protected function resolveFilterState(): array
@@ -554,6 +573,7 @@ class ListHocVienHoanThanhs extends ListRecords
         if (is_string($trainingTypes)) $trainingTypes = [$trainingTypes];
         if (! is_array($trainingTypes)) $trainingTypes = [];
         $trainingTypes = collect($trainingTypes)
+            ->merge($this->selectedTrainingTypes)
             ->filter(fn ($type) => $type !== null && $type !== '')
             ->map(fn ($type) => (string) $type)
             ->unique()
@@ -590,6 +610,15 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected function applyFilterState(array $state): void
     {
+        $trainingTypes = collect($state['training_types'] ?? [])
+            ->filter(fn ($type) => $type !== null && $type !== '')
+            ->map(fn ($type) => (string) $type)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->selectedTrainingTypes = $trainingTypes;
+
         $data = [
             'year'           => (string) $state['year'],
             'month'          => $state['month'] ? (string) $state['month'] : null,
@@ -598,7 +627,7 @@ class ListHocVienHoanThanhs extends ListRecords
             'to_date'        => $state['to_date'],
             'course_id'      => $state['course_id'] ? (string) $state['course_id'] : null,
             'course_ids'     => array_values(array_unique(array_map('intval', $this->selectedCourseIds))),
-            'training_types' => $state['training_types'],
+            'training_types' => $trainingTypes,
         ];
 
         $this->tableFilters['bo_loc'] = [

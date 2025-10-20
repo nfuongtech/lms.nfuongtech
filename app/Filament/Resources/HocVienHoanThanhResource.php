@@ -11,7 +11,7 @@ use App\Models\HocVienKhongHoanThanh;
 use App\Models\KetQuaKhoaHoc;
 use App\Models\KhoaHoc;
 use App\Models\LichHoc;
-use App\Models\QuyTacMaKhoa;
+use App\Support\TrainingTypeFilter;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
@@ -326,11 +325,7 @@ class HocVienHoanThanhResource extends Resource
                 ->when($toDate, fn ($q) => $q->whereDate('ngay_hoc', '<=', $toDate));
         });
 
-        if (! empty($trainingTypes)) {
-            $query->whereHas('khoaHoc', function (Builder $courseQuery) use ($trainingTypes) {
-                self::applyTrainingTypeFilter($courseQuery, $trainingTypes);
-            });
-        }
+        TrainingTypeFilter::applyViaCourse($query, $query->getModel()->getTable() . '.khoa_hoc_id', $trainingTypes);
 
         if (! empty($courseId)) {
             $query->where('khoa_hoc_id', $courseId);
@@ -408,11 +403,7 @@ class HocVienHoanThanhResource extends Resource
             ->whereIn('id', DangKy::query()->select('khoa_hoc_id')->distinct())
             ->orderBy('ma_khoa_hoc');
 
-        if (! empty($trainingTypes)) {
-            $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
-                self::applyTrainingTypeFilter($builder, $trainingTypes);
-            });
-        }
+        TrainingTypeFilter::apply($courseQuery, $trainingTypes);
 
         return $courseQuery->get()
             ->mapWithKeys(function (KhoaHoc $course) {
@@ -428,58 +419,12 @@ class HocVienHoanThanhResource extends Resource
 
     public static function applyTrainingTypeFilter(Builder $builder, array $trainingTypes): void
     {
-        $trainingTypes = collect($trainingTypes)
-            ->filter(fn ($value) => $value !== null && $value !== '')
-            ->map(fn ($value) => (string) $value)
-            ->unique()
-            ->values()
-            ->all();
-
-        if (empty($trainingTypes)) {
-            return;
-        }
-
-        $hasCourseColumn = Schema::hasColumn('khoa_hocs', 'loai_hinh_dao_tao');
-        $hasProgramTable = Schema::hasTable('chuong_trinhs') && Schema::hasColumn('chuong_trinhs', 'loai_hinh_dao_tao');
-
-        $builder->where(function (Builder $query) use ($trainingTypes, $hasCourseColumn, $hasProgramTable) {
-            $applied = false;
-
-            if ($hasCourseColumn) {
-                $query->whereIn('loai_hinh_dao_tao', $trainingTypes);
-                $applied = true;
-            }
-
-            if ($hasProgramTable) {
-                $method = $applied ? 'orWhereHas' : 'whereHas';
-                $query->{$method}('chuongTrinh', fn ($q) => $q->whereIn('loai_hinh_dao_tao', $trainingTypes));
-                $applied = true;
-            }
-
-            if (! $applied) {
-                $query->whereRaw('1 = 0');
-            }
-        });
+        TrainingTypeFilter::apply($builder, $trainingTypes);
     }
 
     public static function getTrainingTypeOptions(): array
     {
-        $fromRules = QuyTacMaKhoa::pluck('loai_hinh_dao_tao', 'loai_hinh_dao_tao')->filter()->toArray();
-
-        $fromPrograms = KhoaHoc::query()
-            ->with('chuongTrinh')
-            ->whereHas('chuongTrinh')
-            ->get()
-            ->map(fn (KhoaHoc $course) => $course->chuongTrinh?->loai_hinh_dao_tao)
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        return collect($fromRules)
-            ->merge(array_combine($fromPrograms, $fromPrograms))
-            ->sort()
-            ->toArray();
+        return TrainingTypeFilter::options();
     }
 
     public static function decimalOrDash(mixed $value): string

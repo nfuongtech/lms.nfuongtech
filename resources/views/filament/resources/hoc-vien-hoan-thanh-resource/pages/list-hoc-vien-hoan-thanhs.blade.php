@@ -130,7 +130,10 @@
         @php($years  = $this->availableYears)
         @php($months = $this->availableMonths)
         @php($weeks  = $this->availableWeeks)
-        @php($trainingOptions = $this->getTrainingTypeOptions())
+        @php($trainingTypeOptions = $this->getTrainingTypeOptions())
+        @php($selectedTrainingTypes = $this->selectedTrainingTypes ?? [])
+        @php($courseOptions = $this->summaryCourseOptions)
+        @php($selectedCourseIds = $this->selectedCourseIds ?? [])
 
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-3 border-b">
@@ -203,122 +206,83 @@
                 </div>
 
                 <div class="mt-3 flex flex-row flex-wrap gap-4 items-start">
-                    {{-- Loại hình đào tạo (từ Quy tắc mã khóa / kế hoạch đào tạo) --}}
-                    <div class="flex flex-col gap-2">
-                        <label class="text-xs font-semibold text-gray-600">Loại hình đào tạo</label>
-                        <div class="flex items-center flex-wrap gap-3">
-                            @foreach($trainingOptions as $value => $label)
-                                <label class="inline-flex items-center gap-1 text-xs text-gray-700">
-                                    <input type="checkbox"
-                                        wire:model.defer="tableFilters.bo_loc.data.training_types"
-                                        wire:change="applyQuickFilters"
-                                        value="{{ $value }}"
-                                        class="border-gray-300 rounded" />
-                                    <span>{{ $label }}</span>
-                                </label>
-                            @endforeach
+                    {{-- Loại hình đào tạo --}}
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-slate-700">Loại hình đào tạo</span>
+                            @if(!empty($selectedTrainingTypes))
+                                <button
+                                    type="button"
+                                    wire:click="clearTrainingTypeFilters"
+                                    wire:loading.attr="disabled"
+                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
+                                >
+                                    Bỏ chọn
+                                </button>
+                            @endif
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @forelse($trainingTypeOptions as $value => $label)
+                                @php $isSelected = in_array($value, $selectedTrainingTypes ?? [], true); @endphp
+                                <button
+                                    type="button"
+                                    wire:key="training-type-{{ md5($value) }}"
+                                    wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
+                                    wire:loading.attr="disabled"
+                                    @class([
+                                        'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
+                                        'border-primary-500 bg-primary-500 text-white' => $isSelected,
+                                        'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelected,
+                                    ])
+                                >
+                                    {{ $label }}
+                                </button>
+                            @empty
+                                <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
+                            @endforelse
                         </div>
                     </div>
 
-                    {{-- Khóa học: token multi-select (entangle với selectedCourseIds) --}}
-                    <div class="flex-1 min-w-[18rem] flex flex-col gap-2">
-                        <label class="text-xs font-semibold text-gray-600">Khóa học</label>
-                        <div
-                        x-data="courseTokens({
-                            allOptions: @js($this->summaryCourseOptions ?? []),
-                            selected: @entangle('selectedCourseIds').live,
-                            apply: () => { $wire.applyQuickFilters(); }
-                        })"
-                        class="relative"
-                    >
-                        <div class="token-input" @click="$refs.search.focus()">
-                            <template x-for="opt in tokenState.selectedObjects" :key="opt.id">
-                                <span class="token-chip">
-                                    <span x-text="opt.code"></span>
-                                    <button type="button" @click.stop="remove(opt.id)" aria-label="Remove">×</button>
-                                </span>
-                            </template>
-
-                            <input x-ref="search" class="token-search" type="text" placeholder="Tìm khóa học..."
-                                   x-model="tokenState.query"
-                                   @keydown.down.prevent="move(1)"
-                                   @keydown.up.prevent="move(-1)"
-                                   @keydown.enter.prevent="pickActive()"
-                                   @focus="open=true" @blur="closeLater()" />
+                    {{-- Khóa học --}}
+                    <div class="flex-1 min-w-[18rem] space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-slate-700">Khóa học</span>
+                            @if(!empty($selectedCourseIds))
+                                <button
+                                    type="button"
+                                    wire:click="clearQuickCourseFilter"
+                                    wire:loading.attr="disabled"
+                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
+                                >
+                                    Bỏ chọn
+                                </button>
+                            @endif
                         </div>
 
-                        <div class="token-dropdown" x-show="open" x-transition @mousedown.prevent>
-                            <template x-for="(opt,idx) in filtered()" :key="opt.id">
-                                <div class="token-item" :class="{'active': idx===activeIndex}" @mousemove="activeIndex=idx" @click="toggle(opt.id)">
-                                    <div class="flex items-center justify-between gap-3">
-                                        <div>
-                                            <div class="text-sm font-medium" x-text="opt.code"></div>
-                                            <div class="text-xs text-gray-500 truncate" x-text="opt.name"></div>
-                                        </div>
-                                        <div class="text-xs" x-text="isSelected(opt.id)?'Đã chọn':''"></div>
-                                    </div>
-                                </div>
-                            </template>
-                            <div class="token-item text-gray-500" x-show="filtered().length===0">Không có khóa học phù hợp</div>
-                        </div>
-
-                        <div class="mt-2 flex items-center gap-2">
-                            <button type="button" class="fi-btn fi-btn-sm border border-gray-300 bg-white hover:bg-gray-50" @click="apply()">
-                                Áp dụng
-                            </button>
-                            <button type="button" class="fi-btn fi-btn-sm border border-gray-200" style="background-color:#FFF0F0;color:#8B0000;" @click="clear(); apply()">
-                                Xóa chọn khóa
-                            </button>
-                        </div>
-
-                        <script>
-                            function courseTokens(cfg){
-                                return {
-                                    tokenState: {
-                                        allOptions: (cfg.allOptions || []).map(o=>({id:Number(o.id), code:o.code, name:o.name})),
-                                        get selected(){ return cfg.selected },
-                                        set selected(v){ cfg.selected = v },
-                                        get selectedObjects(){
-                                            const ids = (cfg.selected || []).map(Number);
-                                            return this.allOptions.filter(o => ids.includes(o.id));
-                                        },
-                                        query: '',
-                                    },
-                                    open:false, activeIndex:0,
-                                    filtered(){
-                                        const q = this.tokenState.query.toLowerCase().trim();
-                                        let list = this.tokenState.allOptions;
-                                        if(q){
-                                            list = list.filter(o => (o.code||'').toLowerCase().includes(q) || (o.name||'').toLowerCase().includes(q));
-                                        }
-                                        return list.slice(0,100);
-                                    },
-                                    isSelected(id){ return (cfg.selected || []).map(Number).includes(Number(id)); },
-                                    toggle(id){
-                                        id = Number(id);
-                                        let arr = (cfg.selected || []).map(Number);
-                                        if (arr.includes(id)) arr = arr.filter(i=>i!==id); else arr.push(id);
-                                        cfg.selected = arr;
-                                        this.$refs.search.focus();
-                                    },
-                                    remove(id){
-                                        id = Number(id);
-                                        cfg.selected = (cfg.selected || []).map(Number).filter(i=>i!==id);
-                                    },
-                                    clear(){ cfg.selected = []; },
-                                    move(step){
-                                        const len=this.filtered().length;
-                                        if(!len) return;
-                                        this.activeIndex = (this.activeIndex + step + len) % len;
-                                    },
-                                    pickActive(){
-                                        const item=this.filtered()[this.activeIndex]; if(!item) return; this.toggle(item.id);
-                                    },
-                                    closeLater(){ setTimeout(()=>this.open=false, 120); },
-                                    apply: cfg.apply
-                                }
-                            }
-                        </script>
+                        @if(!empty($courseOptions))
+                            <select
+                                multiple
+                                wire:model.defer="selectedCourseIds"
+                                wire:change="applyQuickFilters"
+                                wire:loading.attr="disabled"
+                                class="fi-input fi-input-wrp-input rounded-lg border-gray-300 text-sm min-h-[9rem]"
+                            >
+                                @foreach($courseOptions as $option)
+                                    @php
+                                        $label = trim(implode(' - ', array_filter([
+                                            $option['code'] ?? null,
+                                            $option['name'] ?? null,
+                                        ])));
+                                    @endphp
+                                    <option value="{{ $option['id'] }}">
+                                        {{ $label !== '' ? $label : ('Khóa #' . $option['id']) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="text-[11px] text-slate-400">Giữ Ctrl (Windows) hoặc Cmd (macOS) để chọn nhiều khóa.</p>
+                        @else
+                            <p class="text-xs text-slate-400">Chưa có khóa học phù hợp để chọn.</p>
+                        @endif
                     </div>
                 </div>
             </div>
