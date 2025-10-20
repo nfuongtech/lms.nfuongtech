@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\HocVienHoanThanhResource;
 use App\Models\DangKy;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
@@ -27,9 +28,9 @@ class ThongKeHocVienChart extends ChartWidget
     protected $planYearCache = null;
 
     /**
-     * Cache of course ids grouped by month for a given training plan year.
+     * Cache of course ids grouped by month keyed by year + training type hash.
      *
-     * @var array<int, array<int, int[]>>
+     * @var array<string, array<int, int[]>>
      */
     protected $courseMonthCache = [];
 
@@ -53,22 +54,32 @@ class ThongKeHocVienChart extends ChartWidget
                 ->options(collect(range(1, 12))->mapWithKeys(fn ($m) => [$m => sprintf('T%02d', $m)])->all())
                 ->default(null)
                 ->live(),
+
+            Forms\Components\Select::make('training_types')
+                ->label('Loại hình đào tạo')
+                ->options($this->getTrainingTypeOptions())
+                ->placeholder('Tất cả')
+                ->multiple()
+                ->preload()
+                ->searchable()
+                ->live(),
         ];
     }
 
     protected function getData(): array
     {
-        $year  = (int) ($this->filterFormData['year'] ?? $this->getDefaultYear());
-        $month = $this->filterFormData['month'] ?? null;
-        $month = ($month === '' || $month === null) ? null : (int) $month;
+        $year           = (int) ($this->filterFormData['year'] ?? $this->getDefaultYear());
+        $month          = $this->filterFormData['month'] ?? null;
+        $month          = ($month === '' || $month === null) ? null : (int) $month;
+        $trainingTypes  = $this->normalizeTrainingTypes($this->filterFormData['training_types'] ?? []);
 
-        $monthlySeries = $this->compileMonthlySeries($year);
+        $monthlySeries = $this->compileMonthlySeries($year, $trainingTypes);
 
         if ($month) {
             $reg  = $monthlySeries['dangKy'][$month] ?? 0;
             $done = $monthlySeries['hoanThanh'][$month] ?? 0;
 
-            [$_totalNotDone, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month);
+            [$_totalNotDone, $vangP, $vangKP, $vangKhac] = $this->countKhongHoanThanhWithAbsence($year, $month, $trainingTypes);
 
             $datasets = [
                 $this->makeBarDataset('Đăng ký', [$reg], 'dang-ky', ['stack' => 'dang-ky']),
@@ -256,28 +267,30 @@ class ThongKeHocVienChart extends ChartWidget
             ->values();
     }
 
-    private function compileMonthlySeries(int $year): array
+    private function compileMonthlySeries(int $year, array $trainingTypes): array
     {
+        $courseMap = $this->courseIdsByMonth($year, $trainingTypes);
+
         return [
-            'dangKy' => $this->monthlyDangKyCounts($year),
-            'hoanThanh' => $this->monthlyHoanThanhCounts($year),
-            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($year),
+            'dangKy' => $this->monthlyDangKyCounts($courseMap),
+            'hoanThanh' => $this->monthlyHoanThanhCounts($courseMap),
+            'khongHoanThanh' => $this->monthlyKhongHoanThanhCounts($courseMap),
         ];
     }
 
-    private function monthlyDangKyCounts(int $year): array
+    private function monthlyDangKyCounts(array $courseMap): array
     {
-        return $this->countByMonthUsingCourseMap(DangKy::query(), $this->courseIdsByMonth($year));
+        return $this->countByMonthUsingCourseMap(DangKy::query(), $courseMap);
     }
 
-    private function monthlyHoanThanhCounts(int $year): array
+    private function monthlyHoanThanhCounts(array $courseMap): array
     {
-        return $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $this->courseIdsByMonth($year));
+        return $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $courseMap);
     }
 
-    private function monthlyKhongHoanThanhCounts(int $year): array
+    private function monthlyKhongHoanThanhCounts(array $courseMap): array
     {
-        return $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $this->courseIdsByMonth($year));
+        return $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $courseMap);
     }
 
     private function emptyMonthlyBuckets(): array
@@ -340,9 +353,9 @@ class ThongKeHocVienChart extends ChartWidget
         return $buckets;
     }
 
-    private function countKhongHoanThanhWithAbsence(int $year, int $month): array
+    private function countKhongHoanThanhWithAbsence(int $year, int $month, array $trainingTypes): array
     {
-        $courseIds = $this->courseIdsByMonth($year)[$month] ?? [];
+        $courseIds = $this->courseIdsByMonth($year, $trainingTypes)[$month] ?? [];
 
         if (empty($courseIds)) {
             return [0, 0, 0, 0];
@@ -372,16 +385,18 @@ class ThongKeHocVienChart extends ChartWidget
         return [$total, $vangP, $vangKP, $vangKhac];
     }
 
-    private function courseIdsByMonth(int $year): array
+    private function courseIdsByMonth(int $year, array $trainingTypes): array
     {
-        if (array_key_exists($year, $this->courseMonthCache)) {
-            return $this->courseMonthCache[$year];
+        $cacheKey = $this->courseMonthCacheKey($year, $trainingTypes);
+
+        if (array_key_exists($cacheKey, $this->courseMonthCache)) {
+            return $this->courseMonthCache[$cacheKey];
         }
 
         $buckets = $this->emptyMonthlyCourseBuckets();
 
         if (! Schema::hasTable('lich_hocs')) {
-            return $this->courseMonthCache[$year] = $buckets;
+            return $this->courseMonthCache[$cacheKey] = $buckets;
         }
 
         $query = DB::table('lich_hocs')
@@ -392,6 +407,16 @@ class ThongKeHocVienChart extends ChartWidget
             $query->where('nam', $year);
         } else {
             $query->whereYear('ngay_hoc', $year);
+        }
+
+        $allowedCourseIds = $this->courseIdsForTrainingTypes($trainingTypes);
+
+        if ($allowedCourseIds !== null) {
+            if (empty($allowedCourseIds)) {
+                return $this->courseMonthCache[$cacheKey] = $buckets;
+            }
+
+            $query->whereIn('khoa_hoc_id', $allowedCourseIds);
         }
 
         $rows = $query->get();
@@ -425,6 +450,45 @@ class ThongKeHocVienChart extends ChartWidget
             $normalized[$month] = array_values(array_keys($ids));
         }
 
-        return $this->courseMonthCache[$year] = $normalized;
+        return $this->courseMonthCache[$cacheKey] = $normalized;
+    }
+
+    private function normalizeTrainingTypes(mixed $value): array
+    {
+        return collect($value)
+            ->filter(fn ($item) => $item !== null && $item !== '')
+            ->map(fn ($item) => (string) $item)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function getTrainingTypeOptions(): array
+    {
+        return HocVienHoanThanhResource::getTrainingTypeOptions();
+    }
+
+    private function courseMonthCacheKey(int $year, array $trainingTypes): string
+    {
+        sort($trainingTypes);
+
+        return $year . '|' . implode(',', $trainingTypes);
+    }
+
+    private function courseIdsForTrainingTypes(array $trainingTypes): ?array
+    {
+        if (empty($trainingTypes)) {
+            return null;
+        }
+
+        $query = KhoaHoc::query();
+
+        HocVienHoanThanhResource::applyTrainingTypeFilter($query, $trainingTypes);
+
+        $ids = $query
+            ->pluck('id')
+            ->all();
+
+        return array_map('intval', $ids);
     }
 }
