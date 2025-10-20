@@ -57,6 +57,9 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            // Cấu hình dashboard với grid columns
+            ->spa()
+            ->maxContentWidth('full')
             // Sắp xếp và định nghĩa các nhóm menu
             ->navigationGroups([
                 NavigationGroup::make()
@@ -66,13 +69,9 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make()
                     ->label('Thiết lập')
                     ->items([
-                        // Đưa nhóm "User & Phân quyền" vào đây
                         NavigationGroup::make()
                             ->label('User & Phân quyền')
-                            ->items([
-                                // Tự động thêm các mục từ resource
-                            ]),
-                        // Tự động thêm các mục khác của "Thiết lập"
+                            ->items([]),
                     ]),
             ]);
     }
