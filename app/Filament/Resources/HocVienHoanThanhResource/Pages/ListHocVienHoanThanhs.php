@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Maatwebsite\Excel\Facades\Excel;
@@ -41,8 +42,8 @@ class ListHocVienHoanThanhs extends ListRecords
     /** Trạng thái filter của bảng */
     public ?array $tableFilters = [];
 
-    /** Danh sách ID khóa học đã chọn (multi-select) */
-    public array $selectedCourseIds = [];
+    /** Cache danh sách khóa học đã có học viên hoàn thành */
+    protected ?Collection $completedCourseIdsCache = null;
 
     /* ==========================================================
      |  ACTIONS
@@ -264,7 +265,6 @@ class ListHocVienHoanThanhs extends ListRecords
     public function mount(): void
     {
         parent::mount();
-        $this->selectedCourseIds = [];
         $this->applyFilterState($this->defaultFilterState());
     }
 
@@ -318,103 +318,335 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function getAvailableYearsProperty(): array
     {
+        $state = $this->resolveFilterState();
+
         try {
-            return DB::table('lich_hocs')->distinct()->orderByDesc('nam')->pluck('nam')->map(fn($v)=>(int)$v)->toArray();
-        } catch (\Throwable $e) {
+            $courseIds = (clone $this->baseCourseQuery($state))->pluck('id');
+
+            if ($courseIds->isEmpty()) {
+                return [now()->year];
+            }
+
+            $years = DB::table('lich_hocs')
+                ->whereIn('khoa_hoc_id', $courseIds)
+                ->distinct()
+                ->orderByDesc('nam')
+                ->pluck('nam')
+                ->map(fn($value)=>(int)$value)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (empty($years)) {
+                return [now()->year];
+            }
+
+            $currentYear = now()->year;
+            if (!in_array($currentYear, $years, true)) {
+                $years[] = $currentYear;
+            }
+
+            return collect($years)->filter()->unique()->sortDesc()->values()->all();
+        } catch (\Throwable $exception) {
             return [now()->year];
         }
     }
 
     public function getAvailableMonthsProperty(): array
     {
-        $year = $this->resolveFilterState()['year'] ?? now()->year;
-        try {
-            return DB::table('lich_hocs')->where('nam', $year)->distinct()->orderBy('thang')->pluck('thang')->map(fn($v)=>(int)$v)->toArray();
-        } catch (\Throwable $e) {
-            return range(1, 12);
-        }
+        $state = $this->resolveFilterState();
+
+        return $this->computeAvailableMonths($state);
     }
 
     public function getAvailableWeeksProperty(): array
     {
         $state = $this->resolveFilterState();
-        $q = DB::table('lich_hocs')->where('nam', $state['year']);
-        if (!empty($state['month'])) $q->where('thang', $state['month']);
 
-        try {
-            return $q->distinct()->orderBy('tuan')->pluck('tuan')->map(fn($v)=>(int)$v)->toArray();
-        } catch (\Throwable $e) {
-            return [];
-        }
+        return $this->computeAvailableWeeks($state);
     }
 
     public function getTrainingTypeOptions(): array
     {
-        $options = HocVienHoanThanhResource::getTrainingTypeOptions();
+        $table = (new HocVienHoanThanh())->getTable();
 
-        return collect($options)
-            ->filter(fn ($label, $value) => ($label ?? '') !== '')
-            ->mapWithKeys(function ($label, $value) {
-                $label = trim((string) $label);
-                $value = trim((string) $value);
+        $sources = [];
+        if (Schema::hasColumn($table, 'loai_hinh_dao_tao')) {
+            $sources[] = 'hvht.loai_hinh_dao_tao';
+        }
+        if (Schema::hasTable('khoa_hocs') && Schema::hasColumn('khoa_hocs', 'loai_hinh_dao_tao')) {
+            $sources[] = 'kh.loai_hinh_dao_tao';
+        }
+        if (Schema::hasTable('chuong_trinhs') && Schema::hasColumn('chuong_trinhs', 'loai_hinh_dao_tao')) {
+            $sources[] = 'ct.loai_hinh_dao_tao';
+        }
 
-                return [$value => $label];
-            })
-            ->unique()
-            ->sort()
-            ->toArray();
+        if (empty($sources)) {
+            return [];
+        }
+
+        $coalesce = 'COALESCE(' . implode(', ', $sources) . ')';
+
+        try {
+            $query = DB::table($table . ' as hvht')->whereNotNull('hvht.khoa_hoc_id');
+
+            if (in_array('kh.loai_hinh_dao_tao', $sources, true) || in_array('ct.loai_hinh_dao_tao', $sources, true)) {
+                $query->leftJoin('khoa_hocs as kh', 'hvht.khoa_hoc_id', '=', 'kh.id');
+            }
+
+            if (in_array('ct.loai_hinh_dao_tao', $sources, true)) {
+                $query->leftJoin('chuong_trinhs as ct', 'kh.chuong_trinh_id', '=', 'ct.id');
+            }
+
+            $types = $query
+                ->selectRaw('DISTINCT NULLIF(TRIM(' . $coalesce . "), '') as type")
+                ->pluck('type')
+                ->filter()
+                ->map(fn($type) => trim((string)$type))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            return collect($types)
+                ->mapWithKeys(fn($type) => [$type => $type])
+                ->toArray();
+        } catch (\Throwable $exception) {
+            return [];
+        }
+    }
+
+    public function getCourseFilterOptionsProperty(): array
+    {
+        $filters = $this->resolveFilterState();
+
+        return $this->computeCourseOptions($filters);
+    }
+
+    public function getSelectedCourseIdProperty(): ?int
+    {
+        $courseId = data_get($this->tableFilters, 'bo_loc.data.course_id');
+
+        if ($courseId === null || $courseId === '') {
+            return null;
+        }
+
+        return (int) $courseId;
     }
 
     /* ===================== TÓM TẮT (bảng trên) ===================== */
 
-    protected function makeSummaryCourseQuery(array $filters, bool $respectSelectedCourses = true): Builder
+    protected function makeSummaryCourseQuery(array $filters, bool $respectSelectedCourses = true, bool $includeScheduleRelations = true): Builder
     {
-        $courseQuery = KhoaHoc::query()
-            ->with(['lichHocs' => function ($query) use ($filters) {
-                $query->where('nam', $filters['year'])
-                    ->when($filters['month'], fn ($q) => $q->where('thang', $filters['month']))
-                    ->when($filters['week'], fn ($q) => $q->where('tuan', $filters['week']))
-                    ->when($filters['from_date'], fn ($q) => $q->whereDate('ngay_hoc', '>=', $filters['from_date']))
-                    ->when($filters['to_date'], fn ($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']))
-                    ->orderBy('ngay_hoc')
-                    ->with('giangVien');
-            }])
-            ->whereHas('lichHocs', function (Builder $query) use ($filters) {
-                $query->where('nam', $filters['year'])
-                    ->when($filters['month'], fn ($q) => $q->where('thang', $filters['month']))
-                    ->when($filters['week'], fn ($q) => $q->where('tuan', $filters['week']))
-                    ->when($filters['from_date'], fn ($q) => $q->whereDate('ngay_hoc', '>=', $filters['from_date']))
-                    ->when($filters['to_date'], fn ($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']));
-            });
+        $courseQuery = $this->baseCourseQuery($filters);
 
-        $trainingTypes = $filters['training_types'] ?? [];
-        if (! empty($trainingTypes)) {
-            $courseQuery->where(function (Builder $builder) use ($trainingTypes) {
-                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $trainingTypes);
-            });
+        $month = $filters['month'] ?? now()->month;
+
+        if ($respectSelectedCourses && $filters['course_id']) {
+            $courseQuery->where('id', $filters['course_id']);
         }
 
-        if ($filters['course_id']) {
-            $courseQuery->where('id', $filters['course_id']);
-        } elseif ($respectSelectedCourses && ! empty($filters['course_ids'])) {
-            $courseQuery->whereIn('id', $filters['course_ids']);
+        $courseQuery->whereHas('lichHocs', function (Builder $query) use ($filters, $month) {
+            $query->where('nam', $filters['year'])
+                ->when($month, fn($q) => $q->where('thang', $month))
+                ->when($filters['week'], fn($q) => $q->where('tuan', $filters['week']))
+                ->when($filters['from_date'], fn($q) => $q->whereDate('ngay_hoc', '>=', $filters['from_date']))
+                ->when($filters['to_date'], fn($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']));
+        });
+
+        if ($includeScheduleRelations) {
+            $courseQuery->with(['lichHocs' => function ($query) use ($filters, $month) {
+                $query->where('nam', $filters['year'])
+                    ->when($month, fn($q) => $q->where('thang', $month))
+                    ->when($filters['week'], fn($q) => $q->where('tuan', $filters['week']))
+                    ->when($filters['from_date'], fn($q) => $q->whereDate('ngay_hoc', '>=', $filters['from_date']))
+                    ->when($filters['to_date'], fn($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']))
+                    ->orderBy('ngay_hoc')
+                    ->with('giangVien');
+            }]);
         }
 
         return $courseQuery;
     }
 
-    public function getSummaryCourseOptionsProperty(): array
+    protected function baseCourseQuery(array $filters): Builder
     {
-        return $this->summaryRows
-            ->filter(fn (array $row) => ($row['hoan_thanh'] ?? 0) > 0)
-            ->map(fn (array $row) => [
-                'id'   => (int) $row['id'],
-                'code' => $row['ma_khoa'] ?? '-',
-                'name' => $row['ten_khoa'] ?? '-',
-            ])
-            ->unique('id')
-            ->values()
-            ->all();
+        $courseIds = $this->getCompletedCourseIds();
+
+        $query = KhoaHoc::query();
+
+        if ($courseIds->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        $query->whereIn('id', $courseIds);
+
+        $trainingTypes = $filters['training_types'] ?? [];
+        if (!empty($trainingTypes)) {
+            $query->where(function (Builder $builder) use ($trainingTypes) {
+                HocVienHoanThanhResource::applyTrainingTypeFilter($builder, $trainingTypes);
+            });
+        }
+
+        return $query;
+    }
+
+    protected function getCompletedCourseIds(): Collection
+    {
+        if ($this->completedCourseIdsCache !== null) {
+            return $this->completedCourseIdsCache;
+        }
+
+        try {
+            $ids = HocVienHoanThanh::query()
+                ->select('khoa_hoc_id')
+                ->whereNotNull('khoa_hoc_id')
+                ->distinct()
+                ->pluck('khoa_hoc_id')
+                ->map(fn($id) => (int)$id)
+                ->filter()
+                ->unique()
+                ->values();
+
+            return $this->completedCourseIdsCache = $ids;
+        } catch (\Throwable $exception) {
+            return $this->completedCourseIdsCache = collect();
+        }
+    }
+
+    protected function computeAvailableMonths(array $state): array
+    {
+        try {
+            $courseIds = (clone $this->baseCourseQuery($state))->pluck('id');
+
+            if ($courseIds->isEmpty()) {
+                return [now()->month];
+            }
+
+            $months = DB::table('lich_hocs')
+                ->whereIn('khoa_hoc_id', $courseIds)
+                ->where('nam', $state['year'])
+                ->distinct()
+                ->orderBy('thang')
+                ->pluck('thang')
+                ->map(fn($value) => (int)$value)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $currentMonth = now()->month;
+            $currentYear = now()->year;
+
+            if ($state['year'] === $currentYear && !in_array($currentMonth, $months, true)) {
+                $months[] = $currentMonth;
+            }
+
+            $months = collect($months)->filter()->unique()->sort()->values()->all();
+
+            if (empty($months)) {
+                $months[] = $currentMonth;
+            }
+
+            return $months;
+        } catch (\Throwable $exception) {
+            return [now()->month];
+        }
+    }
+
+    protected function computeAvailableWeeks(array $state): array
+    {
+        try {
+            $courseIds = (clone $this->baseCourseQuery($state))->pluck('id');
+
+            if ($courseIds->isEmpty()) {
+                return [];
+            }
+
+            $month = $state['month'] ?? now()->month;
+
+            return DB::table('lich_hocs')
+                ->whereIn('khoa_hoc_id', $courseIds)
+                ->where('nam', $state['year'])
+                ->when($month, fn($query) => $query->where('thang', $month))
+                ->distinct()
+                ->orderBy('tuan')
+                ->pluck('tuan')
+                ->map(fn($value) => (int)$value)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+        } catch (\Throwable $exception) {
+            return [];
+        }
+    }
+
+    protected function computeCourseOptions(array $filters): array
+    {
+        try {
+            return $this->makeSummaryCourseQuery($filters, false, false)
+                ->select(['id', 'ma_khoa_hoc', 'ten_khoa_hoc'])
+                ->orderBy('ma_khoa_hoc')
+                ->get()
+                ->mapWithKeys(function (KhoaHoc $course) {
+                    $label = trim(implode(' - ', array_filter([
+                        $course->ma_khoa_hoc,
+                        $course->ten_khoa_hoc,
+                    ])));
+
+                    $label = $label !== '' ? $label : ($course->ma_khoa_hoc ?? (string)$course->id);
+
+                    return [(string)$course->id => $label];
+                })
+                ->toArray();
+        } catch (\Throwable $exception) {
+            return [];
+        }
+    }
+
+    protected function normalizeMonthForState(array $state): int
+    {
+        $months = $this->computeAvailableMonths($state);
+        $currentMonth = now()->month;
+
+        $month = $state['month'] ?? null;
+        if ($month && in_array($month, $months, true)) {
+            return $month;
+        }
+
+        if (in_array($currentMonth, $months, true)) {
+            return $currentMonth;
+        }
+
+        return $months[0] ?? $currentMonth;
+    }
+
+    protected function normalizeWeekForState(array $state): ?int
+    {
+        $weeks = $this->computeAvailableWeeks($state);
+        $week = $state['week'] ?? null;
+
+        if ($week && in_array($week, $weeks, true)) {
+            return $week;
+        }
+
+        return null;
+    }
+
+    protected function syncCourseSelection(array &$state): void
+    {
+        if (empty($state['course_id'])) {
+            return;
+        }
+
+        $options = $this->computeCourseOptions($state);
+
+        if (!array_key_exists((string)$state['course_id'], $options)) {
+            $state['course_id'] = null;
+        }
     }
 
     public function getSummaryRowsProperty(): Collection
@@ -494,27 +726,108 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function selectCourseFromSummary(int $courseId): void
     {
-        $ids = collect($this->selectedCourseIds)->map(fn($i)=>(int)$i)->values()->all();
+        $state = $this->resolveFilterState();
+        $state['course_id'] = $state['course_id'] === $courseId ? null : $courseId;
 
-        if (in_array($courseId, $ids, true)) {
-            $ids = array_values(array_diff($ids, [$courseId]));
-        } else {
-            $ids[] = $courseId;
+        $this->applyFilterState($state);
+    }
+
+    public function handleYearChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['year'] = (int) ($value ?: now()->year);
+        $state['month'] = null;
+        $state['week'] = null;
+        $state['course_id'] = null;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleMonthChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['month'] = $value === '' ? null : (int) $value;
+        $state['week'] = null;
+        $state['course_id'] = null;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleWeekChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['week'] = $value === '' ? null : (int) $value;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleCourseChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['course_id'] = $value === '' ? null : (int) $value;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleFromDateChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['from_date'] = $this->normalizeDate($value);
+
+        if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
+            $state['to_date'] = $state['from_date'];
         }
 
-        $this->selectedCourseIds = array_values(array_unique($ids));
-        $this->applyQuickFilters();
+        $this->applyFilterState($state);
     }
 
-    public function applyQuickFilters(): void
+    public function handleToDateChange($value): void
     {
-        $this->applyFilterState($this->resolveFilterState());
+        $state = $this->resolveFilterState();
+        $state['to_date'] = $this->normalizeDate($value);
+
+        if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
+            $state['from_date'] = $state['to_date'];
+        }
+
+        $this->applyFilterState($state);
     }
 
-    public function clearQuickCourseFilter(): void
+    public function toggleTrainingType(string $value): void
     {
-        $this->selectedCourseIds = [];
-        $this->applyQuickFilters();
+        $state = $this->resolveFilterState();
+        $value = (string) $value;
+
+        $types = collect($state['training_types'] ?? [])
+            ->filter(fn ($type) => $type !== null && $type !== '')
+            ->map(fn ($type) => (string) $type)
+            ->values();
+
+        if ($types->contains($value)) {
+            $types = $types->reject(fn ($type) => $type === $value)->values();
+        } else {
+            $types->push($value);
+        }
+
+        $state['training_types'] = $types->unique()->values()->all();
+
+        $this->applyFilterState($state);
+    }
+
+    public function selectAllTrainingTypes(): void
+    {
+        $state = $this->resolveFilterState();
+        $state['training_types'] = array_values(array_map('strval', array_keys($this->getTrainingTypeOptions())));
+
+        $this->applyFilterState($state);
+    }
+
+    public function clearTrainingTypeFilters(): void
+    {
+        $state = $this->resolveFilterState();
+        $state['training_types'] = [];
+
+        $this->applyFilterState($state);
     }
 
     /* ===================== STATE HELPERS ===================== */
@@ -529,20 +842,20 @@ class ListHocVienHoanThanhs extends ListRecords
 
         $defaults = $this->defaultFilterState();
 
-        $year  = (int) ($filters['year'] ?? $defaults['year']);
-        $month = isset($filters['month']) && $filters['month'] !== '' ? (int) $filters['month'] : $defaults['month'];
-        $week  = isset($filters['week']) && $filters['week'] !== '' ? (int) $filters['week'] : null;
+        $year = (int) ($filters['year'] ?? $defaults['year']);
 
-        $courseIdSingle = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+        $month = $defaults['month'];
+        if (array_key_exists('month', (array) $filters)) {
+            $value = $filters['month'];
+            $month = ($value === null || $value === '') ? null : (int) $value;
+        }
 
-        $courseIds = $filters['course_ids'] ?? [];
-        if (is_string($courseIds) || is_int($courseIds)) $courseIds = [$courseIds];
+        $week = null;
+        if (array_key_exists('week', (array) $filters) && $filters['week'] !== '' && $filters['week'] !== null) {
+            $week = (int) $filters['week'];
+        }
 
-        $courseIds = collect($courseIds)
-            ->merge($this->selectedCourseIds)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (int) $id)
-            ->unique()->values()->all();
+        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
 
         $fromDate = $this->normalizeDate($filters['from_date'] ?? $defaults['from_date']);
         $toDate   = $this->normalizeDate($filters['to_date'] ?? $defaults['to_date']);
@@ -566,8 +879,7 @@ class ListHocVienHoanThanhs extends ListRecords
             'week'           => $week,
             'from_date'      => $fromDate,
             'to_date'        => $toDate,
-            'course_id'      => $courseIdSingle,
-            'course_ids'     => $courseIds,
+            'course_id'      => $courseId,
             'training_types' => $trainingTypes,
         ];
     }
@@ -583,28 +895,52 @@ class ListHocVienHoanThanhs extends ListRecords
             'from_date'      => null,
             'to_date'        => null,
             'course_id'      => null,
-            'course_ids'     => [],
             'training_types' => [],
         ];
     }
 
     protected function applyFilterState(array $state): void
     {
+        $state['year'] = (int)($state['year'] ?? now()->year);
+        $state['month'] = array_key_exists('month', $state) && $state['month'] !== null && $state['month'] !== '' ? (int)$state['month'] : null;
+        $state['week'] = array_key_exists('week', $state) && $state['week'] !== null && $state['week'] !== '' ? (int)$state['week'] : null;
+        $state['course_id'] = array_key_exists('course_id', $state) && $state['course_id'] !== null && $state['course_id'] !== '' ? (int)$state['course_id'] : null;
+        $state['from_date'] = $this->normalizeDate($state['from_date'] ?? null);
+        $state['to_date'] = $this->normalizeDate($state['to_date'] ?? null);
+
+        if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
+            $state['to_date'] = $state['from_date'];
+        }
+
+        $state['training_types'] = collect($state['training_types'] ?? [])
+            ->map(fn($type) => (string)$type)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $availableTypes = array_keys($this->getTrainingTypeOptions());
+        $state['training_types'] = array_values(array_intersect($state['training_types'], $availableTypes));
+
+        $state['month'] = $this->normalizeMonthForState($state);
+        $state['week'] = $this->normalizeWeekForState($state);
+
+        $this->syncCourseSelection($state);
+
         $data = [
-            'year'           => (string) $state['year'],
-            'month'          => $state['month'] ? (string) $state['month'] : null,
-            'week'           => $state['week'] ? (string) $state['week'] : null,
+            'year'           => (string)$state['year'],
+            'month'          => $state['month'] ? (string)$state['month'] : null,
+            'week'           => $state['week'] ? (string)$state['week'] : null,
             'from_date'      => $state['from_date'],
             'to_date'        => $state['to_date'],
-            'course_id'      => $state['course_id'] ? (string) $state['course_id'] : null,
-            'course_ids'     => array_values(array_unique(array_map('intval', $this->selectedCourseIds))),
+            'course_id'      => $state['course_id'] ? (string)$state['course_id'] : null,
             'training_types' => $state['training_types'],
         ];
 
         $this->tableFilters['bo_loc'] = [
-            'isActive' => (bool) collect($data)
-                ->reject(fn ($value, $key) => in_array($key, ['year', 'month'], true))
-                ->reject(fn ($value) => $value === null || $value === '' || (is_array($value) && empty($value)))
+            'isActive' => (bool)collect($data)
+                ->reject(fn($value, $key) => in_array($key, ['year', 'month'], true))
+                ->reject(fn($value) => $value === null || $value === '' || (is_array($value) && empty($value)))
                 ->count(),
             'data' => $data,
         ];
@@ -641,9 +977,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
         $filters = $this->resolveFilterState();
 
-        if (! empty($filters['course_ids'])) {
-            $query->whereIn('khoa_hoc_id', $filters['course_ids']);
-        } elseif (! empty($filters['course_id'])) {
+        if (! empty($filters['course_id'])) {
             $query->where('khoa_hoc_id', $filters['course_id']);
         }
 
