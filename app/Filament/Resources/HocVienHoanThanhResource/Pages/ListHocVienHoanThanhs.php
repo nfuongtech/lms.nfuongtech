@@ -41,9 +41,6 @@ class ListHocVienHoanThanhs extends ListRecords
     /** Trạng thái filter của bảng */
     public ?array $tableFilters = [];
 
-    /** Danh sách ID khóa học đã chọn (multi-select) */
-    public array $selectedCourseIds = [];
-
     /* ==========================================================
      |  ACTIONS
      |  - Đăng ký actions qua getHeaderActions() để Filament mount
@@ -264,7 +261,6 @@ class ListHocVienHoanThanhs extends ListRecords
     public function mount(): void
     {
         parent::mount();
-        $this->selectedCourseIds = [];
         $this->applyFilterState($this->defaultFilterState());
     }
 
@@ -365,6 +361,36 @@ class ListHocVienHoanThanhs extends ListRecords
             ->toArray();
     }
 
+    public function getCourseFilterOptionsProperty(): array
+    {
+        $filters = $this->resolveFilterState();
+        $filters['course_id'] = null;
+
+        return $this->makeSummaryCourseQuery($filters, false)
+            ->orderBy('ma_khoa_hoc')
+            ->get()
+            ->mapWithKeys(function (KhoaHoc $course) {
+                $label = trim(implode(' - ', array_filter([
+                    $course->ma_khoa_hoc,
+                    $course->ten_khoa_hoc,
+                ])));
+
+                return [$course->id => $label ?: ($course->ma_khoa_hoc ?? (string) $course->id)];
+            })
+            ->toArray();
+    }
+
+    public function getSelectedCourseIdProperty(): ?int
+    {
+        $courseId = data_get($this->tableFilters, 'bo_loc.data.course_id');
+
+        if ($courseId === null || $courseId === '') {
+            return null;
+        }
+
+        return (int) $courseId;
+    }
+
     /* ===================== TÓM TẮT (bảng trên) ===================== */
 
     protected function makeSummaryCourseQuery(array $filters, bool $respectSelectedCourses = true): Builder
@@ -396,25 +422,9 @@ class ListHocVienHoanThanhs extends ListRecords
 
         if ($filters['course_id']) {
             $courseQuery->where('id', $filters['course_id']);
-        } elseif ($respectSelectedCourses && ! empty($filters['course_ids'])) {
-            $courseQuery->whereIn('id', $filters['course_ids']);
         }
 
         return $courseQuery;
-    }
-
-    public function getSummaryCourseOptionsProperty(): array
-    {
-        return $this->summaryRows
-            ->filter(fn (array $row) => ($row['hoan_thanh'] ?? 0) > 0)
-            ->map(fn (array $row) => [
-                'id'   => (int) $row['id'],
-                'code' => $row['ma_khoa'] ?? '-',
-                'name' => $row['ten_khoa'] ?? '-',
-            ])
-            ->unique('id')
-            ->values()
-            ->all();
     }
 
     public function getSummaryRowsProperty(): Collection
@@ -494,27 +504,108 @@ class ListHocVienHoanThanhs extends ListRecords
 
     public function selectCourseFromSummary(int $courseId): void
     {
-        $ids = collect($this->selectedCourseIds)->map(fn($i)=>(int)$i)->values()->all();
+        $state = $this->resolveFilterState();
+        $state['course_id'] = $state['course_id'] === $courseId ? null : $courseId;
 
-        if (in_array($courseId, $ids, true)) {
-            $ids = array_values(array_diff($ids, [$courseId]));
-        } else {
-            $ids[] = $courseId;
+        $this->applyFilterState($state);
+    }
+
+    public function handleYearChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['year'] = (int) ($value ?: now()->year);
+        $state['month'] = null;
+        $state['week'] = null;
+        $state['course_id'] = null;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleMonthChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['month'] = $value === '' ? null : (int) $value;
+        $state['week'] = null;
+        $state['course_id'] = null;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleWeekChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['week'] = $value === '' ? null : (int) $value;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleCourseChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['course_id'] = $value === '' ? null : (int) $value;
+
+        $this->applyFilterState($state);
+    }
+
+    public function handleFromDateChange($value): void
+    {
+        $state = $this->resolveFilterState();
+        $state['from_date'] = $this->normalizeDate($value);
+
+        if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
+            $state['to_date'] = $state['from_date'];
         }
 
-        $this->selectedCourseIds = array_values(array_unique($ids));
-        $this->applyQuickFilters();
+        $this->applyFilterState($state);
     }
 
-    public function applyQuickFilters(): void
+    public function handleToDateChange($value): void
     {
-        $this->applyFilterState($this->resolveFilterState());
+        $state = $this->resolveFilterState();
+        $state['to_date'] = $this->normalizeDate($value);
+
+        if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
+            $state['from_date'] = $state['to_date'];
+        }
+
+        $this->applyFilterState($state);
     }
 
-    public function clearQuickCourseFilter(): void
+    public function toggleTrainingType(string $value): void
     {
-        $this->selectedCourseIds = [];
-        $this->applyQuickFilters();
+        $state = $this->resolveFilterState();
+        $value = (string) $value;
+
+        $types = collect($state['training_types'] ?? [])
+            ->filter(fn ($type) => $type !== null && $type !== '')
+            ->map(fn ($type) => (string) $type)
+            ->values();
+
+        if ($types->contains($value)) {
+            $types = $types->reject(fn ($type) => $type === $value)->values();
+        } else {
+            $types->push($value);
+        }
+
+        $state['training_types'] = $types->unique()->values()->all();
+
+        $this->applyFilterState($state);
+    }
+
+    public function selectAllTrainingTypes(): void
+    {
+        $state = $this->resolveFilterState();
+        $state['training_types'] = array_values(array_map('strval', array_keys($this->getTrainingTypeOptions())));
+
+        $this->applyFilterState($state);
+    }
+
+    public function clearTrainingTypeFilters(): void
+    {
+        $state = $this->resolveFilterState();
+        $state['training_types'] = [];
+
+        $this->applyFilterState($state);
     }
 
     /* ===================== STATE HELPERS ===================== */
@@ -529,20 +620,20 @@ class ListHocVienHoanThanhs extends ListRecords
 
         $defaults = $this->defaultFilterState();
 
-        $year  = (int) ($filters['year'] ?? $defaults['year']);
-        $month = isset($filters['month']) && $filters['month'] !== '' ? (int) $filters['month'] : $defaults['month'];
-        $week  = isset($filters['week']) && $filters['week'] !== '' ? (int) $filters['week'] : null;
+        $year = (int) ($filters['year'] ?? $defaults['year']);
 
-        $courseIdSingle = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+        $month = $defaults['month'];
+        if (array_key_exists('month', (array) $filters)) {
+            $value = $filters['month'];
+            $month = ($value === null || $value === '') ? null : (int) $value;
+        }
 
-        $courseIds = $filters['course_ids'] ?? [];
-        if (is_string($courseIds) || is_int($courseIds)) $courseIds = [$courseIds];
+        $week = null;
+        if (array_key_exists('week', (array) $filters) && $filters['week'] !== '' && $filters['week'] !== null) {
+            $week = (int) $filters['week'];
+        }
 
-        $courseIds = collect($courseIds)
-            ->merge($this->selectedCourseIds)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (int) $id)
-            ->unique()->values()->all();
+        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
 
         $fromDate = $this->normalizeDate($filters['from_date'] ?? $defaults['from_date']);
         $toDate   = $this->normalizeDate($filters['to_date'] ?? $defaults['to_date']);
@@ -566,8 +657,7 @@ class ListHocVienHoanThanhs extends ListRecords
             'week'           => $week,
             'from_date'      => $fromDate,
             'to_date'        => $toDate,
-            'course_id'      => $courseIdSingle,
-            'course_ids'     => $courseIds,
+            'course_id'      => $courseId,
             'training_types' => $trainingTypes,
         ];
     }
@@ -583,7 +673,6 @@ class ListHocVienHoanThanhs extends ListRecords
             'from_date'      => null,
             'to_date'        => null,
             'course_id'      => null,
-            'course_ids'     => [],
             'training_types' => [],
         ];
     }
@@ -597,7 +686,6 @@ class ListHocVienHoanThanhs extends ListRecords
             'from_date'      => $state['from_date'],
             'to_date'        => $state['to_date'],
             'course_id'      => $state['course_id'] ? (string) $state['course_id'] : null,
-            'course_ids'     => array_values(array_unique(array_map('intval', $this->selectedCourseIds))),
             'training_types' => $state['training_types'],
         ];
 
@@ -641,9 +729,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
         $filters = $this->resolveFilterState();
 
-        if (! empty($filters['course_ids'])) {
-            $query->whereIn('khoa_hoc_id', $filters['course_ids']);
-        } elseif (! empty($filters['course_id'])) {
+        if (! empty($filters['course_id'])) {
             $query->where('khoa_hoc_id', $filters['course_id']);
         }
 
