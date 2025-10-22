@@ -14,7 +14,9 @@
                 /* Ẩn nút Filters của bảng dưới (đa ngôn ngữ) */
                 .fi-ta-header .fi-ta-filters-trigger,
                 .fi-ta-header [data-fi-action="open-filters"],
-                .fi-ta-header [dusk="filament.tables.filters.toggle-button"] {
+                .fi-ta-header [dusk="filament.tables.filters.toggle-button"],
+                .fi-ta-header [aria-label="Filters"],
+                .fi-ta-header [aria-label="Filter"] {
                     display: none !important;
                 }
 
@@ -24,14 +26,27 @@
         {{-- Thêm JS backup ẩn nút Filters nếu CSS trên không bắt được --}}
         <script>
             function hideFilamentFilterButtons(){
-                document.querySelectorAll('.fi-ta-header button, .fi-ta-header a').forEach(el=>{
-                    const t=(el.textContent||'').trim().toLowerCase();
-                    if(['filters','filter','chọn lọc thông tin'].includes(t)) el.style.display='none';
+                document.querySelectorAll('.fi-ta-header button, .fi-ta-header a').forEach(el => {
+                    const text = (el.textContent || '').trim().toLowerCase();
+                    const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
+                    const dataAction = (el.getAttribute('data-fi-action') || '').trim().toLowerCase();
+                    const hasFilterIcon = !!el.querySelector('.fi-icon-btn-icon.h-5.w-5');
+
+                    const isFilterAction = ['filters', 'filter', 'chọn lọc thông tin'].includes(text)
+                        || ['filters', 'filter'].includes(aria)
+                        || dataAction === 'open-filters'
+                        || dataAction === 'toggle-filters'
+                        || (hasFilterIcon && (aria.includes('filter') || text === '' ));
+
+                    if (isFilterAction) {
+                        el.remove();
+                    }
                 });
             }
-            document.addEventListener('DOMContentLoaded', hideFilamentFilterButtons);
-            document.addEventListener('livewire:navigated', hideFilamentFilterButtons);
-            document.addEventListener('livewire:load', hideFilamentFilterButtons);
+
+            ['DOMContentLoaded', 'livewire:navigated', 'livewire:load', 'livewire:update'].forEach(event => {
+                document.addEventListener(event, () => requestAnimationFrame(hideFilamentFilterButtons));
+            });
         </script>
 
         @php($filterData = data_get($this->tableFilters, 'bo_loc.data', []))
@@ -133,9 +148,9 @@
 
             <div class="p-4">
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-5">
-                    <div class="flex flex-wrap items-end gap-3 md:flex-nowrap md:gap-4">
-                        <label class="flex w-full min-w-[140px] flex-col text-sm font-medium text-slate-700 md:flex-1">
-                            <span class="mb-1.5">Năm</span>
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-5 md:gap-4">
+                        <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                            <span>Năm</span>
                             <select
                                 wire:model.live="tableFilters.bo_loc.data.year"
                                 wire:change="handleYearChange($event.target.value)"
@@ -149,8 +164,8 @@
                             </select>
                         </label>
 
-                        <label class="flex w-full min-w-[140px] flex-col text-sm font-medium text-slate-700 md:flex-1">
-                            <span class="mb-1.5">Tháng</span>
+                        <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                            <span>Tháng</span>
                             <select
                                 wire:model.live="tableFilters.bo_loc.data.month"
                                 wire:change="handleMonthChange($event.target.value)"
@@ -162,8 +177,8 @@
                             </select>
                         </label>
 
-                        <label class="flex w-full min-w-[140px] flex-col text-sm font-medium text-slate-700 md:flex-1">
-                            <span class="mb-1.5">Tuần</span>
+                        <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                            <span>Tuần</span>
                             <select
                                 wire:model.live="tableFilters.bo_loc.data.week"
                                 wire:change="handleWeekChange($event.target.value)"
@@ -176,8 +191,8 @@
                             </select>
                         </label>
 
-                        <label class="flex w-full min-w-[180px] flex-col text-sm font-medium text-slate-700 md:flex-1">
-                            <span class="mb-1.5">Từ ngày</span>
+                        <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                            <span>Từ ngày</span>
                             <input
                                 type="date"
                                 wire:model.lazy="tableFilters.bo_loc.data.from_date"
@@ -186,8 +201,8 @@
                             />
                         </label>
 
-                        <label class="flex w-full min-w-[180px] flex-col text-sm font-medium text-slate-700 md:flex-1">
-                            <span class="mb-1.5">Đến ngày</span>
+                        <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                            <span>Đến ngày</span>
                             <input
                                 type="date"
                                 wire:model.lazy="tableFilters.bo_loc.data.to_date"
