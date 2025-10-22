@@ -133,7 +133,7 @@
 
             <div class="p-4">
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-5">
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
                         <label class="flex flex-col text-sm font-medium text-slate-700">
                             <span class="mb-1.5">Năm</span>
                             <select
@@ -155,114 +155,119 @@
                                 wire:model.live="tableFilters.bo_loc.data.month"
                                 wire:change="handleMonthChange($event.target.value)"
                                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                @if(empty($months)) disabled @endif
                             >
-                                <option value="">Tất cả</option>
-                                @foreach($months as $m)
-                                    <option value="{{ $m }}">{{ sprintf('%02d', $m) }}</option>
-                                @endforeach
+                                @if(empty($months))
+                                    <option value="">Không có dữ liệu</option>
+                                @else
+                                    @foreach($months as $m)
+                                        <option value="{{ $m }}">{{ sprintf('%02d', $m) }}</option>
+                                    @endforeach
+                                @endif
                             </select>
                         </label>
-                    </div>
 
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <label class="flex flex-col text-sm font-medium text-slate-700">
                             <span class="mb-1.5">Tuần</span>
                             <select
                                 wire:model.live="tableFilters.bo_loc.data.week"
                                 wire:change="handleWeekChange($event.target.value)"
                                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                                @if(empty($weeks)) disabled @endif
                             >
                                 <option value="">Tất cả</option>
-                                @foreach($weeks as $w)
+                                @forelse($weeks as $w)
                                     <option value="{{ $w }}">{{ $w }}</option>
-                                @endforeach
+                                @empty
+                                    <option value="" disabled>Không có dữ liệu</option>
+                                @endforelse
                             </select>
                         </label>
 
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="flex flex-col text-sm font-medium text-slate-700">
-                                <span class="mb-1.5">Từ ngày</span>
-                                <input
-                                    type="date"
-                                    wire:model.lazy="tableFilters.bo_loc.data.from_date"
-                                    wire:change="handleFromDateChange($event.target.value)"
-                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                                />
-                            </label>
+                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                            <span class="mb-1.5">Từ ngày</span>
+                            <input
+                                type="date"
+                                wire:model.lazy="tableFilters.bo_loc.data.from_date"
+                                wire:change="handleFromDateChange($event.target.value)"
+                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                            />
+                        </label>
 
-                            <label class="flex flex-col text-sm font-medium text-slate-700">
-                                <span class="mb-1.5">Đến ngày</span>
-                                <input
-                                    type="date"
-                                    wire:model.lazy="tableFilters.bo_loc.data.to_date"
-                                    wire:change="handleToDateChange($event.target.value)"
-                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                                />
-                            </label>
-                        </div>
+                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                            <span class="mb-1.5">Đến ngày</span>
+                            <input
+                                type="date"
+                                wire:model.lazy="tableFilters.bo_loc.data.to_date"
+                                wire:change="handleToDateChange($event.target.value)"
+                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                            />
+                        </label>
                     </div>
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium text-slate-700">Khóa học</label>
-                        <select
-                            wire:model.live="tableFilters.bo_loc.data.course_id"
-                            wire:change="handleCourseChange($event.target.value)"
-                            class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                        >
-                            <option value="">Tất cả khóa học</option>
-                            @forelse($courseOptions as $id => $label)
-                                <option value="{{ $id }}">{{ $label }}</option>
-                            @empty
-                                <option value="" disabled>Không có khóa học phù hợp</option>
-                            @endforelse
-                        </select>
-                    </div>
-
-                    <div class="space-y-2.5">
-                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <span class="text-sm font-medium text-slate-700">Loại hình đào tạo</span>
-                            <div class="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    wire:click="selectAllTrainingTypes"
-                                    wire:loading.attr="disabled"
-                                    class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
-                                >
-                                    Chọn tất cả
-                                </button>
-
-                                @if(!empty($selectedTrainingTypes))
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="space-y-2.5">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <span class="text-sm font-medium text-slate-700">Loại hình đào tạo</span>
+                                <div class="flex items-center gap-3">
                                     <button
                                         type="button"
-                                        wire:click="clearTrainingTypeFilters"
+                                        wire:click="selectAllTrainingTypes"
                                         wire:loading.attr="disabled"
                                         class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
                                     >
-                                        Bỏ chọn
+                                        Chọn tất cả
                                     </button>
-                                @endif
+
+                                    @if(!empty($selectedTrainingTypes))
+                                        <button
+                                            type="button"
+                                            wire:click="clearTrainingTypeFilters"
+                                            wire:loading.attr="disabled"
+                                            class="text-xs font-semibold text-primary-600 transition hover:text-primary-700"
+                                        >
+                                            Bỏ chọn
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2">
+                                @forelse($trainingOptions as $value => $label)
+                                    @php($isSelectedType = in_array((string) $value, $selectedTrainingTypes, true))
+                                    <button
+                                        type="button"
+                                        wire:key="training-type-{{ md5($value) }}"
+                                        wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
+                                        wire:loading.attr="disabled"
+                                        @class([
+                                            'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
+                                            'border-primary-500 bg-primary-500 text-white shadow-sm' => $isSelectedType,
+                                            'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelectedType,
+                                        ])
+                                    >
+                                        {{ $label }}
+                                    </button>
+                                @empty
+                                    <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
+                                @endforelse
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
-                            @forelse($trainingOptions as $value => $label)
-                                @php($isSelectedType = in_array((string) $value, $selectedTrainingTypes, true))
-                                <button
-                                    type="button"
-                                    wire:key="training-type-{{ md5($value) }}"
-                                    wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
-                                    wire:loading.attr="disabled"
-                                    @class([
-                                        'rounded-full border px-3 py-1.5 text-xs font-medium tracking-wide transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
-                                        'border-primary-500 bg-primary-500 text-white shadow-sm' => $isSelectedType,
-                                        'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50' => ! $isSelectedType,
-                                    ])
-                                >
-                                    {{ $label }}
-                                </button>
-                            @empty
-                                <p class="text-xs text-slate-400">Chưa có dữ liệu loại hình đào tạo.</p>
-                            @endforelse
+                        <div class="space-y-2">
+                            <label class="text-sm font-medium text-slate-700">Khóa học</label>
+                            <select
+                                wire:model.live="tableFilters.bo_loc.data.course_id"
+                                wire:change="handleCourseChange($event.target.value)"
+                                class="w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                            >
+                                <option value="">Tất cả khóa học</option>
+                                @forelse($courseOptions as $id => $label)
+                                    <option value="{{ $id }}">{{ $label }}</option>
+                                @empty
+                                    <option value="" disabled>Không có khóa học phù hợp</option>
+                                @endforelse
+                            </select>
                         </div>
                     </div>
                 </div>
