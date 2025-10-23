@@ -2,7 +2,7 @@
     <div class="space-y-6">
         @once
             <style>
-                /* Thẻ “Đang áp dụng lọc” */
+                /* Thẻ “Đang áp dụng lọc” (nếu Filament còn render) */
                 .fi-ta-filter-indicators > span:first-child { display: none; }
                 .fi-ta-filter-indicators::before {
                     content: 'Đang áp dụng lọc';
@@ -11,96 +11,94 @@
                     color: rgb(55 65 81);
                 }
 
-                /* Ẩn NÚT Filters trong header (mọi biến thể) */
-                .fi-ta-header .fi-ta-filters-trigger,
-                .fi-ta-header [data-fi-action="open-filters"],
-                .fi-ta-header [data-fi-action="toggle-filters"],
-                .fi-ta-header [data-fi-action*="filter" i],
-                .fi-ta-header [aria-label*="filter" i],
-                .fi-ta-header [title*="filter" i],
-                .fi-ta-header [aria-label*="lọc" i],
-                .fi-ta-header [title*="lọc" i],
-                .fi-ta-header .fi-icon-btn-icon,
-                .fi-ta-header .fi-badge {
+                /* Ẩn triệt để Filters CHỈ trong vùng hvht-table (giữ Search & Columns) */
+                #hvht-table .fi-ta-header [x-ref="filtersTrigger"],
+                #hvht-table .fi-ta-header [data-fi-action*="filter" i],
+                #hvht-table .fi-ta-header [aria-label*="filter" i],
+                #hvht-table .fi-ta-header [title*="filter" i],
+                #hvht-table .fi-ta-header .fi-badge,
+                #hvht-table .fi-ta-filter-indicators,
+                #hvht-table .fi-ta-filters,
+                #hvht-table [data-fi-panel="filters"],
+                #hvht-table [data-fi-filters-panel],
+                #hvht-table [data-fi-panel-id="filters"],
+                #hvht-table .fi-ta-filters-above-content-ctn {
                     display: none !important;
                 }
 
-                /* Ẩn LUÔN cả PANEL Filters (layout AboveContent) */
-                .fi-ta .fi-ta-filters,
-                .fi-ta [data-fi-panel="filters"],
-                .fi-ta [data-fi-filters-panel],
-                .fi-ta [data-fi-panel-id="filters"],
-                .fi-ta .fi-section:has(> .fi-section-header h3),
-                .fi-ta .fi-section:has(> .fi-section-header .fi-section-header-heading) {
-                    /* dùng JS bên dưới để kiểm tra tiêu đề, CSS này chỉ hỗ trợ when matched by JS */
-                }
-
-                /* Hàng filter 5 ô luôn cùng 1 hàng, trượt ngang khi hẹp */
+                /* ====== BỐ CỤC HÀNG LỌC RESPONSIVE ======
+                   - Mobile: wrap, không trượt ngang
+                   - >=1024px (PC): cố định 1 hàng, chia đều
+                */
                 .filters-inline-row{
                     display: flex;
-                    flex-wrap: nowrap;
-                    align-items: flex-end;
+                    flex-wrap: wrap;          /* mobile: wrap để không cần trượt ngang */
+                    align-items: end;
                     gap: .75rem;
-                    overflow-x: auto;
-                    padding-bottom: .25rem;
                 }
                 .filters-inline-row > label{
-                    flex: 0 0 auto;
-                    min-width: 150px;
+                    flex: 1 1 160px;          /* co giãn đều, min 160px */
+                    min-width: 140px;
+                }
+                @media (min-width: 1024px){
+                    .filters-inline-row{
+                        flex-wrap: nowrap;    /* PC: 1 hàng cố định */
+                    }
+                    .filters-inline-row > label{
+                        flex: 1 1 0;          /* chia đều không vỡ layout */
+                        min-width: 0;
+                    }
                 }
             </style>
         @endonce
 
-        {{-- JS xoá triệt để:
-             - Nút Filters (kể cả chỉ-icon + badge)
-             - Cả panel Filters "Above content"
-        --}}
+        {{-- JS: dọn sạch Filters & header container trong hvht-table, bền vững qua re-render --}}
         <script>
-            function hideFilamentFilterButtons(){
-                document.querySelectorAll('.fi-ta-header button, .fi-ta-header a, .fi-ta-header [role="button"]').forEach(el => {
-                    const text = (el.textContent || '').trim().toLowerCase();
-                    const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
-                    const title = (el.getAttribute('title') || '').trim().toLowerCase();
-                    const dataAction = (el.getAttribute('data-fi-action') || '').trim().toLowerCase();
-                    const html = (el.innerHTML || '').toLowerCase();
+            (function(){
+                function removeHvhtFilters() {
+                    const root = document.getElementById('hvht-table');
+                    if (!root) return;
 
-                    const isFilterAction =
-                        ['filters','filter','chọn lọc','lọc'].some(k => text.includes(k)) ||
-                        ['filters','filter','chọn lọc','lọc'].some(k => aria.includes(k)) ||
-                        ['filters','filter'].some(k => title.includes(k)) ||
-                        dataAction.includes('filter') || dataAction.includes('filters') ||
-                        html.includes('funnel') || html.includes('filter');
+                    const tableRoot = root.querySelector('.fi-ta') || root;
 
-                    if (isFilterAction) {
-                        const prev = el.previousElementSibling;
-                        if (prev && prev.classList.contains('fi-badge')) prev.remove();
-                        const wrapper = el.closest('[class*="filters" i]') || el.closest('.fi-ta-filters');
-                        if (wrapper) wrapper.remove(); else el.remove();
+                    // Badge + button Filters
+                    tableRoot.querySelectorAll('.fi-ta-header .fi-badge').forEach(badge => {
+                        const next = badge.nextElementSibling;
+                        if (next && (next.tagName === 'BUTTON' || next.getAttribute('role') === 'button')) next.remove();
+                        badge.remove();
+                    });
+                    tableRoot.querySelectorAll('.fi-ta-header [x-ref="filtersTrigger"], .fi-ta-header [data-fi-action*="filter"], .fi-ta-header [aria-label*="filter" i], .fi-ta-header [title*="filter" i]')
+                        .forEach(el => el.remove());
+
+                    // Indicators + panels
+                    tableRoot.querySelectorAll('.fi-ta-filter-indicators, .fi-ta-filters, [data-fi-panel="filters"], [data-fi-filters-panel], [data-fi-panel-id="filters"]')
+                        .forEach(el => el.remove());
+
+                    // Section "Filters"/"Bộ lọc"
+                    tableRoot.querySelectorAll('.fi-section').forEach(sec => {
+                        const h = (sec.querySelector('.fi-section-header-heading, .fi-section-header h3, h3')?.textContent || '').trim().toLowerCase();
+                        if (h === 'filters' || h === 'bộ lọc') sec.remove();
+                    });
+
+                    // Header container Filters của Filament
+                    tableRoot.querySelectorAll('.fi-ta-filters-above-content-ctn').forEach(el => el.remove());
+                }
+
+                function initHvhtFilterHider() {
+                    const root = document.getElementById('hvht-table');
+                    if (!root) return;
+
+                    removeHvhtFilters();
+
+                    if (!root.__hvhtObserver) {
+                        root.__hvhtObserver = new MutationObserver(removeHvhtFilters);
+                        root.__hvhtObserver.observe(root, { childList: true, subtree: true });
                     }
-                });
-            }
+                }
 
-            function removeAboveContentFiltersPanel(){
-                // Xoá section/panel có heading "Filters" hoặc "Bộ lọc"
-                document.querySelectorAll('.fi-ta .fi-section, .fi-ta .fi-ta-filters, .fi-ta [data-fi-panel], .fi-ta [data-fi-filters-panel]').forEach(el => {
-                    const headingEl = el.querySelector('h3, .fi-section-header-heading, .fi-section-header h3');
-                    const heading = (headingEl?.textContent || '').trim().toLowerCase();
-                    if (heading === 'filters' || heading === 'bộ lọc') {
-                        el.remove();
-                    }
-                });
-            }
-
-            const events = [
-                'DOMContentLoaded','livewire:navigated','livewire:load','livewire:update',
-                'alpine:init','alpine:initialized','turbo:load','htmx:afterSettle'
-            ];
-            events.forEach(evt => document.addEventListener(evt, () => {
-                requestAnimationFrame(() => {
-                    hideFilamentFilterButtons();
-                    removeAboveContentFiltersPanel();
-                });
-            }));
+                ['DOMContentLoaded','livewire:load','livewire:update','livewire:navigated','alpine:init','alpine:initialized']
+                    .forEach(evt => document.addEventListener(evt, () => requestAnimationFrame(initHvhtFilterHider)));
+            })();
         </script>
 
         @php($filterData = data_get($this->tableFilters, 'bo_loc.data', []))
@@ -188,7 +186,7 @@
             </div>
         </div>
 
-        {{-- =================== BỘ LỌC (tuỳ chỉnh riêng) =================== --}}
+        {{-- =================== BỘ LỌC (tuỳ chỉnh) =================== --}}
         @php($years  = $this->availableYears)
         @php($months = $this->availableMonths)
         @php($weeks  = $this->availableWeeks)
@@ -202,8 +200,6 @@
 
             <div class="p-4">
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-5">
-
-                    {{-- HÀNG 5 Ô LUÔN CÙNG 1 HÀNG --}}
                     <div class="filters-inline-row">
                         <label class="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
                             <span>Năm</span>
@@ -339,7 +335,7 @@
 
         <div class="p-4">
             <h2 class="text-lg font-semibold text-gray-900">Danh sách học viên hoàn thành</h2>
-            <div class="mt-3">
+            <div class="mt-3" id="hvht-table">
                 {{ $this->table }}
             </div>
         </div>

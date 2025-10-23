@@ -62,6 +62,7 @@ class ListHocVienHoanThanhs extends ListRecords
     protected function makePageActions(): array
     {
         return [
+            // 1) Tải mẫu import
             Actions\Action::make('download_template')
                 ->label('Tải mẫu import')
                 ->extraAttributes([
@@ -74,6 +75,7 @@ class ListHocVienHoanThanhs extends ListRecords
                     'Ngày hết hạn chứng nhận','Ghi chú',
                 ]), 'mau_hoc_vien_hoan_thanh.xlsx')),
 
+            // 2) Import
             Actions\Action::make('import_excel')
                 ->label('Import')
                 ->extraAttributes([
@@ -133,6 +135,7 @@ class ListHocVienHoanThanhs extends ListRecords
                         ->send();
                 }),
 
+            // 3) Xuất Excel
             Actions\Action::make('export_excel')
                 ->label('Xuất Excel')
                 ->extraAttributes([
@@ -141,6 +144,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 ])
                 ->action(fn () => $this->exportCurrentView()),
 
+            // 4) Gửi Email
             Actions\Action::make('send_email')
                 ->label('Gửi Email')
                 ->extraAttributes([
@@ -150,12 +154,12 @@ class ListHocVienHoanThanhs extends ListRecords
                 ->form([
                     Forms\Components\Select::make('email_template_id')
                         ->label('Mẫu email')
-                        ->options(fn () => \App\Models\EmailTemplate::orderBy('ten_mau')->pluck('ten_mau', 'id')->toArray())
+                        ->options(fn () => EmailTemplate::orderBy('ten_mau')->pluck('ten_mau', 'id')->toArray())
                         ->required()
                         ->searchable(),
                     Forms\Components\Select::make('email_account_id')
                         ->label('Tài khoản gửi')
-                        ->options(fn () => \App\Models\EmailAccount::where('active', 1)->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->options(fn () => EmailAccount::where('active', 1)->orderBy('name')->pluck('name', 'id')->toArray())
                         ->required()
                         ->searchable(),
                 ])
@@ -167,8 +171,8 @@ class ListHocVienHoanThanhs extends ListRecords
                         return;
                     }
 
-                    $template = \App\Models\EmailTemplate::find($data['email_template_id'] ?? null);
-                    $account  = \App\Models\EmailAccount::find($data['email_account_id'] ?? null);
+                    $template = EmailTemplate::find($data['email_template_id'] ?? null);
+                    $account  = EmailAccount::find($data['email_account_id'] ?? null);
 
                     if (! $template || ! $account) {
                         Notification::make()->title('Thiếu thông tin gửi email')->danger()->send();
@@ -200,7 +204,7 @@ class ListHocVienHoanThanhs extends ListRecords
 
                         if (! $recipient) {
                             $failed++;
-                            \App\Models\EmailLog::create([
+                            EmailLog::create([
                                 'email_account_id' => $account->id,
                                 'recipient_email'  => 'N/A',
                                 'subject'          => 'Không gửi (thiếu email học viên)',
@@ -225,14 +229,14 @@ class ListHocVienHoanThanhs extends ListRecords
                         $body    = strtr($template->noi_dung, $placeholders);
 
                         try {
-                            Mail::mailer('dynamic')->to($recipient)->send(new \App\Mail\PlanNotificationMail($subject, $body));
+                            Mail::mailer('dynamic')->to($recipient)->send(new PlanNotificationMail($subject, $body));
                             $success++; $status = 'success'; $error = null;
                         } catch (\Throwable $exception) {
                             $failed++; $status = 'failed'; $error = $exception->getMessage();
                             Log::error('Lỗi gửi email học viên hoàn thành: ' . $exception->getMessage());
                         }
 
-                        \App\Models\EmailLog::create([
+                        EmailLog::create([
                             'email_account_id' => $account->id,
                             'recipient_email'  => $recipient,
                             'subject'          => $subject,
@@ -290,7 +294,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 $name  = method_exists($column, 'getName') ? $column->getName()
                     : (method_exists($column, 'getColumn') ? $column->getColumn() : null);
                 $label = method_exists($column, 'getLabel') ? $column->getLabel()
-                    : ($name ? Str::of($name)->headline()->toString() : '');
+                    : ($name ? \Illuminate\Support\Str::of($name)->headline()->toString() : '');
                 return ['name' => $name, 'label' => $label];
             })
             ->values()->all();
@@ -305,7 +309,7 @@ class ListHocVienHoanThanhs extends ListRecords
         );
     }
 
-    /* ====== OPTION LISTS ====== */
+    /* ====== OPTION LISTS TỪ KẾ HOẠCH / MÃ KHÓA ====== */
 
     public function getAvailableYearsProperty(): array
     {
@@ -416,11 +420,15 @@ class ListHocVienHoanThanhs extends ListRecords
     public function getSelectedCourseIdProperty(): ?int
     {
         $courseId = data_get($this->tableFilters, 'bo_loc.data.course_id');
-        if ($courseId === null || $courseId === '') return null;
+
+        if ($courseId === null || $courseId === '') {
+            return null;
+        }
+
         return (int) $courseId;
     }
 
-    /* ===================== TÓM TẮT ===================== */
+    /* ===================== TÓM TẮT (bảng trên) ===================== */
 
     protected function makeSummaryCourseQuery(array $filters, bool $respectSelectedCourses = true, bool $includeScheduleRelations = true): Builder
     {
@@ -432,7 +440,6 @@ class ListHocVienHoanThanhs extends ListRecords
             $courseQuery->where('id', $filters['course_id']);
         }
 
-        // SỬA LẠI: dùng ngay_hoc (không phải ngay_hoan_thanh)
         $courseQuery->whereHas('lichHocs', function (Builder $query) use ($filters, $month) {
             $query->where('nam', $filters['year'])
                 ->when($month, fn($q) => $q->where('thang', $month))
@@ -448,7 +455,7 @@ class ListHocVienHoanThanhs extends ListRecords
                     ->when($filters['week'], fn($q) => $q->where('tuan', $filters['week']))
                     ->when($filters['from_date'], fn($q) => $q->whereDate('ngay_hoc', '>=', $filters['from_date']))
                     ->when($filters['to_date'], fn($q) => $q->whereDate('ngay_hoc', '<=', $filters['to_date']))
-                    ->orderBy('ngay_hoc') // SỬA LẠI: order theo ngay_hoc
+                    ->orderBy('ngay_hoc')
                     ->with('giangVien');
             }]);
         }
@@ -523,7 +530,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 ->all();
 
             $currentMonth = now()->month;
-            $currentYear = now()->year;
+            $currentYear  = now()->year;
 
             if ($state['year'] === $currentYear && !in_array($currentMonth, $months, true)) {
                 $months[] = $currentMonth;
@@ -612,7 +619,7 @@ class ListHocVienHoanThanhs extends ListRecords
     protected function normalizeWeekForState(array $state): ?int
     {
         $weeks = $this->computeAvailableWeeks($state);
-        $week = $state['week'] ?? null;
+        $week  = $state['week'] ?? null;
 
         if ($week && in_array($week, $weeks, true)) {
             return $week;
@@ -663,7 +670,7 @@ class ListHocVienHoanThanhs extends ListRecords
                 ],
             ]);
 
-        $failed = \App\Models\HocVienKhongHoanThanh::whereIn('khoa_hoc_id', $courseIds)
+        $failed = HocVienKhongHoanThanh::whereIn('khoa_hoc_id', $courseIds)
             ->selectRaw('khoa_hoc_id, COUNT(*) as total')
             ->groupBy('khoa_hoc_id')
             ->pluck('total', 'khoa_hoc_id');
@@ -713,6 +720,7 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $state = $this->resolveFilterState();
         $state['course_id'] = $state['course_id'] === $courseId ? null : $courseId;
+
         $this->applyFilterState($state);
     }
 
@@ -723,6 +731,7 @@ class ListHocVienHoanThanhs extends ListRecords
         $state['month'] = null;
         $state['week'] = null;
         $state['course_id'] = null;
+
         $this->applyFilterState($state);
     }
 
@@ -732,6 +741,7 @@ class ListHocVienHoanThanhs extends ListRecords
         $state['month'] = $value === '' ? null : (int) $value;
         $state['week'] = null;
         $state['course_id'] = null;
+
         $this->applyFilterState($state);
     }
 
@@ -739,6 +749,7 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $state = $this->resolveFilterState();
         $state['week'] = $value === '' ? null : (int) $value;
+
         $this->applyFilterState($state);
     }
 
@@ -746,6 +757,7 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $state = $this->resolveFilterState();
         $state['course_id'] = $value === '' ? null : (int) $value;
+
         $this->applyFilterState($state);
     }
 
@@ -757,6 +769,7 @@ class ListHocVienHoanThanhs extends ListRecords
         if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
             $state['to_date'] = $state['from_date'];
         }
+
         $this->applyFilterState($state);
     }
 
@@ -768,6 +781,7 @@ class ListHocVienHoanThanhs extends ListRecords
         if ($state['from_date'] && $state['to_date'] && $state['from_date'] > $state['to_date']) {
             $state['from_date'] = $state['to_date'];
         }
+
         $this->applyFilterState($state);
     }
 
@@ -788,6 +802,7 @@ class ListHocVienHoanThanhs extends ListRecords
         }
 
         $state['training_types'] = $types->unique()->values()->all();
+
         $this->applyFilterState($state);
     }
 
@@ -795,6 +810,7 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $state = $this->resolveFilterState();
         $state['training_types'] = array_values(array_map('strval', array_keys($this->getTrainingTypeOptions())));
+
         $this->applyFilterState($state);
     }
 
@@ -802,6 +818,7 @@ class ListHocVienHoanThanhs extends ListRecords
     {
         $state = $this->resolveFilterState();
         $state['training_types'] = [];
+
         $this->applyFilterState($state);
     }
 
@@ -898,7 +915,7 @@ class ListHocVienHoanThanhs extends ListRecords
         $state['training_types'] = array_values(array_intersect($state['training_types'], $availableTypes));
 
         $state['month'] = $this->normalizeMonthForState($state);
-        $state['week']  = $this->normalizeWeekForState($state);
+        $state['week'] = $this->normalizeWeekForState($state);
 
         $this->syncCourseSelection($state);
 
@@ -927,9 +944,15 @@ class ListHocVienHoanThanhs extends ListRecords
 
     protected function normalizeDate(?string $value): ?string
     {
-        if (! $value) return null;
-        try { return Carbon::parse($value)->format('Y-m-d'); }
-        catch (\Throwable $e) { return null; }
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     protected function getExportCollection(): Collection
@@ -938,18 +961,20 @@ class ListHocVienHoanThanhs extends ListRecords
         return $query->get();
     }
 
-    /** Lọc bảng dưới theo các course đã chọn */
+    /** Lọc bảng dưới */
     protected function getTableQuery(): Builder
     {
         $query = static::getResource()::getEloquentQuery();
 
         $filters = $this->resolveFilterState();
 
+        // 1) Nếu đã chọn khóa học => luôn show toàn bộ HV của khóa, không chặn bởi khoảng ngày
         if (! empty($filters['course_id'])) {
             $query->where('khoa_hoc_id', $filters['course_id']);
+            return $query;
         }
 
-        // Phạm vi thời gian áp vào Học viên hoàn thành: dùng cột ngay_hoan_thanh của bảng HVHT (đúng)
+        // 2) Chưa chọn khóa => có thể áp dụng phạm vi ngày hoàn thành nếu người dùng nhập
         if (!empty($filters['from_date']) || !empty($filters['to_date'])) {
             $from = $filters['from_date'];
             $to   = $filters['to_date'];
@@ -960,6 +985,7 @@ class ListHocVienHoanThanhs extends ListRecords
         return $query;
     }
 
+    /** Badge trạng thái cho Tổng quan */
     public function statusBadgeClass(?string $status): string
     {
         $slug = Str::slug($status ?? '');
