@@ -228,21 +228,20 @@
 
     function initChart() {
         console.log('Initializing Chi Phi chart:', canvasId);
-        
+
         const canvas = document.getElementById(canvasId);
         if (!canvas) {
-            console.error('Canvas not found:', canvasId);
-            return;
+            console.warn('Canvas not found:', canvasId);
+            return false;
         }
 
-        if (typeof Chart === 'undefined') {
-            console.error('Chart.js not loaded');
-            return;
+        if (typeof window.Chart === 'undefined') {
+            console.warn('Chart.js not loaded yet, retrying...');
+            return false;
         }
 
-        // Destroy existing chart
         if (chartInstance) {
-            chartInstance.destroy();
+            try { chartInstance.destroy(); } catch (error) { console.error(error); }
         }
 
         const ctx = canvas.getContext('2d');
@@ -251,7 +250,6 @@
 
         console.log('Chi Phi chart data:', chartData);
 
-        // Create chart
         chartInstance = new Chart(ctx, {
             type: 'bar',
             data: chartData,
@@ -285,27 +283,41 @@
         });
 
         console.log('Chi Phi chart created successfully');
+        return true;
     }
 
-    // Initialize on page load
+    let retryAttempts = 0;
+
+    function scheduleInit(delay = 160) {
+        setTimeout(() => {
+            if (!initChart() && retryAttempts < 10) {
+                retryAttempts += 1;
+                scheduleInit(Math.min(delay + 120, 600));
+            }
+        }, delay);
+    }
+
+    function queueInit(delay = 160) {
+        retryAttempts = 0;
+        scheduleInit(delay);
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initChart);
+        document.addEventListener('DOMContentLoaded', () => queueInit());
     } else {
-        setTimeout(initChart, 100);
+        queueInit(80);
     }
 
-    // Re-initialize on Livewire updates
     document.addEventListener('livewire:initialized', () => {
-        Livewire.hook('morph.updated', ({ el, component }) => {
+        Livewire.hook('morph.updated', ({ component }) => {
             if (component.id === '{{ $this->getId() }}') {
-                setTimeout(initChart, 100);
+                queueInit(120);
             }
         });
     });
 
-    // Handle Livewire navigation
     document.addEventListener('livewire:navigated', () => {
-        setTimeout(initChart, 100);
+        queueInit(120);
     });
 })();
 </script>

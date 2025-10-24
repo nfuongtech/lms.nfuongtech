@@ -1,11 +1,15 @@
 {{-- resources/views/filament/widgets/partials/dashboard-chart-script.blade.php --}}
 @once
+    @push('scripts')
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+    @endpush
+
     @push('styles')
         <style>
             /* Đảm bảo canvas full-width trong card Filament */
-            .fi-wi-chart { 
-                width: 100% !important; 
-                min-width: 0; 
+            .fi-wi-chart {
+                width: 100% !important;
+                min-width: 0;
             }
             .fi-wi-chart canvas { 
                 width: 100% !important; 
