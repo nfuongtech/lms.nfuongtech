@@ -3,13 +3,37 @@
 @once
     @push('styles')
         <style>
+            .tkhv-table {
+                width: 100%;
+                table-layout: fixed;
+                background-color: #caeefb;
+            }
+
             .tkhv-table th,
             .tkhv-table td {
-                font-size: clamp(0.65rem, 0.6rem + 0.25vw, 0.85rem);
+                font-size: clamp(0.45rem, 0.42rem + 0.16vw, 0.65rem);
+                padding-inline: 0.35rem;
             }
 
             .tkhv-table th {
                 font-weight: 600;
+            }
+
+            .tkhv-table .tkhv-sticky {
+                position: sticky;
+                left: 0;
+                z-index: 25;
+                box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
+                background-color: #caeefb;
+            }
+
+            .dark .tkhv-table .tkhv-sticky {
+                box-shadow: 4px 0 12px -7px rgba(15, 23, 42, 0.65);
+                background-color: rgba(15, 23, 42, 0.92);
+            }
+
+            .tkhv-table .tkhv-sticky-footer {
+                z-index: 20;
             }
         </style>
     @endpush
@@ -25,13 +49,23 @@
     $summary = $tableData['summary'] ?? ['perMonth' => [], 'total' => []];
     $perMonth = $summary['perMonth'] ?? [];
     $totals = $summary['total'] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
+    $displayTotals = $summary['displayTotal'] ?? $totals;
+    $months = $tableData['months'] ?? range(1, 12);
+    $displayMonths = $summary['displayMonths'] ?? $months;
     $hasData = $tableData['hasData'] ?? false;
-    $months = range(1, 12);
     $selectedTypes = collect($this->selectedTrainingTypes ?? [])->filter()->values();
     $totalTypeCount = count($trainingTypeOptions);
     $activeTypeCount = $selectedTypes->isNotEmpty() ? $selectedTypes->count() : $totalTypeCount;
     $allSelected = $totalTypeCount > 0 && $activeTypeCount === $totalTypeCount;
-    $completionRate = $totals['dk'] > 0 ? round(($totals['ht'] / max(1, $totals['dk'])) * 100, 1) : 0;
+    $completionRate = ($displayTotals['dk'] ?? 0) > 0
+        ? round((($displayTotals['ht'] ?? 0) / max(1, $displayTotals['dk'])) * 100, 1)
+        : 0;
+    $monthOptions = $this->monthOptions;
+    $selectedMonthValue = $this->month;
+    $activeMonthLabel = ($selectedMonthValue === null || $selectedMonthValue === '' || $selectedMonthValue === 'all')
+        ? 'Cả năm'
+        : 'Tháng ' . str_pad((string) ((int) $selectedMonthValue), 2, '0', STR_PAD_LEFT);
+    $studentSummaryLabel = $activeMonthLabel;
 @endphp
 
 <x-filament::widget>
@@ -46,14 +80,25 @@
         <div class="grid gap-4 md:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+                    <div class="flex flex-wrap items-end gap-3 sm:flex-nowrap">
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
                             <span class="mb-1.5">Năm</span>
                             <select
                                 wire:model.live="year"
                                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                             >
                                 @foreach ($yearOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
+                            <span class="mb-1.5">Tháng</span>
+                            <select
+                                wire:model.live="month"
+                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                            >
+                                @foreach ($monthOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -119,18 +164,19 @@
 
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
                 <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
+                <p class="mb-4 text-sm font-semibold text-emerald-700 dark:text-emerald-200">{{ $studentSummaryLabel }}</p>
                 <dl class="space-y-2">
                     <div class="flex items-center justify-between">
                         <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Đăng ký</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['dk'] ?? 0) }}</dd>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['dk'] ?? 0) }}</dd>
                     </div>
                     <div class="flex items-center justify-between">
                         <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['ht'] ?? 0) }}</dd>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['ht'] ?? 0) }}</dd>
                     </div>
                     <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">KHT</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['kht'] ?? 0) }}</dd>
+                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['kht'] ?? 0) }}</dd>
                     </div>
                 </dl>
             </div>
@@ -140,6 +186,7 @@
                 <div class="space-y-2 text-sm text-sky-700 dark:text-sky-100">
                     <p>Số loại hình đang hiển thị: <span class="font-semibold">{{ $activeTypeCount }}</span> / {{ $totalTypeCount }}</p>
                     <p>Tỷ lệ hoàn thành: <span class="font-semibold">{{ $completionRate }}%</span></p>
+                    <p>Phạm vi thời gian: <span class="font-semibold">{{ $activeMonthLabel }}</span></p>
                     <p>
                         Bộ lọc hiện tại:
                         <span class="font-medium">
@@ -154,45 +201,45 @@
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Bảng số liệu chi tiết theo tháng</h3>
 
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                <div class="max-w-full overflow-x-auto">
-                    <table class="tkhv-table min-w-full divide-y divide-gray-200 text-slate-700 dark:divide-gray-700 dark:text-slate-200">
-                        <thead class="bg-gray-50 dark:bg-gray-800">
+                <div class="overflow-hidden">
+                    <table class="tkhv-table divide-y divide-[#95d8f1] text-slate-700 dark:divide-gray-700 dark:text-slate-200">
+                        <thead class="bg-[#caeefb] dark:bg-gray-800">
                             <tr>
-                                <th scope="col" class="px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                                <th scope="col" class="tkhv-sticky px-3 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 bg-[#caeefb] dark:bg-gray-800">
                                     Loại hình đào tạo
                                 </th>
                                 @foreach ($months as $month)
-                                    <th scope="col" colspan="3" class="px-2 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">
-                                        T{{ str_pad($month, 2, '0', STR_PAD_LEFT) }}
+                                    <th scope="col" colspan="3" class="px-2 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">
+                                        {{ str_pad($month, 2, '0', STR_PAD_LEFT) }}
                                     </th>
                                 @endforeach
-                                <th scope="col" colspan="3" class="px-3 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">
+                                <th scope="col" colspan="3" class="px-2 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">
                                     Tổng năm
                                 </th>
                             </tr>
                             <tr>
-                                <th class="px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400"></th>
+                                <th class="tkhv-sticky px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 bg-[#caeefb] dark:bg-gray-800"></th>
                                 @foreach ($months as $month)
-                                    <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-gray-200 dark:border-gray-700">ĐK</th>
+                                    <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-[#95d8f1] dark:border-gray-700">ĐK</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">HT</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">KHT</th>
                                 @endforeach
-                                <th class="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">ĐK</th>
-                                <th class="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">HT</th>
-                                <th class="px-3 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">KHT</th>
+                                <th class="px-2 py-2 text-center font-semibold text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">ĐK</th>
+                                <th class="px-2 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">HT</th>
+                                <th class="px-2 py-2 text-center font-semibold text-slate-600 dark:text-slate-300">KHT</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                        <tbody class="divide-y divide-[#95d8f1] bg-[#caeefb] dark:divide-gray-700 dark:bg-gray-900">
                             @forelse ($rows as $row)
-                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                    <td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                                <tr class="hover:bg-[#b3e2f5] dark:hover:bg-gray-800/70">
+                                    <td class="tkhv-sticky z-10 px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
                                         @php
                                             $bucket = $row['monthly'][$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
                                         @endphp
-                                        <td class="px-2 py-2 text-center text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">
+                                        <td class="px-2 py-2 text-center text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">
                                             {{ $bucket['dk'] > 0 ? number_format($bucket['dk']) : '—' }}
                                         </td>
                                         <td class="px-2 py-2 text-center font-semibold text-slate-900 dark:text-white">
@@ -202,13 +249,13 @@
                                             {{ $bucket['kht'] > 0 ? number_format($bucket['kht']) : '—' }}
                                         </td>
                                     @endforeach
-                                    <td class="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-200 border-l border-gray-200 dark:border-gray-700">
+                                    <td class="px-2 py-2 text-center font-semibold text-slate-700 dark:text-slate-200 border-l border-[#95d8f1] dark:border-gray-700">
                                         {{ ($row['total']['dk'] ?? 0) > 0 ? number_format($row['total']['dk']) : '—' }}
                                     </td>
-                                    <td class="px-3 py-2 text-center font-bold text-slate-900 dark:text-white">
+                                    <td class="px-2 py-2 text-center font-bold text-slate-900 dark:text-white">
                                         {{ ($row['total']['ht'] ?? 0) > 0 ? number_format($row['total']['ht']) : '—' }}
                                     </td>
-                                    <td class="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-200">
+                                    <td class="px-2 py-2 text-center font-semibold text-slate-700 dark:text-slate-200">
                                         {{ ($row['total']['kht'] ?? 0) > 0 ? number_format($row['total']['kht']) : '—' }}
                                     </td>
                                 </tr>
@@ -220,14 +267,14 @@
                                 </tr>
                             @endforelse
                         </tbody>
-                        <tfoot class="bg-gray-50 dark:bg-gray-800">
+                        <tfoot class="bg-[#caeefb] dark:bg-gray-800">
                             <tr>
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
+                                <th class="tkhv-sticky tkhv-sticky-footer px-3 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
                                 @foreach ($months as $month)
                                     @php
                                         $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
                                     @endphp
-                                    <th class="px-2 py-3 text-center font-semibold text-slate-700 dark:text-slate-200 border-l border-gray-200 dark:border-gray-700">
+                                    <th class="px-2 py-3 text-center font-semibold text-slate-700 dark:text-slate-200 border-l border-[#95d8f1] dark:border-gray-700">
                                         {{ $bucket['dk'] > 0 ? number_format($bucket['dk']) : '—' }}
                                     </th>
                                     <th class="px-2 py-3 text-center font-semibold text-slate-700 dark:text-slate-200">
@@ -237,13 +284,13 @@
                                         {{ $bucket['kht'] > 0 ? number_format($bucket['kht']) : '—' }}
                                     </th>
                                 @endforeach
-                                <th class="px-3 py-3 text-center font-semibold text-slate-800 dark:text-white border-l border-gray-200 dark:border-gray-700">
+                                <th class="px-2 py-3 text-center font-semibold text-slate-800 dark:text-white border-l border-[#95d8f1] dark:border-gray-700">
                                     {{ ($totals['dk'] ?? 0) > 0 ? number_format($totals['dk']) : '—' }}
                                 </th>
-                                <th class="px-3 py-3 text-center font-semibold text-slate-800 dark:text-white">
+                                <th class="px-2 py-3 text-center font-semibold text-slate-800 dark:text-white">
                                     {{ ($totals['ht'] ?? 0) > 0 ? number_format($totals['ht']) : '—' }}
                                 </th>
-                                <th class="px-3 py-3 text-center font-semibold text-slate-800 dark:text-white">
+                                <th class="px-2 py-3 text-center font-semibold text-slate-800 dark:text-white">
                                     {{ ($totals['kht'] ?? 0) > 0 ? number_format($totals['kht']) : '—' }}
                                 </th>
                             </tr>
@@ -279,6 +326,7 @@
                         }
 
                         const options = JSON.parse(JSON.stringify(this.opts || {}));
+                        const data = JSON.parse(JSON.stringify(this.data || {}));
                         options.plugins ??= {};
                         options.plugins.tooltip ??= {};
                         options.plugins.tooltip.callbacks ??= {};
@@ -289,14 +337,14 @@
                             return label ? `${label}: ${formatted}` : formatted;
                         };
 
-                        this.chart = new Chart(ctx, { type: 'bar', data: this.data, options });
+                        this.chart = new Chart(ctx, { type: 'bar', data, options });
                     }
                 }"
                 x-init="render()"
                 x-effect="render()"
             >
-                <div class="relative h-[420px] rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
-                    <canvas id="{{ $chartId }}"></canvas>
+                <div class="relative h-[190px] w-full overflow-hidden rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
+                    <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
                 </div>
             </div>
         </div>
