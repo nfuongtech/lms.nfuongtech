@@ -23,6 +23,7 @@ class ThongKeHocVienWidget extends Widget
 
     // ===== Livewire state =====
     public ?int $year = null;
+    public string $month = 'all';
     /** @var array<int,string> */
     public array $selectedTrainingTypes = [];
 
@@ -46,7 +47,7 @@ class ThongKeHocVienWidget extends Widget
 
     public function updated($property): void
     {
-        if ($property === 'year' || $property === 'selectedTrainingTypes') {
+        if (in_array($property, ['year', 'month', 'selectedTrainingTypes'], true)) {
             $this->reset('courseMonthCache'); // Xoá cache khi filter đổi
             $this->refreshChartPayload();     // cập nhật dữ liệu chart ngay
         }
@@ -83,6 +84,31 @@ class ThongKeHocVienWidget extends Widget
             $opts = [$now => (string) $now] + $opts;
         }
         return $opts;
+    }
+
+    #[Computed]
+    public function monthOptions(): array
+    {
+        $options = ['all' => 'Tất cả'];
+
+        foreach (range(1, 12) as $month) {
+            $options[(string) $month] = sprintf('Tháng %02d', $month);
+        }
+
+        return $options;
+    }
+
+    #[Computed]
+    public function selectedMonth(): ?int
+    {
+        if (is_numeric($this->month)) {
+            $month = (int) $this->month;
+            if ($month >= 1 && $month <= 12) {
+                return $month;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -225,6 +251,37 @@ class ThongKeHocVienWidget extends Widget
 
         $hasData = ($summaryTotals['dk'] + $summaryTotals['ht'] + $summaryTotals['kht']) > 0;
 
+        $selectedMonth = $this->selectedMonth;
+
+        if ($selectedMonth !== null) {
+            $summaryTotals = [
+                'dk' => $summaryPerMonth[$selectedMonth]['dk'] ?? 0,
+                'ht' => $summaryPerMonth[$selectedMonth]['ht'] ?? 0,
+                'kht' => $summaryPerMonth[$selectedMonth]['kht'] ?? 0,
+            ];
+
+            foreach ($summaryPerMonth as $month => &$bucket) {
+                if ($month !== $selectedMonth) {
+                    $bucket = ['dk' => 0, 'ht' => 0, 'kht' => 0];
+                }
+            }
+            unset($bucket);
+
+            foreach ($rows as &$row) {
+                foreach ($row['monthly'] as $month => &$bucket) {
+                    if ($month !== $selectedMonth) {
+                        $bucket = ['dk' => 0, 'ht' => 0, 'kht' => 0];
+                    }
+                }
+                unset($bucket);
+
+                $row['total'] = $row['monthly'][$selectedMonth] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
+            }
+            unset($row);
+
+            $hasData = ($summaryTotals['dk'] + $summaryTotals['ht'] + $summaryTotals['kht']) > 0;
+        }
+
         return [
             'rows' => $rows,
             'summary' => [
@@ -255,9 +312,9 @@ class ThongKeHocVienWidget extends Widget
         return [
             'labels'   => collect($months)->map(fn ($i) => sprintf('T%02d', $i))->all(),
             'datasets' => [
-                $this->makeBarDataset('ĐK',  $dkSeries,  'dang-ky'),
-                $this->makeBarDataset('HT',  $htSeries,  'hoan-thanh'),
-                $this->makeBarDataset('KHT', $khtSeries, 'khong-hoan-thanh'),
+                $this->makeBarDataset('ĐK', $dkSeries, 'dang-ky'),
+                $this->makeBarDataset('HT', $htSeries, 'hoan-thanh'),
+                $this->makeBarDataset('Không hoàn thành', $khtSeries, 'khong-hoan-thanh'),
             ],
         ];
     }
@@ -312,7 +369,9 @@ class ThongKeHocVienWidget extends Widget
             'datasets' => [
                 'bar' => [
                     'borderRadius' => 8,
-                    'maxBarThickness' => 60,
+                    'maxBarThickness' => 36,
+                    'categoryPercentage' => 0.7,
+                    'barPercentage' => 0.8,
                 ],
             ],
             'animation' => ['duration' => 900, 'easing' => 'easeOutQuart'],
@@ -589,7 +648,7 @@ class ThongKeHocVienWidget extends Widget
             'borderColor' => sprintf('rgba(%d,%d,%d,1)', ...$rgb),
             'borderWidth' => 1,
             'borderRadius' => 8,
-            'maxBarThickness' => 60,
+            'maxBarThickness' => 36,
         ];
         return array_replace_recursive($base, $extra);
     }
