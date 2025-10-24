@@ -33,7 +33,7 @@ class ThongKeHocVienWidget extends Widget
     public array $chartOptionsPayload = [];
 
     // ===== Cache =====
-    /** @var array<string, array<int, int[]>> [cacheKey => [month => courseIds[]]] */
+    /** @var array<string, mixed> Cache dữ liệu khóa học theo tháng/loại hình */
     public array $courseMonthCache = []; // public để reset
     protected ?Collection $planYearCache = null;
 
@@ -92,76 +92,53 @@ class ThongKeHocVienWidget extends Widget
     #[Computed]
     public function trainingTypeOptions(): array
     {
-        $set = collect();
+        $year = $this->year ? (int) $this->year : null;
+        $types = collect();
 
-        // 1) KhoaHoc
-        $khTable = (new KhoaHoc())->getTable();
-        if (Schema::hasTable($khTable) && Schema::hasColumn($khTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($khTable)
-                    ->whereNotNull('loai_hinh_dao_tao')
-                    ->where('loai_hinh_dao_tao', '!=', '')
-                    ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
+        $khoaHocTable = (new KhoaHoc())->getTable();
+
+        if (Schema::hasTable($khoaHocTable) && Schema::hasColumn($khoaHocTable, 'chuong_trinh_id')) {
+            $types = DB::table($khoaHocTable)
+                ->join('chuong_trinhs', 'chuong_trinhs.id', '=', 'khoa_hocs.chuong_trinh_id')
+                ->when($year !== null && Schema::hasColumn($khoaHocTable, 'nam'), fn ($query) => $query->where('khoa_hocs.nam', $year))
+                ->whereNotNull('chuong_trinhs.loai_hinh_dao_tao')
+                ->where('chuong_trinhs.loai_hinh_dao_tao', '!=', '')
+                ->distinct()
+                ->orderBy('chuong_trinhs.loai_hinh_dao_tao')
+                ->pluck('chuong_trinhs.loai_hinh_dao_tao');
         }
 
-        // 2) HocVienHoanThanh
-        $hvhtTable = (new HocVienHoanThanh())->getTable();
-        if (Schema::hasTable($hvhtTable) && Schema::hasColumn($hvhtTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($hvhtTable)
-                    ->whereNotNull('loai_hinh_dao_tao')
-                    ->where('loai_hinh_dao_tao', '!=', '')
-                    ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
-        }
+        if ($types->isEmpty()) {
+            $fallbackSources = [
+                (new DangKy())->getTable(),
+                (new HocVienHoanThanh())->getTable(),
+            ];
 
-        // 3) DangKy.loai_hinh_dao_tao
-        $dkTable = (new DangKy())->getTable();
-        if (Schema::hasTable($dkTable) && Schema::hasColumn($dkTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($dkTable)
-                    ->whereNotNull('loai_hinh_dao_tao')
-                    ->where('loai_hinh_dao_tao', '!=', '')
-                    ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
-        }
-
-        // 4) Suy luận từ mã khóa (Đăng ký hoặc Khóa học) + rules (prefix/regex)
-        $rules = $this->loadCodeRuleMap();
-        $codeColumnsDK = $this->getPotentialCodeColumns($dkTable);
-        if (Schema::hasTable($dkTable) && !empty($codeColumnsDK)) {
-            foreach ($codeColumnsDK as $col) {
-                if (!Schema::hasColumn($dkTable, $col)) continue;
-                $codes = DB::table($dkTable)->whereNotNull($col)->select($col)->distinct()->limit(2000)->pluck($col);
-                foreach ($codes as $code) {
-                    $t = $this->guessTypeFromCode((string) $code, $rules);
-                    if ($t !== null && $t !== '') $set->push($t);
+            foreach ($fallbackSources as $table) {
+                if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'loai_hinh_dao_tao')) {
+                    continue;
                 }
-            }
-        } else {
-            $khCodes = $this->getPotentialCodeColumns($khTable);
-            if (Schema::hasTable($khTable) && !empty($khCodes)) {
-                foreach ($khCodes as $col) {
-                    if (!Schema::hasColumn($khTable, $col)) continue;
-                    $codes = DB::table($khTable)->whereNotNull($col)->select($col)->distinct()->limit(2000)->pluck($col);
-                    foreach ($codes as $code) {
-                        $t = $this->guessTypeFromCode((string) $code, $rules);
-                        if ($t !== null && $t !== '') $set->push($t);
-                    }
-                }
+
+                $types = $types->merge(
+                    DB::table($table)
+                        ->when($year !== null && Schema::hasColumn($table, 'nam'), fn ($query) => $query->where('nam', $year))
+                        ->whereNotNull('loai_hinh_dao_tao')
+                        ->where('loai_hinh_dao_tao', '!=', '')
+                        ->distinct()
+                        ->pluck('loai_hinh_dao_tao')
+                );
             }
         }
 
-        // Chuẩn hoá & unique
-        $types = $set->map(fn ($t) => trim((string) $t))->filter()->unique()->values();
+        $types = $types
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
 
         return $types
-            ->mapWithKeys(fn ($val) => [$val => $this->formatTrainingTypeLabel($val)])
-            ->sort()
+            ->mapWithKeys(fn ($value) => [$value => $this->formatTrainingTypeLabel($value)])
             ->all();
     }
 
@@ -169,59 +146,118 @@ class ThongKeHocVienWidget extends Widget
     #[Computed]
     public function monthlySummaryTableData(): array
     {
-        if ($this->year === null) return array_fill(1, 12, ['dk' => 0, 'ht' => 0, 'kht' => 0]);
-
-        $year = (int) $this->year;
-        $monthly = array_fill(1, 12, ['dk' => 0, 'ht' => 0, 'kht' => 0]);
-
-        $courseMap = $this->courseIdsByMonth($year);
-        if (empty(array_filter($courseMap))) return $monthly;
-
-        $allCourseIds = collect($courseMap)->flatten()->unique()->values()->all();
-        if (empty($allCourseIds)) return $monthly;
-
-        try {
-            $dangKyCounts = DangKy::whereIn('khoa_hoc_id', $allCourseIds)
-                ->selectRaw('khoa_hoc_id, COUNT(DISTINCT id) as c')->groupBy('khoa_hoc_id')->pluck('c','khoa_hoc_id');
-
-            $hoanThanhCounts = HocVienHoanThanh::whereIn('khoa_hoc_id', $allCourseIds)
-                ->selectRaw('khoa_hoc_id, COUNT(DISTINCT id) as c')->groupBy('khoa_hoc_id')->pluck('c','khoa_hoc_id');
-
-            $khongHoanThanhCounts = collect();
-            $khtTable = (new HocVienKhongHoanThanh())->getTable();
-            if (Schema::hasTable($khtTable)) {
-                $khongHoanThanhCounts = HocVienKhongHoanThanh::whereIn('khoa_hoc_id', $allCourseIds)
-                    ->selectRaw('khoa_hoc_id, COUNT(DISTINCT id) as c')->groupBy('khoa_hoc_id')->pluck('c','khoa_hoc_id');
-            }
-
-            foreach ($courseMap as $month => $cids) {
-                if (empty($cids)) continue;
-                $dk = 0; $ht = 0; $kht = 0;
-                foreach ($cids as $cid) {
-                    $dk  += (int) ($dangKyCounts[$cid] ?? 0);
-                    $ht  += (int) ($hoanThanhCounts[$cid] ?? 0);
-                    $kht += (int) ($khongHoanThanhCounts[$cid] ?? 0);
-                }
-                if ($khongHoanThanhCounts->isEmpty()) $kht = max(0, $dk - $ht);
-                $monthly[$month] = ['dk' => $dk, 'ht' => $ht, 'kht' => $kht];
-            }
-        } catch (\Throwable) {
-            return array_fill(1, 12, ['dk' => 0, 'ht' => 0, 'kht' => 0]);
+        if ($this->year === null) {
+            return [
+                'rows' => [],
+                'summary' => [
+                    'perMonth' => $this->emptyMonthlyStatusBuckets(),
+                    'total' => ['dk' => 0, 'ht' => 0, 'kht' => 0],
+                ],
+                'hasData' => false,
+            ];
         }
 
-        return $monthly;
+        $year = (int) $this->year;
+        $selectedTypes = $this->getSelectedTrainingTypes();
+        $availableTypes = array_keys($this->trainingTypeOptions);
+        $types = !empty($selectedTypes) ? $selectedTypes : $availableTypes;
+
+        if (empty($types)) {
+            return [
+                'rows' => [],
+                'summary' => [
+                    'perMonth' => $this->emptyMonthlyStatusBuckets(),
+                    'total' => ['dk' => 0, 'ht' => 0, 'kht' => 0],
+                ],
+                'hasData' => false,
+            ];
+        }
+
+        $courseMaps = $this->courseIdsByMonthForTypes($year, $types);
+        $rows = [];
+        $summaryPerMonth = $this->emptyMonthlyStatusBuckets();
+        $summaryTotals = ['dk' => 0, 'ht' => 0, 'kht' => 0];
+        $khtTableExists = Schema::hasTable((new HocVienKhongHoanThanh())->getTable());
+
+        foreach ($types as $type) {
+            $courseMap = $courseMaps[$type] ?? $this->emptyMonthlyCourseBuckets();
+
+            $dangKyCounts = $this->countByMonthUsingCourseMap(DangKy::query(), $courseMap);
+            $hoanThanhCounts = $this->countByMonthUsingCourseMap(HocVienHoanThanh::query(), $courseMap);
+            $khongHoanThanhCounts = $khtTableExists
+                ? $this->countByMonthUsingCourseMap(HocVienKhongHoanThanh::query(), $courseMap)
+                : array_fill(1, 12, 0);
+
+            $monthly = [];
+            $totals = ['dk' => 0, 'ht' => 0, 'kht' => 0];
+
+            foreach (range(1, 12) as $month) {
+                $dk = (int) ($dangKyCounts[$month] ?? 0);
+                $ht = (int) ($hoanThanhCounts[$month] ?? 0);
+                $kht = (int) ($khongHoanThanhCounts[$month] ?? 0);
+
+                if (!$khtTableExists) {
+                    $kht = max(0, $dk - $ht);
+                }
+
+                $monthly[$month] = ['dk' => $dk, 'ht' => $ht, 'kht' => $kht];
+
+                $totals['dk'] += $dk;
+                $totals['ht'] += $ht;
+                $totals['kht'] += $kht;
+
+                $summaryPerMonth[$month]['dk'] += $dk;
+                $summaryPerMonth[$month]['ht'] += $ht;
+                $summaryPerMonth[$month]['kht'] += $kht;
+            }
+
+            $summaryTotals['dk'] += $totals['dk'];
+            $summaryTotals['ht'] += $totals['ht'];
+            $summaryTotals['kht'] += $totals['kht'];
+
+            $rows[] = [
+                'type' => $type,
+                'label' => $this->trainingTypeOptions[$type] ?? $this->formatTrainingTypeLabel($type),
+                'monthly' => $monthly,
+                'total' => $totals,
+            ];
+        }
+
+        $hasData = ($summaryTotals['dk'] + $summaryTotals['ht'] + $summaryTotals['kht']) > 0;
+
+        return [
+            'rows' => $rows,
+            'summary' => [
+                'perMonth' => $summaryPerMonth,
+                'total' => $summaryTotals,
+            ],
+            'hasData' => $hasData,
+        ];
     }
 
     #[Computed]
     public function chartData(): array
     {
-        $m = $this->monthlySummaryTableData;
+        $summary = $this->monthlySummaryTableData['summary']['perMonth'] ?? [];
+        $months = range(1, 12);
+
+        $dkSeries = [];
+        $htSeries = [];
+        $khtSeries = [];
+
+        foreach ($months as $month) {
+            $bucket = $summary[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
+            $dkSeries[] = (int) ($bucket['dk'] ?? 0);
+            $htSeries[] = (int) ($bucket['ht'] ?? 0);
+            $khtSeries[] = (int) ($bucket['kht'] ?? 0);
+        }
+
         return [
-            'labels'   => collect(range(1, 12))->map(fn ($i) => sprintf('T%02d', $i))->all(),
+            'labels'   => collect($months)->map(fn ($i) => sprintf('T%02d', $i))->all(),
             'datasets' => [
-                $this->makeBarDataset('ĐK',  collect($m)->pluck('dk')->all(),  'dang-ky'),
-                $this->makeBarDataset('HT',  collect($m)->pluck('ht')->all(),  'hoan-thanh'),
-                $this->makeBarDataset('K-HT',collect($m)->pluck('kht')->all(), 'khong-hoan-thanh'),
+                $this->makeBarDataset('ĐK',  $dkSeries,  'dang-ky'),
+                $this->makeBarDataset('HT',  $htSeries,  'hoan-thanh'),
+                $this->makeBarDataset('KHT', $khtSeries, 'khong-hoan-thanh'),
             ],
         ];
     }
@@ -300,264 +336,239 @@ class ThongKeHocVienWidget extends Widget
 
     protected function planYears(): Collection
     {
-        if ($this->planYearCache !== null) return $this->planYearCache;
+        if ($this->planYearCache !== null) {
+            return $this->planYearCache;
+        }
 
         $years = collect();
-        $dangKyTable = (new DangKy())->getTable();
-        $dkCol = 'thoi_gian_dao_tao';
+        $khoaHocTable = (new KhoaHoc())->getTable();
 
-        if (Schema::hasTable($dangKyTable) && Schema::hasColumn($dangKyTable, $dkCol)) {
-            try {
-                $years = $years->merge(
-                    DB::table($dangKyTable)
-                        ->whereNotNull($dkCol)
-                        ->selectRaw("DISTINCT IF(LENGTH({$dkCol})=4, {$dkCol}, YEAR({$dkCol})) as y")
+        if (Schema::hasTable($khoaHocTable)) {
+            if (Schema::hasColumn($khoaHocTable, 'nam')) {
+                $years = DB::table($khoaHocTable)
+                    ->whereNotNull('nam')
+                    ->selectRaw('DISTINCT nam as y')
+                    ->orderByDesc('y')
+                    ->pluck('y');
+            } elseif (Schema::hasColumn($khoaHocTable, 'ngay_bat_dau')) {
+                $years = DB::table($khoaHocTable)
+                    ->whereNotNull('ngay_bat_dau')
+                    ->selectRaw('DISTINCT YEAR(ngay_bat_dau) as y')
+                    ->orderByDesc('y')
+                    ->pluck('y');
+            } elseif (Schema::hasColumn($khoaHocTable, 'created_at')) {
+                $years = DB::table($khoaHocTable)
+                    ->whereNotNull('created_at')
+                    ->selectRaw('DISTINCT YEAR(created_at) as y')
+                    ->orderByDesc('y')
+                    ->pluck('y');
+            }
+        }
+
+        if ($years->isEmpty() && Schema::hasTable('lich_hocs')) {
+            if (Schema::hasColumn('lich_hocs', 'nam')) {
+                $years = DB::table('lich_hocs')
+                    ->whereNotNull('nam')
+                    ->distinct()
+                    ->orderByDesc('nam')
+                    ->pluck('nam');
+            } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
+                $years = DB::table('lich_hocs')
+                    ->whereNotNull('ngay_hoc')
+                    ->selectRaw('DISTINCT YEAR(ngay_hoc) as y')
+                    ->orderByDesc('y')
+                    ->pluck('y');
+            }
+        }
+
+        if ($years->isEmpty()) {
+            $dangKyTable = (new DangKy())->getTable();
+            if (Schema::hasTable($dangKyTable)) {
+                if (Schema::hasColumn($dangKyTable, 'thoi_gian_dao_tao')) {
+                    $years = DB::table($dangKyTable)
+                        ->whereNotNull('thoi_gian_dao_tao')
+                        ->selectRaw('DISTINCT IF(LENGTH(thoi_gian_dao_tao)=4, thoi_gian_dao_tao, YEAR(thoi_gian_dao_tao)) as y')
                         ->orderByDesc('y')
-                        ->pluck('y')
-                );
-            } catch (\Throwable) { /* ignore */ }
-        } else {
-            if (Schema::hasTable('lich_hocs')) {
-                if (Schema::hasColumn('lich_hocs', 'nam')) {
-                    $years = $years->merge(DB::table('lich_hocs')->whereNotNull('nam')->distinct()->orderByDesc('nam')->pluck('nam'));
-                } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
-                    $years = $years->merge(DB::table('lich_hocs')->whereNotNull('ngay_hoc')->selectRaw('DISTINCT YEAR(ngay_hoc) as y')->orderByDesc('y')->pluck('y'));
+                        ->pluck('y');
+                } elseif (Schema::hasColumn($dangKyTable, 'created_at')) {
+                    $years = DB::table($dangKyTable)
+                        ->whereNotNull('created_at')
+                        ->selectRaw('DISTINCT YEAR(created_at) as y')
+                        ->orderByDesc('y')
+                        ->pluck('y');
                 }
             }
         }
 
-        if ($years->isEmpty() && Schema::hasTable('khoa_hocs')) {
-            $col = Schema::hasColumn('khoa_hocs', 'ngay_bat_dau') ? 'ngay_bat_dau' : (Schema::hasColumn('khoa_hocs', 'created_at') ? 'created_at' : null);
-            if ($col) {
-                $years = DB::table('khoa_hocs')->whereNotNull($col)->selectRaw("DISTINCT YEAR($col) as y")->orderByDesc('y')->pluck('y');
-            }
+        $now = now()->year;
+
+        if ($years->isEmpty()) {
+            $years = collect([$now]);
+        } elseif (! $years->contains($now)) {
+            $years = $years->prepend($now)->sortDesc();
         }
 
-        $now = now()->year;
-        if ($years->isEmpty()) $years = collect([$now]);
-        elseif (!$years->contains($now)) $years = $years->prepend($now)->sortDesc();
-
         return $this->planYearCache = $years
-            ->map(fn ($v) => filter_var($v, FILTER_VALIDATE_INT))
-            ->filter(fn ($v) => $v !== false && $v > 1900)
+            ->map(fn ($value) => filter_var($value, FILTER_VALIDATE_INT))
+            ->filter(fn ($value) => $value !== false && $value > 1900)
             ->unique()
             ->values();
     }
 
     // ===== Course map theo tháng (áp dụng lọc loại hình) =====
-    private function courseIdsByMonth(int $year): array
+    private function courseIdsByMonthForTypes(int $year, array $types): array
     {
-        $selected = $this->getSelectedTrainingTypes();
-        sort($selected);
-        $cacheKey = $year . '_' . implode('-', $selected);
+        $normalized = array_values(array_filter(
+            array_map(fn ($value) => trim((string) $value), $types),
+            fn ($value) => $value !== ''
+        ));
 
+        sort($normalized);
+
+        $cacheKey = 'types:' . $year . ':' . md5(json_encode($normalized));
         if (isset($this->courseMonthCache[$cacheKey])) {
             return $this->courseMonthCache[$cacheKey];
         }
 
-        $buckets = array_fill(1, 12, []);
-        if (!Schema::hasTable('lich_hocs')) {
-            return $this->courseMonthCache[$cacheKey] = $buckets;
+        if (! Schema::hasTable('lich_hocs') || ! Schema::hasTable('khoa_hocs')) {
+            return $this->courseMonthCache[$cacheKey] = [];
         }
 
-        $q = DB::table('lich_hocs')->select(['khoa_hoc_id', 'thang', 'ngay_hoc'])->whereNotNull('khoa_hoc_id');
-        if (Schema::hasColumn('lich_hocs', 'nam'))      $q->where('nam', $year);
-        elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) $q->whereYear('ngay_hoc', $year);
-        else return $this->courseMonthCache[$cacheKey] = $buckets;
+        $baseTypes = ! empty($normalized) ? $normalized : array_keys($this->trainingTypeOptions);
+        $result = [];
 
-        $rows = $q->get();
-        foreach ($rows as $r) {
-            $month = (int) ($r->thang ?? 0);
+        foreach ($baseTypes as $type) {
+            $result[$type] = $this->emptyMonthlyCourseBuckets();
+        }
+
+        if (empty($baseTypes)) {
+            return $this->courseMonthCache[$cacheKey] = [];
+        }
+
+        $query = DB::table('lich_hocs')
+            ->join('khoa_hocs', 'khoa_hocs.id', '=', 'lich_hocs.khoa_hoc_id')
+            ->leftJoin('chuong_trinhs', 'chuong_trinhs.id', '=', 'khoa_hocs.chuong_trinh_id')
+            ->select([
+                'lich_hocs.khoa_hoc_id',
+                'lich_hocs.thang',
+                'lich_hocs.ngay_hoc',
+                'chuong_trinhs.loai_hinh_dao_tao',
+            ])
+            ->whereNotNull('lich_hocs.khoa_hoc_id')
+            ->whereNotNull('chuong_trinhs.loai_hinh_dao_tao')
+            ->where('chuong_trinhs.loai_hinh_dao_tao', '!=', '');
+
+        if (Schema::hasColumn('khoa_hocs', 'nam')) {
+            $query->where('khoa_hocs.nam', $year);
+        } elseif (Schema::hasColumn('lich_hocs', 'nam')) {
+            $query->where('lich_hocs.nam', $year);
+        } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
+            $query->whereYear('lich_hocs.ngay_hoc', $year);
+        } else {
+            return $this->courseMonthCache[$cacheKey] = [];
+        }
+
+        if (! empty($normalized)) {
+            $query->whereIn('chuong_trinhs.loai_hinh_dao_tao', $normalized);
+        }
+
+        $rows = $query->get();
+
+        foreach ($rows as $row) {
+            $type = trim((string) ($row->loai_hinh_dao_tao ?? ''));
+            if ($type === '') {
+                continue;
+            }
+
+            if (! isset($result[$type])) {
+                if (! empty($normalized) && ! in_array($type, $normalized, true)) {
+                    continue;
+                }
+
+                $result[$type] = $this->emptyMonthlyCourseBuckets();
+            }
+
+            $month = (int) ($row->thang ?? 0);
             if ($month < 1 || $month > 12) {
-                try { $month = $r->ngay_hoc ? (int) Carbon::parse($r->ngay_hoc)->month : 0; } catch (\Throwable) { $month = 0; }
+                $month = $this->resolveMonthFromDate($row->ngay_hoc ?? null);
             }
-            if ($month < 1 || $month > 12) continue;
+            if ($month < 1 || $month > 12) {
+                continue;
+            }
 
-            $cid = (int) $r->khoa_hoc_id;
-            if ($cid <= 0) continue;
+            $courseId = (int) ($row->khoa_hoc_id ?? 0);
+            if ($courseId <= 0) {
+                continue;
+            }
 
-            $buckets[$month][$cid] = true;
-        }
-        foreach ($buckets as $m => $ids) $buckets[$m] = array_keys($ids);
-
-        // Không chọn loại hình => giữ nguyên
-        if (empty($selected)) {
-            return $this->courseMonthCache[$cacheKey] = $buckets;
+            $result[$type][$month][$courseId] = true;
         }
 
-        // Lọc course theo loại hình đã chọn
-        $allCourseIds = collect($buckets)->flatten()->unique()->values()->all();
+        foreach ($result as $type => $months) {
+            foreach ($months as $month => $ids) {
+                $result[$type][$month] = array_keys($ids);
+            }
+        }
+
+        return $this->courseMonthCache[$cacheKey] = $result;
+    }
+
+    private function resolveMonthFromDate($value): int
+    {
+        if (empty($value)) {
+            return 0;
+        }
+
+        try {
+            return (int) Carbon::parse($value)->month;
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    private function emptyMonthlyStatusBuckets(): array
+    {
+        return array_fill(1, 12, ['dk' => 0, 'ht' => 0, 'kht' => 0]);
+    }
+
+    private function emptyMonthlyCourseBuckets(): array
+    {
+        return array_fill(1, 12, []);
+    }
+
+    private function countByMonthUsingCourseMap(Builder $query, array $courseMap): array
+    {
+        $buckets = array_fill(1, 12, 0);
+
+        $allCourseIds = collect($courseMap)->flatten()->unique()->values()->all();
         if (empty($allCourseIds)) {
-            return $this->courseMonthCache[$cacheKey] = $buckets;
+            return $buckets;
         }
 
-        $allowed = $this->allowedCourseIdsForSelectedTypes($selected, $allCourseIds);
-        if ($allowed === null) {
-            // không xác định mapping => không lọc
-            return $this->courseMonthCache[$cacheKey] = $buckets;
-        }
+        $table = $query->getModel()->getTable();
+        $keyName = $query->getModel()->getQualifiedKeyName();
 
-        $allowedSet = array_fill_keys($allowed, true);
-        foreach ($buckets as $m => $ids) {
-            $buckets[$m] = array_values(array_filter($ids, fn ($id) => isset($allowedSet[$id])));
-        }
+        try {
+            $rows = $query
+                ->whereIn("{$table}.khoa_hoc_id", $allCourseIds)
+                ->selectRaw("{$table}.khoa_hoc_id as course_id, COUNT(DISTINCT {$keyName}) as aggregate")
+                ->groupBy("{$table}.khoa_hoc_id")
+                ->pluck('aggregate', 'course_id');
 
-        return $this->courseMonthCache[$cacheKey] = $buckets;
-    }
-
-    /**
-     * Trả về danh sách course_id được phép theo selected types; null nếu không xác định được mapping.
-     */
-    private function allowedCourseIdsForSelectedTypes(array $selectedTypes, array $limitCourseIds): ?array
-    {
-        $khTable = (new KhoaHoc())->getTable();
-        $dkTable = (new DangKy())->getTable();
-
-        // 1) Theo KhoaHoc.loai_hinh_dao_tao
-        if (Schema::hasTable($khTable) && Schema::hasColumn($khTable, 'loai_hinh_dao_tao')) {
-            $ids = DB::table($khTable)
-                ->whereIn('id', $limitCourseIds)
-                ->whereIn('loai_hinh_dao_tao', $selectedTypes)
-                ->pluck('id')
-                ->all();
-            if (!empty($ids)) return $ids;
-        }
-
-        // 2) Theo DangKy.loai_hinh_dao_tao
-        if (Schema::hasTable($dkTable) && Schema::hasColumn($dkTable, 'loai_hinh_dao_tao')) {
-            $ids = DB::table($dkTable)
-                ->whereIn('khoa_hoc_id', $limitCourseIds)
-                ->whereIn('loai_hinh_dao_tao', $selectedTypes)
-                ->distinct()
-                ->pluck('khoa_hoc_id')
-                ->all();
-            if (!empty($ids)) return $ids;
-        }
-
-        // 3) Suy luận từ mã (prefix/regex)
-        $rules = $this->loadCodeRuleMap();
-        $codeColumnsDK  = $this->getPotentialCodeColumns($dkTable);
-        $codeColumnsKH  = $this->getPotentialCodeColumns($khTable);
-        $allowed = [];
-
-        if (Schema::hasTable($dkTable) && !empty($codeColumnsDK)) {
-            foreach ($codeColumnsDK as $col) {
-                if (!Schema::hasColumn($dkTable, $col)) continue;
-                $rows = DB::table($dkTable)
-                    ->select(['khoa_hoc_id', $col])
-                    ->whereIn('khoa_hoc_id', $limitCourseIds)
-                    ->whereNotNull($col)
-                    ->get();
-                foreach ($rows as $r) {
-                    $type = $this->guessTypeFromCode((string) $r->{$col}, $rules);
-                    if ($type !== null && in_array($type, $selectedTypes, true)) {
-                        $allowed[(int) $r->khoa_hoc_id] = true;
-                    }
+            foreach ($courseMap as $month => $idsInMonth) {
+                $total = 0;
+                foreach ($idsInMonth as $courseId) {
+                    $total += (int) ($rows[$courseId] ?? 0);
+                }
+                if (isset($buckets[$month])) {
+                    $buckets[$month] = $total;
                 }
             }
+        } catch (\Throwable) {
+            return array_fill(1, 12, 0);
         }
 
-        if (empty($allowed) && Schema::hasTable($khTable) && !empty($codeColumnsKH)) {
-            foreach ($codeColumnsKH as $col) {
-                if (!Schema::hasColumn($khTable, $col)) continue;
-                $rows = DB::table($khTable)
-                    ->select(['id', $col])
-                    ->whereIn('id', $limitCourseIds)
-                    ->whereNotNull($col)
-                    ->get();
-                foreach ($rows as $r) {
-                    $type = $this->guessTypeFromCode((string) $r->{$col}, $rules);
-                    if ($type !== null && in_array($type, $selectedTypes, true)) {
-                        $allowed[(int) $r->id] = true;
-                    }
-                }
-            }
-        }
-
-        if (!empty($allowed)) return array_keys($allowed);
-
-        return null; // không xác định
-    }
-
-    private function loadCodeRuleMap(): array
-    {
-        $candidates = [
-            'quy_tac_ma_khoa',
-            'quy_tac_ma_khoas',
-            'quy_tac_ma_khoa_hocs',
-            'quy_tac_khoa',
-            'quy_tac_ma_khoa_rules',
-        ];
-
-        $rules = [];
-        foreach ($candidates as $table) {
-            if (!Schema::hasTable($table)) continue;
-
-            $typeCol = null;
-            foreach (['loai_hinh', 'loai_hinh_dao_tao', 'ten_loai', 'ten', 'type'] as $tc) {
-                if (Schema::hasColumn($table, $tc)) { $typeCol = $tc; break; }
-            }
-            if (!$typeCol) continue;
-
-            $hasPrefix = Schema::hasColumn($table, 'prefix');
-            $hasRegex  = Schema::hasColumn($table, 'regex') || Schema::hasColumn($table, 'pattern');
-
-            $query = DB::table($table)->select([$typeCol]);
-            if ($hasPrefix) $query->addSelect('prefix');
-            if (Schema::hasColumn($table, 'regex')) $query->addSelect('regex');
-            elseif (Schema::hasColumn($table, 'pattern')) $query->addSelect(DB::raw('pattern as regex'));
-
-            $rows = $query->get();
-            foreach ($rows as $r) {
-                $type = trim((string) ($r->{$typeCol} ?? ''));
-                if ($type === '') continue;
-                $rule = ['type' => $type];
-                if ($hasPrefix && isset($r->prefix) && $r->prefix !== '') $rule['prefix'] = (string) $r->prefix;
-                if (isset($r->regex) && $r->regex !== '') $rule['regex'] = (string) $r->regex;
-                $rules[] = $rule;
-            }
-        }
-        return $rules;
-    }
-
-    private function guessTypeFromCode(string $code, array $rules): ?string
-    {
-        $codeTrim = trim($code);
-        if ($codeTrim === '') return null;
-
-        // regex trước
-        foreach ($rules as $r) {
-            if (!empty($r['regex'])) {
-                try {
-                    if (@preg_match($r['regex'], '') !== false) {
-                        if (preg_match($r['regex'], $codeTrim)) return $this->formatTrainingTypeLabel((string) $r['type']);
-                    }
-                } catch (\Throwable) {}
-            }
-        }
-        // rồi prefix
-        foreach ($rules as $r) {
-            if (!empty($r['prefix'])) {
-                if (str_starts_with(mb_strtoupper($codeTrim), mb_strtoupper((string) $r['prefix']))) {
-                    return $this->formatTrainingTypeLabel((string) $r['type']);
-                }
-            }
-        }
-        // fallback: tiền tố in hoa liên tiếp
-        if (preg_match('/^([A-Z]{2,})\b/u', strtoupper($codeTrim), $m)) {
-            return $this->formatTrainingTypeLabel($m[1]);
-        }
-        return null;
-    }
-
-    private function getPotentialCodeColumns(string $table): array
-    {
-        $cands = ['ma_khoa', 'ma_khoa_hoc', 'ma_khoa_dao_tao', 'ma_lop', 'ma', 'code', 'ma_khoahoc'];
-        $exists = [];
-        foreach ($cands as $c) {
-            if (Schema::hasTable($table) && Schema::hasColumn($table, $c)) $exists[] = $c;
-        }
-        return $exists;
+        return $buckets;
     }
 
     // ===== Helpers: UI =====
