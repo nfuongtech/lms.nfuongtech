@@ -5,11 +5,28 @@
         <style>
             .tkhv-table th,
             .tkhv-table td {
-                font-size: clamp(0.65rem, 0.6rem + 0.25vw, 0.85rem);
+                font-size: clamp(0.52rem, 0.48rem + 0.18vw, 0.72rem);
             }
 
             .tkhv-table th {
                 font-weight: 600;
+            }
+
+            .tkhv-table .tkhv-sticky {
+                position: sticky;
+                left: 0;
+                z-index: 25;
+                box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
+                background-color: #f8fafc;
+            }
+
+            .dark .tkhv-table .tkhv-sticky {
+                box-shadow: 4px 0 12px -7px rgba(15, 23, 42, 0.65);
+                background-color: rgba(15, 23, 42, 0.92);
+            }
+
+            .tkhv-table .tkhv-sticky-footer {
+                z-index: 20;
             }
         </style>
     @endpush
@@ -25,13 +42,23 @@
     $summary = $tableData['summary'] ?? ['perMonth' => [], 'total' => []];
     $perMonth = $summary['perMonth'] ?? [];
     $totals = $summary['total'] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
+    $displayTotals = $summary['displayTotal'] ?? $totals;
+    $months = $tableData['months'] ?? range(1, 12);
+    $displayMonths = $summary['displayMonths'] ?? $months;
     $hasData = $tableData['hasData'] ?? false;
-    $months = range(1, 12);
     $selectedTypes = collect($this->selectedTrainingTypes ?? [])->filter()->values();
     $totalTypeCount = count($trainingTypeOptions);
     $activeTypeCount = $selectedTypes->isNotEmpty() ? $selectedTypes->count() : $totalTypeCount;
     $allSelected = $totalTypeCount > 0 && $activeTypeCount === $totalTypeCount;
-    $completionRate = $totals['dk'] > 0 ? round(($totals['ht'] / max(1, $totals['dk'])) * 100, 1) : 0;
+    $completionRate = ($displayTotals['dk'] ?? 0) > 0
+        ? round((($displayTotals['ht'] ?? 0) / max(1, $displayTotals['dk'])) * 100, 1)
+        : 0;
+    $monthOptions = $this->monthOptions;
+    $activeMonthLabel = collect($months)->map(fn ($m) => 'Tháng ' . str_pad($m, 2, '0', STR_PAD_LEFT))->implode(', ');
+    $chartMinWidth = max(360, count($months) * 68);
+    $studentSummaryLines = collect($displayMonths)
+        ->map(fn ($m) => 'Tổng số học viên: Tháng ' . str_pad($m, 2, '0', STR_PAD_LEFT))
+        ->prepend('Tổng số học viên: Theo năm');
 @endphp
 
 <x-filament::widget>
@@ -39,21 +66,32 @@
         <div class="space-y-1">
             <h2 class="text-xl font-bold text-slate-800 dark:text-white">Thống kê Học viên</h2>
             <p class="text-sm text-slate-500 dark:text-gray-400">
-                Năm {{ $this->year ?? '—' }} • Thống kê theo loại hình đào tạo. (ĐK: Đăng ký, HT: Hoàn thành, KHT: Không hoàn thành)
+                Năm {{ $this->year ?? '—' }} • Thống kê theo loại hình đào tạo. (Đăng ký, Hoàn thành, Không hoàn thành)
             </p>
         </div>
 
         <div class="grid gap-4 md:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+                    <div class="flex flex-wrap items-end gap-3">
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
                             <span class="mb-1.5">Năm</span>
                             <select
                                 wire:model.live="year"
                                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                             >
                                 @foreach ($yearOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
+                            <span class="mb-1.5">Tháng</span>
+                            <select
+                                wire:model.live="month"
+                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                            >
+                                @foreach ($monthOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -119,18 +157,23 @@
 
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
                 <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
+                <div class="mb-4 space-y-1 text-xs text-emerald-700 dark:text-emerald-200">
+                    @foreach ($studentSummaryLines as $line)
+                        <p class="font-medium">{{ $line }}</p>
+                    @endforeach
+                </div>
                 <dl class="space-y-2">
                     <div class="flex items-center justify-between">
                         <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Đăng ký</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['dk'] ?? 0) }}</dd>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['dk'] ?? 0) }}</dd>
                     </div>
                     <div class="flex items-center justify-between">
                         <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['ht'] ?? 0) }}</dd>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['ht'] ?? 0) }}</dd>
                     </div>
                     <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">KHT</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['kht'] ?? 0) }}</dd>
+                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
+                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['kht'] ?? 0) }}</dd>
                     </div>
                 </dl>
             </div>
@@ -140,6 +183,7 @@
                 <div class="space-y-2 text-sm text-sky-700 dark:text-sky-100">
                     <p>Số loại hình đang hiển thị: <span class="font-semibold">{{ $activeTypeCount }}</span> / {{ $totalTypeCount }}</p>
                     <p>Tỷ lệ hoàn thành: <span class="font-semibold">{{ $completionRate }}%</span></p>
+                    <p>Phạm vi thời gian: <span class="font-semibold">{{ $this->month === 'all' || $this->month === null ? 'Cả năm' : $activeMonthLabel }}</span></p>
                     <p>
                         Bộ lọc hiện tại:
                         <span class="font-medium">
@@ -158,12 +202,12 @@
                     <table class="tkhv-table min-w-full divide-y divide-gray-200 text-slate-700 dark:divide-gray-700 dark:text-slate-200">
                         <thead class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th scope="col" class="px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                                <th scope="col" class="tkhv-sticky px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 bg-gray-50 dark:bg-gray-800">
                                     Loại hình đào tạo
                                 </th>
                                 @foreach ($months as $month)
                                     <th scope="col" colspan="3" class="px-2 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">
-                                        T{{ str_pad($month, 2, '0', STR_PAD_LEFT) }}
+                                        {{ str_pad($month, 2, '0', STR_PAD_LEFT) }}
                                     </th>
                                 @endforeach
                                 <th scope="col" colspan="3" class="px-3 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-gray-200 dark:border-gray-700">
@@ -171,7 +215,7 @@
                                 </th>
                             </tr>
                             <tr>
-                                <th class="px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400"></th>
+                                <th class="tkhv-sticky px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800"></th>
                                 @foreach ($months as $month)
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-gray-200 dark:border-gray-700">ĐK</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">HT</th>
@@ -185,7 +229,7 @@
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                    <td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                                    <td class="tkhv-sticky z-10 px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
@@ -222,7 +266,7 @@
                         </tbody>
                         <tfoot class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
+                                <th class="tkhv-sticky tkhv-sticky-footer px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
                                 @foreach ($months as $month)
                                     @php
                                         $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
@@ -279,6 +323,7 @@
                         }
 
                         const options = JSON.parse(JSON.stringify(this.opts || {}));
+                        const data = JSON.parse(JSON.stringify(this.data || {}));
                         options.plugins ??= {};
                         options.plugins.tooltip ??= {};
                         options.plugins.tooltip.callbacks ??= {};
@@ -289,14 +334,16 @@
                             return label ? `${label}: ${formatted}` : formatted;
                         };
 
-                        this.chart = new Chart(ctx, { type: 'bar', data: this.data, options });
+                        this.chart = new Chart(ctx, { type: 'bar', data, options });
                     }
                 }"
                 x-init="render()"
                 x-effect="render()"
             >
-                <div class="relative h-[420px] rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
-                    <canvas id="{{ $chartId }}"></canvas>
+                <div class="relative h-[280px] w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:overflow-x-hidden" wire:ignore>
+                    <div class="min-h-full" style="min-width: {{ $chartMinWidth }}px;">
+                        <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
