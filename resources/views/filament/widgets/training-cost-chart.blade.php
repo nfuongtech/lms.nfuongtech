@@ -119,7 +119,7 @@
         {{-- Biểu đồ chi phí --}}
         <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div style="position: relative; height: 380px; width: 100%;">
+            <div style="position: relative; height: 190px; width: 100%;">
                 <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
             </div>
         </div>
@@ -143,7 +143,7 @@
                 @if(count($tableData['labels'] ?? []) > 1)
                     <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
                         <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
+                            <thead style="background-color: #FFFCD5;">
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
                                     @foreach($tableData['labels'] as $label)
@@ -167,7 +167,7 @@
                                     </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-slate-50">
+                            <tfoot>
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng theo tháng</th>
                                     @foreach($tableData['columnTotals'] as $total)
@@ -185,7 +185,7 @@
                 @else
                     <div class="mt-3 overflow-hidden rounded-lg border border-slate-200">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
+                            <thead style="background-color: #FFFCD5;">
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
                                     <th class="px-4 py-3 text-right font-semibold text-slate-600">Chi phí (VND)</th>
@@ -201,7 +201,7 @@
                                     </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-slate-50">
+                            <tfoot>
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng chi phí</th>
                                     <th class="px-4 py-3 text-right font-semibold text-slate-800">
