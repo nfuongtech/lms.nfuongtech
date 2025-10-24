@@ -93,7 +93,7 @@ class ThongKeHocVienWidget extends Widget
         $options = ['all' => 'Tất cả các tháng'];
 
         foreach (range(1, 12) as $month) {
-            $options[$month] = sprintf('Tháng %02d', $month);
+            $options[$month] = sprintf('%02d', $month);
         }
 
         return $options;
@@ -283,14 +283,14 @@ class ThongKeHocVienWidget extends Widget
             $khtSeries[] = (int) ($bucket['kht'] ?? 0);
         }
 
-        $labels = collect($months)->map(fn ($i) => sprintf('T%02d', $i))->all();
+        $labels = collect($months)->map(fn ($i) => sprintf('%02d', $i))->all();
 
         return [
             'labels'   => $labels,
             'datasets' => [
-                $this->makeBarDataset('ĐK',  $dkSeries,  'dang-ky'),
-                $this->makeBarDataset('HT',  $htSeries,  'hoan-thanh'),
-                $this->makeBarDataset('KHT', $khtSeries, 'khong-hoan-thanh'),
+                $this->makeBarDataset('Đăng ký',          $dkSeries,  'dang-ky'),
+                $this->makeBarDataset('Hoàn thành',       $htSeries,  'hoan-thanh'),
+                $this->makeBarDataset('Không hoàn thành', $khtSeries, 'khong-hoan-thanh'),
             ],
         ];
     }
