@@ -92,74 +92,50 @@ class ThongKeHocVienWidget extends Widget
     #[Computed]
     public function trainingTypeOptions(): array
     {
-        $set = collect();
-
-        // 1) KhoaHoc
         $khTable = (new KhoaHoc())->getTable();
-        if (Schema::hasTable($khTable) && Schema::hasColumn($khTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($khTable)
+        if (! Schema::hasTable($khTable)) {
+            return [];
+        }
+
+        $types = collect();
+
+        if (Schema::hasColumn($khTable, 'loai_hinh_dao_tao')) {
+            try {
+                $types = KhoaHoc::query()
                     ->whereNotNull('loai_hinh_dao_tao')
                     ->where('loai_hinh_dao_tao', '!=', '')
                     ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
-        }
-
-        // 2) HocVienHoanThanh
-        $hvhtTable = (new HocVienHoanThanh())->getTable();
-        if (Schema::hasTable($hvhtTable) && Schema::hasColumn($hvhtTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($hvhtTable)
-                    ->whereNotNull('loai_hinh_dao_tao')
-                    ->where('loai_hinh_dao_tao', '!=', '')
-                    ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
-        }
-
-        // 3) DangKy.loai_hinh_dao_tao
-        $dkTable = (new DangKy())->getTable();
-        if (Schema::hasTable($dkTable) && Schema::hasColumn($dkTable, 'loai_hinh_dao_tao')) {
-            $set = $set->merge(
-                DB::table($dkTable)
-                    ->whereNotNull('loai_hinh_dao_tao')
-                    ->where('loai_hinh_dao_tao', '!=', '')
-                    ->distinct()
-                    ->pluck('loai_hinh_dao_tao')
-            );
-        }
-
-        // 4) Suy luận từ mã khóa (Đăng ký hoặc Khóa học) + rules (prefix/regex)
-        $rules = $this->loadCodeRuleMap();
-        $codeColumnsDK = $this->getPotentialCodeColumns($dkTable);
-        if (Schema::hasTable($dkTable) && !empty($codeColumnsDK)) {
-            foreach ($codeColumnsDK as $col) {
-                if (!Schema::hasColumn($dkTable, $col)) continue;
-                $codes = DB::table($dkTable)->whereNotNull($col)->select($col)->distinct()->limit(2000)->pluck($col);
-                foreach ($codes as $code) {
-                    $t = $this->guessTypeFromCode((string) $code, $rules);
-                    if ($t !== null && $t !== '') $set->push($t);
-                }
-            }
-        } else {
-            $khCodes = $this->getPotentialCodeColumns($khTable);
-            if (Schema::hasTable($khTable) && !empty($khCodes)) {
-                foreach ($khCodes as $col) {
-                    if (!Schema::hasColumn($khTable, $col)) continue;
-                    $codes = DB::table($khTable)->whereNotNull($col)->select($col)->distinct()->limit(2000)->pluck($col);
-                    foreach ($codes as $code) {
-                        $t = $this->guessTypeFromCode((string) $code, $rules);
-                        if ($t !== null && $t !== '') $set->push($t);
-                    }
-                }
+                    ->orderBy('loai_hinh_dao_tao')
+                    ->pluck('loai_hinh_dao_tao');
+            } catch (\Throwable) {
+                $types = collect();
             }
         }
 
-        // Chuẩn hoá & unique
-        $types = $set->map(fn ($t) => trim((string) $t))->filter()->unique()->values();
+        if ($types->isEmpty() && Schema::hasColumn($khTable, 'chuong_trinh_id')
+            && Schema::hasTable('chuong_trinhs')
+            && Schema::hasColumn('chuong_trinhs', 'loai_hinh_dao_tao')) {
+            try {
+                $types = DB::table($khTable)
+                    ->join('chuong_trinhs', 'khoa_hocs.chuong_trinh_id', '=', 'chuong_trinhs.id')
+                    ->whereNotNull('chuong_trinhs.loai_hinh_dao_tao')
+                    ->where('chuong_trinhs.loai_hinh_dao_tao', '!=', '')
+                    ->distinct()
+                    ->orderBy('chuong_trinhs.loai_hinh_dao_tao')
+                    ->pluck('chuong_trinhs.loai_hinh_dao_tao');
+            } catch (\Throwable) {
+                $types = collect();
+            }
+        }
+
+        if ($types->isEmpty()) {
+            return [];
+        }
 
         return $types
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->unique()
             ->mapWithKeys(fn ($val) => [$val => $this->formatTrainingTypeLabel($val)])
             ->sort()
             ->all();
@@ -221,7 +197,7 @@ class ThongKeHocVienWidget extends Widget
             'datasets' => [
                 $this->makeBarDataset('ĐK',  collect($m)->pluck('dk')->all(),  'dang-ky'),
                 $this->makeBarDataset('HT',  collect($m)->pluck('ht')->all(),  'hoan-thanh'),
-                $this->makeBarDataset('K-HT',collect($m)->pluck('kht')->all(), 'khong-hoan-thanh'),
+                $this->makeBarDataset('KHT', collect($m)->pluck('kht')->all(), 'khong-hoan-thanh'),
             ],
         ];
     }
@@ -303,33 +279,68 @@ class ThongKeHocVienWidget extends Widget
         if ($this->planYearCache !== null) return $this->planYearCache;
 
         $years = collect();
-        $dangKyTable = (new DangKy())->getTable();
-        $dkCol = 'thoi_gian_dao_tao';
+        $khoaHocTable = (new KhoaHoc())->getTable();
 
-        if (Schema::hasTable($dangKyTable) && Schema::hasColumn($dangKyTable, $dkCol)) {
-            try {
-                $years = $years->merge(
-                    DB::table($dangKyTable)
-                        ->whereNotNull($dkCol)
-                        ->selectRaw("DISTINCT IF(LENGTH({$dkCol})=4, {$dkCol}, YEAR({$dkCol})) as y")
-                        ->orderByDesc('y')
-                        ->pluck('y')
-                );
-            } catch (\Throwable) { /* ignore */ }
-        } else {
-            if (Schema::hasTable('lich_hocs')) {
-                if (Schema::hasColumn('lich_hocs', 'nam')) {
-                    $years = $years->merge(DB::table('lich_hocs')->whereNotNull('nam')->distinct()->orderByDesc('nam')->pluck('nam'));
-                } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
-                    $years = $years->merge(DB::table('lich_hocs')->whereNotNull('ngay_hoc')->selectRaw('DISTINCT YEAR(ngay_hoc) as y')->orderByDesc('y')->pluck('y'));
+        if (Schema::hasTable($khoaHocTable)) {
+            if (Schema::hasColumn($khoaHocTable, 'nam')) {
+                try {
+                    $years = KhoaHoc::query()
+                        ->whereNotNull('nam')
+                        ->distinct()
+                        ->orderByDesc('nam')
+                        ->pluck('nam');
+                } catch (\Throwable) {
+                    $years = collect();
+                }
+            }
+
+            if ($years->isEmpty()) {
+                $dateColumn = Schema::hasColumn($khoaHocTable, 'ngay_bat_dau')
+                    ? 'ngay_bat_dau'
+                    : (Schema::hasColumn($khoaHocTable, 'created_at') ? 'created_at' : null);
+
+                if ($dateColumn) {
+                    try {
+                        $years = DB::table($khoaHocTable)
+                            ->whereNotNull($dateColumn)
+                            ->selectRaw("DISTINCT YEAR({$dateColumn}) as y")
+                            ->orderByDesc('y')
+                            ->pluck('y');
+                    } catch (\Throwable) {
+                        $years = collect();
+                    }
                 }
             }
         }
 
-        if ($years->isEmpty() && Schema::hasTable('khoa_hocs')) {
-            $col = Schema::hasColumn('khoa_hocs', 'ngay_bat_dau') ? 'ngay_bat_dau' : (Schema::hasColumn('khoa_hocs', 'created_at') ? 'created_at' : null);
-            if ($col) {
-                $years = DB::table('khoa_hocs')->whereNotNull($col)->selectRaw("DISTINCT YEAR($col) as y")->orderByDesc('y')->pluck('y');
+        if ($years->isEmpty()) {
+            $dangKyTable = (new DangKy())->getTable();
+            $dkCol = 'thoi_gian_dao_tao';
+
+            if (Schema::hasTable($dangKyTable) && Schema::hasColumn($dangKyTable, $dkCol)) {
+                try {
+                    $years = DB::table($dangKyTable)
+                        ->whereNotNull($dkCol)
+                        ->selectRaw("DISTINCT IF(LENGTH({$dkCol})=4, {$dkCol}, YEAR({$dkCol})) as y")
+                        ->orderByDesc('y')
+                        ->pluck('y');
+                } catch (\Throwable) {
+                    $years = collect();
+                }
+            } elseif (Schema::hasTable('lich_hocs')) {
+                if (Schema::hasColumn('lich_hocs', 'nam')) {
+                    $years = DB::table('lich_hocs')
+                        ->whereNotNull('nam')
+                        ->distinct()
+                        ->orderByDesc('nam')
+                        ->pluck('nam');
+                } elseif (Schema::hasColumn('lich_hocs', 'ngay_hoc')) {
+                    $years = DB::table('lich_hocs')
+                        ->whereNotNull('ngay_hoc')
+                        ->selectRaw('DISTINCT YEAR(ngay_hoc) as y')
+                        ->orderByDesc('y')
+                        ->pluck('y');
+                }
             }
         }
 
