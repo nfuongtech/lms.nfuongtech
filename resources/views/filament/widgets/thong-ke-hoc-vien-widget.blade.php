@@ -5,8 +5,8 @@
         <style>
             .tkhv-table th,
             .tkhv-table td {
-                font-size: clamp(0.6rem, 0.55rem + 0.2vw, 0.8rem);
-                }
+                font-size: clamp(0.55rem, 0.5rem + 0.16vw, 0.72rem);
+            }
 
             .tkhv-table th {
                 font-weight: 600;
@@ -17,11 +17,12 @@
                 left: 0;
                 z-index: 25;
                 box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
-                background-color: inherit;
+                background-color: var(--tkhv-sticky-bg, #ffffff);
             }
 
             .dark .tkhv-table .tkhv-sticky {
                 box-shadow: 4px 0 12px -7px rgba(15, 23, 42, 0.65);
+                background-color: var(--tkhv-sticky-bg-dark, #0f172a);
             }
 
             .tkhv-table .tkhv-sticky-footer {
@@ -43,6 +44,7 @@
     $totals = $summary['total'] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
     $displayTotals = $summary['displayTotal'] ?? $totals;
     $months = $tableData['months'] ?? range(1, 12);
+    $displayMonths = $summary['displayMonths'] ?? $months;
     $hasData = $tableData['hasData'] ?? false;
     $selectedTypes = collect($this->selectedTrainingTypes ?? [])->filter()->values();
     $totalTypeCount = count($trainingTypeOptions);
@@ -52,7 +54,9 @@
         ? round((($displayTotals['ht'] ?? 0) / max(1, $displayTotals['dk'])) * 100, 1)
         : 0;
     $monthOptions = $this->monthOptions;
-    $activeMonthLabel = collect($months)->map(fn ($m) => 'Tháng ' . str_pad($m, 2, '0', STR_PAD_LEFT))->implode(', ');
+    $displayMonthLabels = collect($displayMonths)->map(fn ($m) => 'Tháng ' . str_pad($m, 2, '0', STR_PAD_LEFT));
+    $activeMonthLabel = $displayMonthLabels->implode(', ');
+    $isFullYear = $this->month === 'all' || $this->month === null || (is_array($this->month) && empty($this->month));
     $chartMinWidth = max(480, count($months) * 72);
 @endphp
 
@@ -61,14 +65,14 @@
         <div class="space-y-1">
             <h2 class="text-xl font-bold text-slate-800 dark:text-white">Thống kê Học viên</h2>
             <p class="text-sm text-slate-500 dark:text-gray-400">
-                Năm {{ $this->year ?? '—' }} • Thống kê theo loại hình đào tạo. (ĐK: Đăng ký, HT: Hoàn thành, Không hoàn thành)
+                Năm {{ $this->year ?? '—' }} • Thống kê theo loại hình đào tạo. (Đăng ký, Hoàn thành, Không hoàn thành)
             </p>
         </div>
 
         <div class="grid gap-4 md:grid-cols-3">
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="grid grid-cols-2 gap-3">
                         <label class="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
                             <span class="mb-1.5">Năm</span>
                             <select
@@ -151,22 +155,31 @@
             </div>
 
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
-                <dl class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Đăng ký</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['dk'] ?? 0) }}</dd>
+                <div class="space-y-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-700 dark:text-emerald-200">
+                        @if ($isFullYear)
+                            <span class="font-medium">Tổng số học viên: Theo năm</span>
+                        @endif
+                        @foreach ($displayMonthLabels as $label)
+                            <span class="font-medium">Tổng số học viên: {{ $label }}</span>
+                        @endforeach
                     </div>
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['ht'] ?? 0) }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['kht'] ?? 0) }}</dd>
-                    </div>
-                </dl>
-                <p class="mt-3 text-xs text-emerald-700 dark:text-emerald-200">{{ $this->month === 'all' || $this->month === null ? 'Tổng số học viên cả năm' : "Theo tháng: $activeMonthLabel" }}</p>
+                    <dl class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Đăng ký</dt>
+                            <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['dk'] ?? 0) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Hoàn thành</dt>
+                            <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['ht'] ?? 0) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
+                            <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['kht'] ?? 0) }}</dd>
+                        </div>
+                    </dl>
+                </div>
             </div>
 
             <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-500/40 dark:bg-sky-500/10">
@@ -193,7 +206,7 @@
                     <table class="tkhv-table min-w-full divide-y divide-gray-200 text-slate-700 dark:divide-gray-700 dark:text-slate-200">
                         <thead class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th scope="col" class="tkhv-sticky px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 bg-gray-50 dark:bg-gray-800">
+                                <th scope="col" class="tkhv-sticky px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 bg-gray-50 dark:bg-gray-800" style="--tkhv-sticky-bg: #f8fafc; --tkhv-sticky-bg-dark: #1f2937;">
                                     Loại hình đào tạo
                                 </th>
                                 @foreach ($months as $month)
@@ -206,7 +219,7 @@
                                 </th>
                             </tr>
                             <tr>
-                                <th class="tkhv-sticky px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800"></th>
+                                <th class="tkhv-sticky px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800" style="--tkhv-sticky-bg: #f8fafc; --tkhv-sticky-bg-dark: #1f2937;"></th>
                                 @foreach ($months as $month)
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-gray-200 dark:border-gray-700">ĐK</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">HT</th>
@@ -220,7 +233,7 @@
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                    <td class="tkhv-sticky z-10 px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap bg-white dark:bg-gray-900">
+                                    <td class="tkhv-sticky z-10 px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap bg-white dark:bg-gray-900" style="--tkhv-sticky-bg: #ffffff; --tkhv-sticky-bg-dark: #0f172a;">
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
@@ -257,7 +270,7 @@
                         </tbody>
                         <tfoot class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th class="tkhv-sticky tkhv-sticky-footer px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200 bg-gray-50 dark:bg-gray-800">Cộng</th>
+                                <th class="tkhv-sticky tkhv-sticky-footer px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200 bg-gray-50 dark:bg-gray-800" style="--tkhv-sticky-bg: #f8fafc; --tkhv-sticky-bg-dark: #1f2937;">Cộng</th>
                                 @foreach ($months as $month)
                                     @php
                                         $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
@@ -331,7 +344,7 @@
                 x-init="render()"
                 x-effect="render()"
             >
-                <div class="relative h-[420px] w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
+                <div class="relative h-[280px] sm:h-[300px] lg:h-[320px] w-full overflow-x-auto overflow-y-hidden rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
                     <div class="min-h-full" style="min-width: {{ $chartMinWidth }}px;">
                         <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
                     </div>
