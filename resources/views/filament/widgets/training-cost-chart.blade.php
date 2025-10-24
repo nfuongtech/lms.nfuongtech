@@ -1,6 +1,10 @@
 {{-- resources/views/filament/widgets/training-cost-chart.blade.php --}}
 @include('filament.widgets.partials.dashboard-chart-script')
 
+@php
+    $chartId = 'trainingCostChart_' . $this->getId();
+@endphp
+
 <x-filament::widget>
     <x-filament::card class="p-6">
         <div class="mb-6">
@@ -18,8 +22,8 @@
             {{-- Cột 1: Bộ lọc --}}
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                    <div class="flex flex-wrap gap-3">
+                        <label class="flex min-w-[8rem] flex-1 flex-col text-sm font-medium text-slate-700">
                             <span class="mb-1.5">Năm</span>
                             <select
                                 wire:model.live="year"
@@ -31,7 +35,7 @@
                             </select>
                         </label>
 
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                        <label class="flex min-w-[8rem] flex-1 flex-col text-sm font-medium text-slate-700">
                             <span class="mb-1.5">Tháng</span>
                             <select
                                 wire:model.live="month"
@@ -117,10 +121,82 @@
         </div>
 
         {{-- Biểu đồ chi phí --}}
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
-            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div style="position: relative; height: 190px; width: 100%;">
-                <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
+        <div class="mt-6 space-y-3">
+            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
+            <div
+                x-data="{
+                    chart: null,
+                    frame: null,
+                    resizeHandler: null,
+                    data: @entangle('chartData').live,
+                    opts: @entangle('chartOptions').live,
+                    init() {
+                        this.resizeHandler = () => this.scheduleRender();
+                        window.addEventListener('resize', this.resizeHandler);
+                        this.$watch('data', () => this.scheduleRender());
+                        this.$watch('opts', () => this.scheduleRender());
+                        this.$nextTick(() => this.scheduleRender());
+                        return () => {
+                            if (this.resizeHandler) {
+                                window.removeEventListener('resize', this.resizeHandler);
+                                this.resizeHandler = null;
+                            }
+                            if (this.frame) {
+                                cancelAnimationFrame(this.frame);
+                                this.frame = null;
+                            }
+                            if (this.chart) {
+                                try { this.chart.destroy(); } catch (error) {}
+                                this.chart = null;
+                            }
+                        };
+                    },
+                    scheduleRender() {
+                        if (this.frame) {
+                            cancelAnimationFrame(this.frame);
+                        }
+                        this.frame = requestAnimationFrame(() => this.render());
+                    },
+                    render() {
+                        this.frame = null;
+                        const canvas = document.getElementById(@js($chartId));
+                        if (!canvas) {
+                            return;
+                        }
+
+                        if (typeof window.Chart === 'undefined') {
+                            setTimeout(() => this.scheduleRender(), 180);
+                            return;
+                        }
+
+                        const Chart = window.Chart;
+                        const ctx = canvas.getContext('2d');
+
+                        if (this.chart) {
+                            try { this.chart.destroy(); } catch (error) {}
+                            this.chart = null;
+                        }
+
+                        const options = JSON.parse(JSON.stringify(this.opts || {}));
+                        const data = JSON.parse(JSON.stringify(this.data || {}));
+
+                        options.plugins ??= {};
+                        options.plugins.tooltip ??= {};
+                        options.plugins.tooltip.callbacks ??= {};
+                        options.plugins.tooltip.callbacks.label = function (context) {
+                            const value = context.parsed?.y ?? 0;
+                            const label = context.dataset?.label ?? '';
+                            const formatted = (value || 0).toLocaleString('vi-VN');
+                            return label ? `${label}: ${formatted}` : formatted;
+                        };
+
+                        this.chart = new Chart(ctx, { type: 'bar', data, options });
+                    }
+                }"
+            >
+                <div class="relative h-[96px] w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
+                    <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
+                </div>
             </div>
         </div>
 
@@ -220,108 +296,3 @@
         </div>
     </x-filament::card>
 </x-filament::widget>
-
-@push('scripts')
-    <script>
-        (function () {
-            const widgetId = @json($this->getId());
-            const canvasId = `chiPhiChart_${widgetId}`;
-            let chartInstance = null;
-
-            const chartData = @json($chartData);
-            const chartOptions = @json($chartOptions);
-
-            const createChart = () => {
-                const canvas = document.getElementById(canvasId);
-                if (!canvas || typeof window.Chart === 'undefined') {
-                    return false;
-                }
-
-                const ctx = canvas.getContext('2d');
-
-                if (chartInstance) {
-                    chartInstance.destroy();
-                }
-
-                chartInstance = new window.Chart(ctx, {
-                    type: 'bar',
-                    data: chartData,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        ...chartOptions,
-                        plugins: {
-                            ...(chartOptions.plugins || {}),
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    usePointStyle: true,
-                                    padding: 20,
-                                    boxWidth: 12,
-                                    color: '#1e293b',
-                                    ...(chartOptions.plugins?.legend?.labels || {}),
-                                },
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                                mode: 'index',
-                                intersect: false,
-                                ...(chartOptions.plugins?.tooltip || {}),
-                            },
-                            barValueLabels: {
-                                ...(chartOptions.plugins?.barValueLabels || {}),
-                            },
-                        },
-                    },
-                });
-
-                window.requestAnimationFrame(() => {
-                    chartInstance?.resize();
-                });
-
-                return true;
-            };
-
-            const ensureChart = (retries = 10) => {
-                if (createChart()) {
-                    return;
-                }
-
-                if (retries <= 0) {
-                    return;
-                }
-
-                setTimeout(() => ensureChart(retries - 1), 180);
-            };
-
-            const init = () => ensureChart();
-
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', init, { once: true });
-            } else {
-                setTimeout(init, 60);
-            }
-
-            window.addEventListener('load', () => ensureChart(), { once: true });
-            window.addEventListener('resize', () => chartInstance?.resize());
-
-            const reinit = () => ensureChart();
-
-            if (typeof document !== 'undefined') {
-                document.addEventListener('livewire:initialized', () => {
-                    if (window.Livewire?.hook) {
-                        window.Livewire.hook('morph.updated', ({ component }) => {
-                            if (component.id === widgetId) {
-                                setTimeout(reinit, 80);
-                            }
-                        });
-                    }
-                });
-
-                document.addEventListener('livewire:navigated', () => {
-                    setTimeout(reinit, 80);
-                });
-            }
-        })();
-    </script>
-@endpush
