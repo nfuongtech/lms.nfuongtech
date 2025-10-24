@@ -23,6 +23,8 @@ class ThongKeHocVienWidget extends Widget
 
     // ===== Livewire state =====
     public ?int $year = null;
+    /** @var string|int|null Tháng đang chọn (null|'all'|1..12) */
+    public string|int|null $month = 'all';
     /** @var array<int,string> */
     public array $selectedTrainingTypes = [];
 
@@ -46,7 +48,7 @@ class ThongKeHocVienWidget extends Widget
 
     public function updated($property): void
     {
-        if ($property === 'year' || $property === 'selectedTrainingTypes') {
+        if (in_array($property, ['year', 'month', 'selectedTrainingTypes'], true)) {
             $this->reset('courseMonthCache'); // Xoá cache khi filter đổi
             $this->refreshChartPayload();     // cập nhật dữ liệu chart ngay
         }
@@ -83,6 +85,18 @@ class ThongKeHocVienWidget extends Widget
             $opts = [$now => (string) $now] + $opts;
         }
         return $opts;
+    }
+
+    #[Computed]
+    public function monthOptions(): array
+    {
+        $options = ['all' => 'Tất cả các tháng'];
+
+        foreach (range(1, 12) as $month) {
+            $options[$month] = sprintf('Tháng %02d', $month);
+        }
+
+        return $options;
     }
 
     /**
@@ -168,8 +182,11 @@ class ThongKeHocVienWidget extends Widget
                 'summary' => [
                     'perMonth' => $this->emptyMonthlyStatusBuckets(),
                     'total' => ['dk' => 0, 'ht' => 0, 'kht' => 0],
+                    'displayTotal' => ['dk' => 0, 'ht' => 0, 'kht' => 0],
+                    'displayMonths' => $this->getDisplayMonths(),
                 ],
                 'hasData' => false,
+                'months' => $this->getDisplayMonths(),
             ];
         }
 
@@ -223,23 +240,37 @@ class ThongKeHocVienWidget extends Widget
             ];
         }
 
-        $hasData = ($summaryTotals['dk'] + $summaryTotals['ht'] + $summaryTotals['kht']) > 0;
+        $displayMonths = $this->getDisplayMonths();
+        $displaySummaryTotals = ['dk' => 0, 'ht' => 0, 'kht' => 0];
+
+        foreach ($displayMonths as $month) {
+            $bucket = $summaryPerMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
+            $displaySummaryTotals['dk'] += (int) ($bucket['dk'] ?? 0);
+            $displaySummaryTotals['ht'] += (int) ($bucket['ht'] ?? 0);
+            $displaySummaryTotals['kht'] += (int) ($bucket['kht'] ?? 0);
+        }
+
+        $hasData = ($displaySummaryTotals['dk'] + $displaySummaryTotals['ht'] + $displaySummaryTotals['kht']) > 0;
 
         return [
             'rows' => $rows,
             'summary' => [
                 'perMonth' => $summaryPerMonth,
                 'total' => $summaryTotals,
+                'displayTotal' => $displaySummaryTotals,
+                'displayMonths' => $displayMonths,
             ],
             'hasData' => $hasData,
+            'months' => $displayMonths,
         ];
     }
 
     #[Computed]
     public function chartData(): array
     {
-        $summary = $this->monthlySummaryTableData['summary']['perMonth'] ?? [];
-        $months = range(1, 12);
+        $tableData = $this->monthlySummaryTableData;
+        $summary = $tableData['summary']['perMonth'] ?? [];
+        $months = $tableData['months'] ?? range(1, 12);
 
         $dkSeries = [];
         $htSeries = [];
@@ -252,8 +283,10 @@ class ThongKeHocVienWidget extends Widget
             $khtSeries[] = (int) ($bucket['kht'] ?? 0);
         }
 
+        $labels = collect($months)->map(fn ($i) => sprintf('T%02d', $i))->all();
+
         return [
-            'labels'   => collect($months)->map(fn ($i) => sprintf('T%02d', $i))->all(),
+            'labels'   => $labels,
             'datasets' => [
                 $this->makeBarDataset('ĐK',  $dkSeries,  'dang-ky'),
                 $this->makeBarDataset('HT',  $htSeries,  'hoan-thanh'),
@@ -287,13 +320,15 @@ class ThongKeHocVienWidget extends Widget
             'responsive' => true,
             'maintainAspectRatio' => false,
             'interaction' => ['mode' => 'index', 'intersect' => false],
-            'layout' => ['padding' => ['top' => 24, 'right' => 16, 'bottom' => 12, 'left' => 8]],
+            'layout' => ['padding' => ['top' => 24, 'right' => 24, 'bottom' => 12, 'left' => 12]],
             'scales' => [
                 'x' => [
                     'grid' => ['display' => false],
                     'ticks' => [
                         'color' => '#475569',
                         'font' => ['size' => 12, 'weight' => '500'],
+                        'autoSkip' => false,
+                        'maxRotation' => 0,
                     ],
                 ],
                 'y' => [
@@ -311,8 +346,10 @@ class ThongKeHocVienWidget extends Widget
             ],
             'datasets' => [
                 'bar' => [
-                    'borderRadius' => 8,
-                    'maxBarThickness' => 60,
+                    'borderRadius' => 6,
+                    'maxBarThickness' => 42,
+                    'barPercentage' => 0.65,
+                    'categoryPercentage' => 0.58,
                 ],
             ],
             'animation' => ['duration' => 900, 'easing' => 'easeOutQuart'],
@@ -588,8 +625,8 @@ class ThongKeHocVienWidget extends Widget
             'backgroundColor' => sprintf('rgba(%d,%d,%d,0.85)', ...$rgb),
             'borderColor' => sprintf('rgba(%d,%d,%d,1)', ...$rgb),
             'borderWidth' => 1,
-            'borderRadius' => 8,
-            'maxBarThickness' => 60,
+            'borderRadius' => 6,
+            'maxBarThickness' => 42,
         ];
         return array_replace_recursive($base, $extra);
     }
@@ -616,5 +653,34 @@ class ThongKeHocVienWidget extends Widget
 
         $normalized = trim($clean, " \t\n\r\0\x0B-–—");
         return $normalized !== '' ? $normalized : $value;
+    }
+
+    /**
+     * @return array<int>
+     */
+    protected function getDisplayMonths(): array
+    {
+        $value = $this->month;
+
+        if ($value === null || $value === '' || $value === 'all') {
+            return range(1, 12);
+        }
+
+        $months = is_array($value) ? $value : [$value];
+
+        $normalized = collect($months)
+            ->map(fn ($month) => filter_var($month, FILTER_VALIDATE_INT))
+            ->filter(fn ($month) => $month !== false && $month >= 1 && $month <= 12)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalized)) {
+            return range(1, 12);
+        }
+
+        sort($normalized);
+
+        return $normalized;
     }
 }
