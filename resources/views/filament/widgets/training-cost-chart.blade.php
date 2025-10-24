@@ -18,8 +18,8 @@
             {{-- Cột 1: Bộ lọc --}}
             <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm">
                 <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                    <div class="flex flex-wrap items-end gap-3 sm:flex-nowrap">
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 sm:w-auto sm:flex-1">
                             <span class="mb-1.5">Năm</span>
                             <select
                                 wire:model.live="year"
@@ -31,7 +31,7 @@
                             </select>
                         </label>
 
-                        <label class="flex flex-col text-sm font-medium text-slate-700">
+                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 sm:w-auto sm:flex-1">
                             <span class="mb-1.5">Tháng</span>
                             <select
                                 wire:model.live="month"
@@ -117,10 +117,10 @@
         </div>
 
         {{-- Biểu đồ chi phí --}}
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
-            <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div style="position: relative; height: 190px; width: 100%;">
-                <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
+        <div class="mt-6 space-y-3" wire:ignore>
+            <h3 class="text-lg font-medium text-slate-800">Biểu đồ chi phí</h3>
+            <div class="relative h-[95px] w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <canvas id="chiPhiChart_{{ $this->getId() }}" class="!h-full w-full"></canvas>
             </div>
         </div>
 
