@@ -1,6 +1,82 @@
 {{-- resources/views/filament/widgets/training-cost-chart.blade.php --}}
 <x-filament::widget>
-    <x-filament::card class="p-6">
+    <x-filament::card
+        class="p-6"
+        x-data="{
+            chart: null,
+            retries: 0,
+            data: @entangle('chartData').live,
+            opts: @entangle('chartOptions').live,
+            init() { this.$nextTick(() => this.render()); },
+            render() {
+                const canvas = document.getElementById('chiPhiChart_{{ $this->getId() }}');
+                if (!canvas) {
+                    return;
+                }
+
+                if (typeof Chart === 'undefined') {
+                    if (this.retries < 25) {
+                        this.retries++;
+                        setTimeout(() => this.render(), 160);
+                    }
+
+                    return;
+                }
+
+                this.retries = 0;
+
+                const ctx = canvas.getContext('2d');
+                const chartData = JSON.parse(JSON.stringify(this.data || {}));
+                const chartOptions = JSON.parse(JSON.stringify(this.opts || {}));
+                chartOptions.plugins = chartOptions.plugins || {};
+
+                const legendOptions = chartOptions.plugins.legend || {};
+                const legendLabelOptions = legendOptions.labels || {};
+                chartOptions.plugins.legend = {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        boxWidth: 12,
+                        color: '#1e293b',
+                        ...legendLabelOptions,
+                    },
+                    ...legendOptions,
+                };
+
+                const tooltipOptions = chartOptions.plugins.tooltip || {};
+                chartOptions.plugins.tooltip = {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    mode: 'index',
+                    intersect: false,
+                    ...tooltipOptions,
+                };
+
+                const valueLabelOptions = chartOptions.plugins.barValueLabels || {};
+                chartOptions.plugins.barValueLabels = {
+                    ...valueLabelOptions,
+                };
+
+                if (this.chart) {
+                    try {
+                        this.chart.destroy();
+                    } catch (error) {}
+                }
+
+                this.chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        ...chartOptions,
+                    },
+                });
+            },
+        }"
+        x-init="init()"
+        x-effect="render()"
+    >
         <div class="mb-6">
             <h2 class="text-xl font-bold text-slate-800">Thống kê Chi phí đào tạo</h2>
             <p class="mt-1 text-sm text-slate-500">Theo dõi chi phí theo loại hình và khoảng thời gian được chọn.</p>
@@ -115,10 +191,10 @@
         </div>
 
         {{-- Biểu đồ chi phí --}}
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
+        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
             <div style="position: relative; height: 380px; width: 100%;">
-                <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
+                <canvas id="chiPhiChart_{{ $this->getId() }}" wire:ignore></canvas>
             </div>
         </div>
 
@@ -219,97 +295,5 @@
     </x-filament::card>
 </x-filament::widget>
 
-@push('scripts')
-<script>
-(function() {
-    const widgetId = '{{ $this->getId() }}';
-    const canvasId = 'chiPhiChart_' + widgetId;
-    let chartInstance = null;
-
-    function initChart() {
-        console.log('Initializing Chi Phi chart:', canvasId);
-        
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) {
-            console.error('Canvas not found:', canvasId);
-            return;
-        }
-
-        if (typeof Chart === 'undefined') {
-            console.error('Chart.js not loaded');
-            return;
-        }
-
-        // Destroy existing chart
-        if (chartInstance) {
-            chartInstance.destroy();
-        }
-
-        const ctx = canvas.getContext('2d');
-        const chartData = @json($chartData);
-        const chartOptions = @json($chartOptions);
-
-        console.log('Chi Phi chart data:', chartData);
-
-        // Create chart
-        chartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                ...chartOptions,
-                plugins: {
-                    ...(chartOptions.plugins || {}),
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            usePointStyle: true,
-                            padding: 20,
-                            boxWidth: 12,
-                            color: '#1e293b',
-                            ...(chartOptions.plugins?.legend?.labels || {})
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        mode: 'index',
-                        intersect: false,
-                        ...(chartOptions.plugins?.tooltip || {})
-                    },
-                    barValueLabels: {
-                        ...(chartOptions.plugins?.barValueLabels || {})
-                    }
-                }
-            }
-        });
-
-        console.log('Chi Phi chart created successfully');
-    }
-
-    // Initialize on page load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initChart);
-    } else {
-        setTimeout(initChart, 100);
-    }
-
-    // Re-initialize on Livewire updates
-    document.addEventListener('livewire:initialized', () => {
-        Livewire.hook('morph.updated', ({ el, component }) => {
-            if (component.id === '{{ $this->getId() }}') {
-                setTimeout(initChart, 100);
-            }
-        });
-    });
-
-    // Handle Livewire navigation
-    document.addEventListener('livewire:navigated', () => {
-        setTimeout(initChart, 100);
-    });
-})();
-</script>
-
 {{-- Include plugin script --}}
 @include('filament.widgets.partials.dashboard-chart-script')
-@endpush
