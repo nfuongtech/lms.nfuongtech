@@ -119,7 +119,7 @@
         {{-- Biểu đồ chi phí --}}
         <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div style="position: relative; height: 380px; width: 100%;">
+            <div style="position: relative; height: 190px; width: 100%;">
                 <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
             </div>
         </div>
@@ -143,19 +143,19 @@
                 @if(count($tableData['labels'] ?? []) > 1)
                     <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
                         <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
+                            <thead class="bg-[#FFFCD5]">
                                 <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
+                                    <th class="w-56 min-w-[14rem] px-4 py-3 text-left font-semibold text-slate-700">Loại hình</th>
                                     @foreach($tableData['labels'] as $label)
-                                        <th class="px-3 py-3 text-center font-semibold text-slate-600">{{ $label }}</th>
+                                        <th class="px-3 py-3 text-center font-semibold text-slate-700">{{ $label }}</th>
                                     @endforeach
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Tổng</th>
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-700">Tổng</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 bg-white">
                                 @foreach($tableData['rows'] as $row)
                                     <tr class="hover:bg-slate-50">
-                                        <td class="px-4 py-3 font-medium text-slate-800">{{ $row['label'] }}</td>
+                                        <td class="w-56 min-w-[14rem] px-4 py-3 font-medium text-slate-800">{{ $row['label'] }}</td>
                                         @foreach($row['values'] as $value)
                                             <td class="px-3 py-3 text-center text-slate-700">
                                                 {{ number_format((float) $value, 0, ',', '.') }}
@@ -167,7 +167,7 @@
                                     </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-slate-50">
+                            <tfoot>
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng theo tháng</th>
                                     @foreach($tableData['columnTotals'] as $total)
@@ -185,23 +185,23 @@
                 @else
                     <div class="mt-3 overflow-hidden rounded-lg border border-slate-200">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
+                            <thead class="bg-[#FFFCD5]">
                                 <tr>
-                                    <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
-                                    <th class="px-4 py-3 text-right font-semibold text-slate-600">Chi phí (VND)</th>
+                                    <th class="w-56 min-w-[14rem] px-4 py-3 text-left font-semibold text-slate-700">Loại hình</th>
+                                    <th class="px-4 py-3 text-right font-semibold text-slate-700">Chi phí (VND)</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 bg-white">
                                 @foreach($tableData['rows'] as $row)
                                     <tr class="hover:bg-slate-50 text-slate-700">
-                                        <td class="px-4 py-3 font-medium">{{ $row['label'] }}</td>
+                                        <td class="w-56 min-w-[14rem] px-4 py-3 font-medium">{{ $row['label'] }}</td>
                                         <td class="px-4 py-3 text-right font-semibold text-slate-800">
                                             {{ number_format((float) ($row['values'][0] ?? 0), 0, ',', '.') }}
                                         </td>
                                     </tr>
                                 @endforeach
                             </tbody>
-                            <tfoot class="bg-slate-50">
+                            <tfoot>
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold text-slate-700">Tổng chi phí</th>
                                     <th class="px-4 py-3 text-right font-semibold text-slate-800">
@@ -275,6 +275,10 @@
                     },
                 });
 
+                window.requestAnimationFrame(() => {
+                    chartInstance?.resize();
+                });
+
                 return true;
             };
 
@@ -297,6 +301,9 @@
             } else {
                 setTimeout(init, 60);
             }
+
+            window.addEventListener('load', () => ensureChart(), { once: true });
+            window.addEventListener('resize', () => chartInstance?.resize());
 
             const reinit = () => ensureChart();
 
