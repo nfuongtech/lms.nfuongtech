@@ -119,7 +119,7 @@
         {{-- Biểu đồ chi phí --}}
         <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div style="position: relative; height: 380px; width: 100%;">
+            <div style="position: relative; height: 190px; width: 100%;">
                 <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
             </div>
         </div>
@@ -143,8 +143,8 @@
                 @if(count($tableData['labels'] ?? []) > 1)
                     <div class="mt-3 overflow-x-auto rounded-lg border border-slate-200">
                         <table class="min-w-[640px] divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
-                                <tr>
+                            <thead>
+                                <tr class="border-b border-slate-200" style="background-color: #FFFCD5;">
                                     <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
                                     @foreach($tableData['labels'] as $label)
                                         <th class="px-3 py-3 text-center font-semibold text-slate-600">{{ $label }}</th>
@@ -185,8 +185,8 @@
                 @else
                     <div class="mt-3 overflow-hidden rounded-lg border border-slate-200">
                         <table class="min-w-full divide-y divide-slate-200 text-sm">
-                            <thead class="bg-slate-50">
-                                <tr>
+                            <thead>
+                                <tr class="border-b border-slate-200" style="background-color: #FFFCD5;">
                                     <th class="px-4 py-3 text-left font-semibold text-slate-600">Loại hình</th>
                                     <th class="px-4 py-3 text-right font-semibold text-slate-600">Chi phí (VND)</th>
                                 </tr>
@@ -299,6 +299,11 @@
             }
 
             const reinit = () => ensureChart();
+
+            if (typeof window !== 'undefined') {
+                window.addEventListener('load', () => setTimeout(reinit, 80), { once: true });
+                window.addEventListener('resize', () => setTimeout(reinit, 80));
+            }
 
             if (typeof document !== 'undefined') {
                 document.addEventListener('livewire:initialized', () => {
