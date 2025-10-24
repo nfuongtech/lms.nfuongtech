@@ -1,4 +1,6 @@
 {{-- resources/views/filament/widgets/training-cost-chart.blade.php --}}
+@include('filament.widgets.partials.dashboard-chart-script')
+
 <x-filament::widget>
     <x-filament::card class="p-6">
         <div class="mb-6">
@@ -220,96 +222,99 @@
 </x-filament::widget>
 
 @push('scripts')
-<script>
-(function() {
-    const widgetId = '{{ $this->getId() }}';
-    const canvasId = 'chiPhiChart_' + widgetId;
-    let chartInstance = null;
+    <script>
+        (function () {
+            const widgetId = @json($this->getId());
+            const canvasId = `chiPhiChart_${widgetId}`;
+            let chartInstance = null;
 
-    function initChart() {
-        console.log('Initializing Chi Phi chart:', canvasId);
-        
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) {
-            console.error('Canvas not found:', canvasId);
-            return;
-        }
+            const chartData = @json($chartData);
+            const chartOptions = @json($chartOptions);
 
-        if (typeof Chart === 'undefined') {
-            console.error('Chart.js not loaded');
-            return;
-        }
-
-        // Destroy existing chart
-        if (chartInstance) {
-            chartInstance.destroy();
-        }
-
-        const ctx = canvas.getContext('2d');
-        const chartData = @json($chartData);
-        const chartOptions = @json($chartOptions);
-
-        console.log('Chi Phi chart data:', chartData);
-
-        // Create chart
-        chartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                ...chartOptions,
-                plugins: {
-                    ...(chartOptions.plugins || {}),
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            usePointStyle: true,
-                            padding: 20,
-                            boxWidth: 12,
-                            color: '#1e293b',
-                            ...(chartOptions.plugins?.legend?.labels || {})
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                        mode: 'index',
-                        intersect: false,
-                        ...(chartOptions.plugins?.tooltip || {})
-                    },
-                    barValueLabels: {
-                        ...(chartOptions.plugins?.barValueLabels || {})
-                    }
+            const createChart = () => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas || typeof window.Chart === 'undefined') {
+                    return false;
                 }
+
+                const ctx = canvas.getContext('2d');
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                chartInstance = new window.Chart(ctx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        ...chartOptions,
+                        plugins: {
+                            ...(chartOptions.plugins || {}),
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 20,
+                                    boxWidth: 12,
+                                    color: '#1e293b',
+                                    ...(chartOptions.plugins?.legend?.labels || {}),
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                mode: 'index',
+                                intersect: false,
+                                ...(chartOptions.plugins?.tooltip || {}),
+                            },
+                            barValueLabels: {
+                                ...(chartOptions.plugins?.barValueLabels || {}),
+                            },
+                        },
+                    },
+                });
+
+                return true;
+            };
+
+            const ensureChart = (retries = 10) => {
+                if (createChart()) {
+                    return;
+                }
+
+                if (retries <= 0) {
+                    return;
+                }
+
+                setTimeout(() => ensureChart(retries - 1), 180);
+            };
+
+            const init = () => ensureChart();
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init, { once: true });
+            } else {
+                setTimeout(init, 60);
             }
-        });
 
-        console.log('Chi Phi chart created successfully');
-    }
+            const reinit = () => ensureChart();
 
-    // Initialize on page load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initChart);
-    } else {
-        setTimeout(initChart, 100);
-    }
+            if (typeof document !== 'undefined') {
+                document.addEventListener('livewire:initialized', () => {
+                    if (window.Livewire?.hook) {
+                        window.Livewire.hook('morph.updated', ({ component }) => {
+                            if (component.id === widgetId) {
+                                setTimeout(reinit, 80);
+                            }
+                        });
+                    }
+                });
 
-    // Re-initialize on Livewire updates
-    document.addEventListener('livewire:initialized', () => {
-        Livewire.hook('morph.updated', ({ el, component }) => {
-            if (component.id === '{{ $this->getId() }}') {
-                setTimeout(initChart, 100);
+                document.addEventListener('livewire:navigated', () => {
+                    setTimeout(reinit, 80);
+                });
             }
-        });
-    });
-
-    // Handle Livewire navigation
-    document.addEventListener('livewire:navigated', () => {
-        setTimeout(initChart, 100);
-    });
-})();
-</script>
-
-{{-- Include plugin script --}}
-@include('filament.widgets.partials.dashboard-chart-script')
+        })();
+    </script>
 @endpush
