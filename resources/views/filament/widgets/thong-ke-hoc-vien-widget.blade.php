@@ -5,11 +5,29 @@
         <style>
             .tkhv-table th,
             .tkhv-table td {
-                font-size: clamp(0.65rem, 0.6rem + 0.25vw, 0.85rem);
+                font-size: clamp(0.58rem, 0.52rem + 0.22vw, 0.78rem);
+                line-height: 1.35;
             }
 
             .tkhv-table th {
                 font-weight: 600;
+            }
+
+            .tkhv-table .tkhv-sticky-col {
+                position: sticky;
+                left: 0;
+                z-index: 10;
+                box-shadow: 8px 0 10px -8px rgba(15, 23, 42, 0.25);
+            }
+
+            .tkhv-table thead .tkhv-sticky-col,
+            .tkhv-table tfoot .tkhv-sticky-col {
+                z-index: 15;
+                box-shadow: 8px 0 12px -8px rgba(15, 23, 42, 0.28);
+            }
+
+            .dark .tkhv-table .tkhv-sticky-col {
+                box-shadow: 8px 0 12px -8px rgba(15, 23, 42, 0.55);
             }
         </style>
     @endpush
@@ -19,6 +37,7 @@
     /** @var \App\Filament\Widgets\ThongKeHocVienWidget $this */
     $chartId = 'thongKeHocVienChart_' . $this->getId();
     $yearOptions = $this->yearOptions;
+    $monthOptions = $this->monthOptions;
     $trainingTypeOptions = $this->trainingTypeOptions;
     $tableData = $this->monthlySummaryTableData;
     $rows = $tableData['rows'] ?? [];
@@ -39,7 +58,13 @@
         <div class="space-y-1">
             <h2 class="text-xl font-bold text-slate-800 dark:text-white">Thống kê Học viên</h2>
             <p class="text-sm text-slate-500 dark:text-gray-400">
-                Năm {{ $this->year ?? '—' }} • Thống kê theo loại hình đào tạo. (ĐK: Đăng ký, HT: Hoàn thành, KHT: Không hoàn thành)
+                Năm {{ $this->year ?? '—' }}
+                @if ($this->month)
+                    • Tháng {{ sprintf('%02d', $this->month) }}
+                @else
+                    • Toàn bộ 12 tháng
+                @endif
+                • Thống kê theo loại hình đào tạo. (ĐK: Đăng ký, HT: Hoàn thành, KHT: Không hoàn thành)
             </p>
         </div>
 
@@ -54,6 +79,17 @@
                                 class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
                             >
                                 @foreach ($yearOptions as $value => $label)
+                                    <option value="{{ $value }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="flex flex-col text-sm font-medium text-slate-700 dark:text-slate-200">
+                            <span class="mb-1.5">Tháng</span>
+                            <select
+                                wire:model.live="month"
+                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                            >
+                                @foreach ($monthOptions as $value => $label)
                                     <option value="{{ $value }}">{{ $label }}</option>
                                 @endforeach
                             </select>
@@ -129,7 +165,7 @@
                         <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['ht'] ?? 0) }}</dd>
                     </div>
                     <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">KHT</dt>
+                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
                         <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($totals['kht'] ?? 0) }}</dd>
                     </div>
                 </dl>
@@ -153,12 +189,12 @@
         <div class="space-y-3">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Bảng số liệu chi tiết theo tháng</h3>
 
-            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                <div class="max-w-full overflow-x-auto">
+            <div class="relative rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="w-full overflow-x-auto">
                     <table class="tkhv-table min-w-full divide-y divide-gray-200 text-slate-700 dark:divide-gray-700 dark:text-slate-200">
                         <thead class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th scope="col" class="px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                                <th scope="col" class="tkhv-sticky-col px-3 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 bg-gray-50 dark:bg-gray-800">
                                     Loại hình đào tạo
                                 </th>
                                 @foreach ($months as $month)
@@ -171,7 +207,7 @@
                                 </th>
                             </tr>
                             <tr>
-                                <th class="px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400"></th>
+                                <th class="tkhv-sticky-col px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 bg-gray-50 dark:bg-gray-800"></th>
                                 @foreach ($months as $month)
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-gray-200 dark:border-gray-700">ĐK</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">HT</th>
@@ -185,7 +221,7 @@
                         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                                    <td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                                    <td class="tkhv-sticky-col px-3 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap bg-white dark:bg-gray-900">
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
@@ -214,7 +250,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ 1 + count($months) * 3 + 3 }}" class="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-300">
+                                    <td colspan="{{ 1 + count($months) * 3 + 3 }}" class="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-300">
                                         Chưa có dữ liệu phù hợp với bộ lọc hiện tại.
                                     </td>
                                 </tr>
@@ -222,7 +258,7 @@
                         </tbody>
                         <tfoot class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th class="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
+                                <th class="tkhv-sticky-col px-3 py-3 text-left font-semibold text-slate-700 dark:text-slate-200 bg-gray-50 dark:bg-gray-800">Cộng</th>
                                 @foreach ($months as $month)
                                     @php
                                         $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];

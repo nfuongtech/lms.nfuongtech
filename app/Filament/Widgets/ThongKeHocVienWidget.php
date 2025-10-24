@@ -23,6 +23,7 @@ class ThongKeHocVienWidget extends Widget
 
     // ===== Livewire state =====
     public ?int $year = null;
+    public ?int $month = null;
     /** @var array<int,string> */
     public array $selectedTrainingTypes = [];
 
@@ -46,7 +47,7 @@ class ThongKeHocVienWidget extends Widget
 
     public function updated($property): void
     {
-        if ($property === 'year' || $property === 'selectedTrainingTypes') {
+        if (in_array($property, ['year', 'month', 'selectedTrainingTypes'], true)) {
             $this->reset('courseMonthCache'); // Xoá cache khi filter đổi
             $this->refreshChartPayload();     // cập nhật dữ liệu chart ngay
         }
@@ -83,6 +84,18 @@ class ThongKeHocVienWidget extends Widget
             $opts = [$now => (string) $now] + $opts;
         }
         return $opts;
+    }
+
+    #[Computed]
+    public function monthOptions(): array
+    {
+        $options = ['' => 'Tất cả các tháng'];
+
+        foreach (range(1, 12) as $month) {
+            $options[$month] = sprintf('Tháng %02d', $month);
+        }
+
+        return $options;
     }
 
     /**
@@ -174,6 +187,7 @@ class ThongKeHocVienWidget extends Widget
         }
 
         $courseMaps = $this->courseIdsByMonthForTypes($year, $types);
+        $activeMonth = $this->getActiveMonth();
         $rows = [];
         $summaryPerMonth = $this->emptyMonthlyStatusBuckets();
         $summaryTotals = ['dk' => 0, 'ht' => 0, 'kht' => 0];
@@ -198,6 +212,12 @@ class ThongKeHocVienWidget extends Widget
 
                 if (!$khtTableExists) {
                     $kht = max(0, $dk - $ht);
+                }
+
+                if ($activeMonth !== null && $activeMonth !== $month) {
+                    $dk = 0;
+                    $ht = 0;
+                    $kht = 0;
                 }
 
                 $monthly[$month] = ['dk' => $dk, 'ht' => $ht, 'kht' => $kht];
@@ -257,7 +277,7 @@ class ThongKeHocVienWidget extends Widget
             'datasets' => [
                 $this->makeBarDataset('ĐK',  $dkSeries,  'dang-ky'),
                 $this->makeBarDataset('HT',  $htSeries,  'hoan-thanh'),
-                $this->makeBarDataset('KHT', $khtSeries, 'khong-hoan-thanh'),
+                $this->makeBarDataset('Không hoàn thành', $khtSeries, 'khong-hoan-thanh'),
             ],
         ];
     }
@@ -293,7 +313,9 @@ class ThongKeHocVienWidget extends Widget
                     'grid' => ['display' => false],
                     'ticks' => [
                         'color' => '#475569',
-                        'font' => ['size' => 12, 'weight' => '500'],
+                        'font' => ['size' => 11, 'weight' => '500'],
+                        'autoSkip' => false,
+                        'maxRotation' => 0,
                     ],
                 ],
                 'y' => [
@@ -312,7 +334,9 @@ class ThongKeHocVienWidget extends Widget
             'datasets' => [
                 'bar' => [
                     'borderRadius' => 8,
-                    'maxBarThickness' => 60,
+                    'maxBarThickness' => 34,
+                    'categoryPercentage' => 0.72,
+                    'barPercentage' => 0.82,
                 ],
             ],
             'animation' => ['duration' => 900, 'easing' => 'easeOutQuart'],
@@ -589,7 +613,7 @@ class ThongKeHocVienWidget extends Widget
             'borderColor' => sprintf('rgba(%d,%d,%d,1)', ...$rgb),
             'borderWidth' => 1,
             'borderRadius' => 8,
-            'maxBarThickness' => 60,
+            'maxBarThickness' => 34,
         ];
         return array_replace_recursive($base, $extra);
     }
@@ -597,6 +621,17 @@ class ThongKeHocVienWidget extends Widget
     private function getSelectedTrainingTypes(): array
     {
         return array_values(array_filter($this->selectedTrainingTypes, fn ($v) => $v !== null && $v !== ''));
+    }
+
+    private function getActiveMonth(): ?int
+    {
+        if ($this->month === null) {
+            return null;
+        }
+
+        $value = (int) $this->month;
+
+        return ($value >= 1 && $value <= 12) ? $value : null;
     }
 
     private function formatTrainingTypeLabel(string $label): string
