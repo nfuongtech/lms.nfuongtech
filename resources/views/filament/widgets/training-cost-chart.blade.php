@@ -1,7 +1,5 @@
 {{-- resources/views/filament/widgets/training-cost-chart.blade.php --}}
-@php
-    $chartCanvasId = 'chiPhiChart_' . $this->getId();
-@endphp
+@include('filament.widgets.partials.dashboard-chart-script')
 
 <x-filament::widget>
     <x-filament::card class="p-6">
@@ -119,82 +117,10 @@
         </div>
 
         {{-- Biểu đồ chi phí --}}
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm" wire:ignore>
             <h3 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-700">Biểu đồ chi phí</h3>
-            <div
-                x-data="{
-                    chart: null,
-                    payload: @entangle('chartData').live,
-                    opts: @entangle('chartOptions').live,
-                    init() {
-                        this.$nextTick(() => this.render());
-                    },
-                    render() {
-                        const canvas = document.getElementById(@js($chartCanvasId));
-                        if (!canvas) {
-                            return;
-                        }
-
-                        if (typeof Chart === 'undefined') {
-                            setTimeout(() => this.render(), 120);
-                            return;
-                        }
-
-                        const data = JSON.parse(JSON.stringify(this.payload || {}));
-                        if (!Array.isArray(data?.labels)) {
-                            data.labels = [];
-                        }
-                        if (!Array.isArray(data?.datasets)) {
-                            data.datasets = [];
-                        }
-
-                        const options = JSON.parse(JSON.stringify(this.opts || {}));
-                        options.responsive = true;
-                        options.maintainAspectRatio = false;
-                        options.plugins ??= {};
-
-                        const legend = options.plugins.legend ?? {};
-                        const legendLabels = legend.labels ?? {};
-                        options.plugins.legend = {
-                            position: legend.position ?? 'bottom',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 20,
-                                boxWidth: 12,
-                                color: '#1e293b',
-                                ...legendLabels,
-                            },
-                            ...legend,
-                        };
-
-                        options.plugins.tooltip = {
-                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                            mode: 'index',
-                            intersect: false,
-                            ...(options.plugins.tooltip ?? {}),
-                        };
-
-                        options.plugins.barValueLabels = {
-                            ...(options.plugins.barValueLabels ?? {}),
-                        };
-
-                        if (this.chart) {
-                            try { this.chart.destroy(); } catch (e) {}
-                        }
-
-                        this.chart = new Chart(canvas.getContext('2d'), {
-                            type: 'bar',
-                            data,
-                            options,
-                        });
-                    }
-                }"
-                x-init="init()"
-                x-effect="render()"
-                class="relative"
-                style="height: 380px; width: 100%;"
-            >
-                <canvas id="{{ $chartCanvasId }}" wire:ignore></canvas>
+            <div style="position: relative; height: 380px; width: 100%;">
+                <canvas id="chiPhiChart_{{ $this->getId() }}"></canvas>
             </div>
         </div>
 
@@ -295,4 +221,100 @@
     </x-filament::card>
 </x-filament::widget>
 
-@include('filament.widgets.partials.dashboard-chart-script')
+@push('scripts')
+    <script>
+        (function () {
+            const widgetId = @json($this->getId());
+            const canvasId = `chiPhiChart_${widgetId}`;
+            let chartInstance = null;
+
+            const chartData = @json($chartData);
+            const chartOptions = @json($chartOptions);
+
+            const createChart = () => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas || typeof window.Chart === 'undefined') {
+                    return false;
+                }
+
+                const ctx = canvas.getContext('2d');
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                chartInstance = new window.Chart(ctx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        ...chartOptions,
+                        plugins: {
+                            ...(chartOptions.plugins || {}),
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    usePointStyle: true,
+                                    padding: 20,
+                                    boxWidth: 12,
+                                    color: '#1e293b',
+                                    ...(chartOptions.plugins?.legend?.labels || {}),
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                mode: 'index',
+                                intersect: false,
+                                ...(chartOptions.plugins?.tooltip || {}),
+                            },
+                            barValueLabels: {
+                                ...(chartOptions.plugins?.barValueLabels || {}),
+                            },
+                        },
+                    },
+                });
+
+                return true;
+            };
+
+            const ensureChart = (retries = 10) => {
+                if (createChart()) {
+                    return;
+                }
+
+                if (retries <= 0) {
+                    return;
+                }
+
+                setTimeout(() => ensureChart(retries - 1), 180);
+            };
+
+            const init = () => ensureChart();
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init, { once: true });
+            } else {
+                setTimeout(init, 60);
+            }
+
+            const reinit = () => ensureChart();
+
+            if (typeof document !== 'undefined') {
+                document.addEventListener('livewire:initialized', () => {
+                    if (window.Livewire?.hook) {
+                        window.Livewire.hook('morph.updated', ({ component }) => {
+                            if (component.id === widgetId) {
+                                setTimeout(reinit, 80);
+                            }
+                        });
+                    }
+                });
+
+                document.addEventListener('livewire:navigated', () => {
+                    setTimeout(reinit, 80);
+                });
+            }
+        })();
+    </script>
+@endpush
