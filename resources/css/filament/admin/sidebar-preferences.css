@@ -1,0 +1,53 @@
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar,
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar {
+    width: 4.5rem;
+}
+
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar .fi-sidebar-item-label,
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar:not(:hover) .fi-sidebar-item-label {
+    display: none;
+}
+
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar-nav,
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar:not(:hover) .fi-sidebar-nav {
+    align-items: center;
+}
+
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar {
+    transition: width 150ms ease-in-out;
+}
+
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar:hover {
+    width: 18rem;
+}
+
+:root[data-admin-sidebar-mode='locked'] .fi-sidebar {
+    width: 18rem;
+}
+
+:root[data-admin-sidebar-mode='expanded'] .fi-sidebar {
+    width: 18rem;
+}
+
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar {
+    overflow: hidden;
+}
+
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar .fi-sidebar-item-icon,
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar:not(:hover) .fi-sidebar-item-icon {
+    margin-inline-end: 0;
+}
+
+.fi-sidebar-mode-switcher {
+    margin-left: auto;
+}
+
+.fi-sidebar-mode-switcher button {
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+}
+
+:root[data-admin-sidebar-mode='collapsed'] .fi-sidebar-section-label,
+:root[data-admin-sidebar-mode='auto'] .fi-sidebar:not(:hover) .fi-sidebar-section-label {
+    display: none;
+}
