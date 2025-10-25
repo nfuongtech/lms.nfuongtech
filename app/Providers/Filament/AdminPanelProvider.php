@@ -57,6 +57,7 @@ class AdminPanelProvider extends PanelProvider
             ->spa()
             ->maxContentWidth('full')
             ->navigation(fn (NavigationBuilder $navigation): NavigationBuilder => AdminNavigationBuilder::build($navigation))
+            ->renderHook('panels::topbar.start', fn (): string => view('filament.hooks.sidebar-toggle')->render())
             ->renderHook('panels::sidebar.nav.start', fn (): string => view('filament.hooks.sidebar-preferences')->render())
             ->renderHook('panels::head.end', fn (): string => view('filament.hooks.sidebar-preferences-styles')->render())
             ->renderHook('panels::body.end', function (): string {
