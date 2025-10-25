@@ -9,3 +9,83 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+@layer base {
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    .fi-body .fi-sidebar-mode-dropdown {
+        @apply relative;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__button {
+        @apply flex items-center gap-2 rounded-xl border border-gray-200/80 bg-white/80 px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20;
+        @apply backdrop-blur-md;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__button-icon,
+    .fi-body .fi-sidebar-mode-dropdown__caret {
+        @apply h-4 w-4 text-amber-500 dark:text-amber-300;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__label {
+        @apply leading-none;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__menu {
+        @apply absolute right-0 z-[70] mt-2 w-60 overflow-hidden rounded-xl border border-gray-200/70 bg-white/95 p-1 shadow-xl backdrop-blur-md dark:border-white/10 dark:bg-gray-900/95;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__option {
+        @apply flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-amber-500/10 hover:text-amber-600 dark:text-gray-200 dark:hover:bg-amber-500/20 dark:hover:text-amber-300;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__option--active {
+        @apply font-semibold text-amber-600 dark:text-amber-300;
+    }
+
+    .fi-body .fi-sidebar-mode-dropdown__check {
+        @apply h-4 w-4 text-amber-500 dark:text-amber-300;
+    }
+}
+
+@layer utilities {
+    .fi-body .fi-sidebar {
+        @apply transition-all duration-200 ease-in-out;
+    }
+
+    .fi-body .fi-main {
+        @apply transition-all duration-200 ease-in-out;
+    }
+
+    .fi-body .fi-sidebar-hover-zone {
+        @apply pointer-events-none fixed inset-y-0 left-0 z-[65] w-6 bg-amber-400/10 opacity-0 transition-opacity duration-200 ease-in-out;
+    }
+
+    .fi-body.fi-sidebar-mode-hover .fi-sidebar-hover-zone {
+        @apply pointer-events-auto;
+    }
+
+    .fi-body.fi-sidebar-mode-hover .fi-sidebar-hover-zone:hover,
+    .fi-body.fi-sidebar-mode-hover.fi-sidebar-hovering .fi-sidebar-hover-zone {
+        @apply opacity-60;
+    }
+
+    .fi-body.fi-sidebar-mode-hidden .fi-sidebar,
+    .fi-body.fi-sidebar-mode-hover:not(.fi-sidebar-hovering) .fi-sidebar {
+        @apply -translate-x-full pointer-events-none opacity-0;
+    }
+
+    .fi-body.fi-sidebar-mode-hidden .fi-main,
+    .fi-body.fi-sidebar-mode-hover:not(.fi-sidebar-hovering) .fi-main {
+        @apply ml-0 mr-0 w-full;
+    }
+
+    .fi-body.fi-sidebar-mode-pinned .fi-sidebar,
+    .fi-body.fi-sidebar-mode-hover.fi-sidebar-hovering .fi-sidebar {
+        @apply translate-x-0 pointer-events-auto opacity-100;
+    }
+}

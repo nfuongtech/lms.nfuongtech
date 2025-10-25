@@ -10,6 +10,7 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -45,6 +46,14 @@ class AdminPanelProvider extends PanelProvider
                  ChiPhiDaoTaoChart::class,
 //                 Widgets\AccountWidget::class,
 //                 Widgets\FilamentInfoWidget::class,
+            ])
+            ->renderHook(
+                PanelsRenderHook::TOPBAR_START,
+                fn () => view('filament.components.sidebar-mode-dropdown'),
+            )
+            ->viteTheme('resources/css/app.css')
+            ->viteAssets([
+                'resources/js/app.js',
             ])
             ->middleware([
                 EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
