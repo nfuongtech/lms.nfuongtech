@@ -5,7 +5,7 @@ namespace App\Providers\Filament;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationGroup;
+use Filament\Navigation\NavigationBuilder;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -21,7 +21,8 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 use App\Filament\Widgets\ChiPhiDaoTaoChart;
 use App\Filament\Widgets\ThongKeHocVienWidget;
-//use App\Filament\Widgets\ThongKeHocVienChart;
+use App\Models\AdminNavigationSetting;
+use App\Services\AdminNavigationBuilder;
 
 
 class AdminPanelProvider extends PanelProvider
@@ -37,26 +38,33 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([Pages\Dashboard::class])
-            // Tắt discoverWidgets nếu muốn chỉ định thủ công
-            // ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-                 ThongKeHocVienWidget::class,
-//                 ThongKeHocVienChart::class,
-                 ChiPhiDaoTaoChart::class,
-//                 Widgets\AccountWidget::class,
-//                 Widgets\FilamentInfoWidget::class,
+                ThongKeHocVienWidget::class,
+                ChiPhiDaoTaoChart::class,
             ])
             ->middleware([
-                EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
-                AuthenticateSession::class, ShareErrorsFromSession::class, VerifyCsrfToken::class,
-                SubstituteBindings::class, DisableBladeIconComponents::class, DispatchServingFilamentEvent::class,
+                EncryptCookies::class,
+                AddQueuedCookiesToResponse::class,
+                StartSession::class,
+                AuthenticateSession::class,
+                ShareErrorsFromSession::class,
+                VerifyCsrfToken::class,
+                SubstituteBindings::class,
+                DisableBladeIconComponents::class,
+                DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([Authenticate::class])
             ->spa()
             ->maxContentWidth('full')
-            ->navigationGroups([
-                 NavigationGroup::make()->label('Đào tạo'), NavigationGroup::make()->label('Báo cáo'),
-                 NavigationGroup::make()->label('Thiết lập')->items([ NavigationGroup::make()->label('User & Phân quyền')->items([]), ]),
-             ]);
+            ->navigation(fn (NavigationBuilder $navigation): NavigationBuilder => AdminNavigationBuilder::build($navigation))
+            ->renderHook('panels::sidebar.nav.start', fn (): string => view('filament.hooks.sidebar-preferences')->render())
+            ->renderHook('panels::head.end', fn (): string => view('filament.hooks.sidebar-preferences-styles')->render())
+            ->renderHook('panels::body.end', function (): string {
+                $mode = AdminNavigationSetting::instance()->sidebar_mode;
+
+                return view('filament.hooks.sidebar-preferences-script', [
+                    'sidebarMode' => $mode,
+                ])->render();
+            });
     }
 }
