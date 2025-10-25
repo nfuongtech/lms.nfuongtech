@@ -46,6 +46,14 @@ class AdminPanelProvider extends PanelProvider
 //                 Widgets\AccountWidget::class,
 //                 Widgets\FilamentInfoWidget::class,
             ])
+            ->renderHook(
+                'panels::topbar.start',
+                fn () => view('filament.admin.sidebar-mode-toggle'),
+            )
+            ->renderHook(
+                'panels::body.end',
+                fn () => view('filament.admin.sidebar-mode-script'),
+            )
             ->middleware([
                 EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, VerifyCsrfToken::class,
