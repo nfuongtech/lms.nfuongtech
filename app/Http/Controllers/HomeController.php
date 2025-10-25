@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DangKy;
 use App\Models\HocVien;
 use App\Models\HocVienHoanThanh;
 use App\Models\HocVienKhongHoanThanh;
@@ -340,6 +341,206 @@ class HomeController extends Controller
             'incompleted' => $incompleted,
             'profile'     => $profile,
         ]);
+    }
+
+
+    public function lookupSchedule(Request $request): JsonResponse
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        if ($term === '') {
+            return response()->json([
+                'message' => 'Vui lòng nhập Mã số, Họ & Tên hoặc Email để tra cứu.',
+                'rows'    => [],
+            ], 422);
+        }
+
+        $likeTerm = '%' . $term . '%';
+
+        $hocViens = HocVien::query()
+            ->where(function ($query) use ($likeTerm) {
+                $query->where('msnv', 'like', $likeTerm)
+                    ->orWhere('ho_ten', 'like', $likeTerm)
+                    ->orWhere('email', 'like', $likeTerm);
+            })
+            ->limit(50)
+            ->get();
+
+        $displayName = $hocViens
+            ->first(function ($hv) {
+                return trim((string) ($hv->ho_ten ?? '')) !== '';
+            })?->ho_ten;
+
+        if (! $displayName) {
+            $displayName = $hocViens->first()?->msnv;
+        }
+
+        $displayName = trim((string) ($displayName ?: $term));
+        if ($displayName === '') {
+            $displayName = 'Thông tin tra cứu';
+        }
+
+        if ($hocViens->isEmpty()) {
+            return response()->json([
+                'rows'        => [],
+                'message'     => $this->buildNoUpcomingCoursesMessage($displayName),
+                'displayName' => $displayName,
+            ]);
+        }
+
+        $hocVienIds = $hocViens->pluck('id')->filter()->unique()->values();
+
+        if ($hocVienIds->isEmpty()) {
+            return response()->json([
+                'rows'        => [],
+                'message'     => $this->buildNoUpcomingCoursesMessage($displayName),
+                'displayName' => $displayName,
+            ]);
+        }
+
+        $today = Carbon::today();
+
+        $registeredCourseIds = DangKy::query()
+            ->whereIn('hoc_vien_id', $hocVienIds)
+            ->pluck('khoa_hoc_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($registeredCourseIds->isEmpty()) {
+            return response()->json([
+                'rows'        => [],
+                'message'     => $this->buildNoUpcomingCoursesMessage($displayName),
+                'displayName' => $displayName,
+            ]);
+        }
+
+        $courses = KhoaHoc::query()
+            ->whereIn('id', $registeredCourseIds)
+            ->with([
+                'lichHocs' => function ($query) use ($today) {
+                    $query->whereDate('ngay_hoc', '>=', $today->format('Y-m-d'))
+                        ->orderBy('ngay_hoc')
+                        ->orderBy('gio_bat_dau');
+                },
+                'lichHocs.giangVien' => fn ($q) => $q->select(['id', 'ho_ten']),
+                'lichHocs.diaDiem'   => fn ($q) => $q->select(['id', 'ten_phong', 'ma_phong']),
+            ])
+            ->withCount(['dangKies as registered_students_count'])
+            ->get();
+
+        $rows = $courses->map(function ($course) use ($today) {
+            $sessions = $course->lichHocs
+                ->filter(function ($lich) use ($today) {
+                    if (! $lich->ngay_hoc) {
+                        return false;
+                    }
+
+                    $date = rescue(fn () => Carbon::parse($lich->ngay_hoc), null, false);
+
+                    return $date instanceof Carbon && $date->greaterThanOrEqualTo($today);
+                })
+                ->sortBy([
+                    ['ngay_hoc', 'asc'],
+                    ['gio_bat_dau', 'asc'],
+                ])
+                ->values();
+
+            if ($sessions->isEmpty()) {
+                return null;
+            }
+
+            $giangViens = $sessions
+                ->map(fn ($lh) => $lh->giangVien?->ho_ten)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $giangVienText = ! empty($giangViens) ? implode(', ', $giangViens) : '—';
+
+            $ngayGioLines = $sessions->map(function ($lh) use ($today) {
+                $date = rescue(fn () => Carbon::parse($lh->ngay_hoc), null, false);
+                if (! $date instanceof Carbon) {
+                    return null;
+                }
+
+                $dateStr = $date->format('d/m/Y');
+                $start   = $lh->gio_bat_dau ? substr($lh->gio_bat_dau, 0, 5) : '';
+                $end     = $lh->gio_ket_thuc ? substr($lh->gio_ket_thuc, 0, 5) : '';
+                $line    = $dateStr . ', ' . $start . '-' . $end;
+
+                $class = $date->isSameDay($today) ? 'session today' : 'session';
+
+                return '<span class="' . $class . '">' . e($line) . '</span>';
+            })->filter()->values()->all();
+
+            $ngayGioHtml = ! empty($ngayGioLines) ? implode('<br>', $ngayGioLines) : '—';
+
+            $diaDiemLines = $sessions->map(function ($lh) {
+                $dd = $lh->diaDiem;
+                return $dd?->ten_phong ?? $dd?->ma_phong ?? '';
+            })->filter()->values()->all();
+            $diaDiemHtml = ! empty($diaDiemLines)
+                ? implode('<br>', array_map(fn ($value) => e($value), $diaDiemLines))
+                : '—';
+
+            $weeks = $sessions->pluck('tuan')->filter()->unique()->sort()->implode(', ');
+            if ($weeks === '') {
+                $weeks = '—';
+            }
+
+            $primarySession = $this->summarizePrimarySession($sessions);
+
+            return [
+                'id'                        => $course->id,
+                'ma_khoa_hoc'               => $course->ma_khoa_hoc,
+                'ten_khoa_hoc'              => $course->ten_khoa_hoc,
+                'giang_vien'                => $giangVienText,
+                'ngay_gio_html'             => $ngayGioHtml,
+                'dia_diem_html'             => $diaDiemHtml,
+                'tuan'                      => $weeks,
+                'registered_students_count' => (int) ($course->registered_students_count ?? 0),
+                'trang_thai'                => $course->trang_thai_hien_thi ?? '—',
+                'ly_do_tam_hoan'            => trim((string) ($course->ly_do_tam_hoan ?? '')),
+                'primary_schedule_text'     => $primarySession['schedule'] ?? '',
+                'primary_location_text'     => $primarySession['location'] ?? '',
+            ];
+        })
+            ->filter()
+            ->values()
+            ->map(function ($row, $index) {
+                $row['stt'] = $index + 1;
+
+                return $row;
+            })
+            ->values();
+
+        if ($rows->isEmpty()) {
+            return response()->json([
+                'rows'        => [],
+                'message'     => $this->buildNoUpcomingCoursesMessage($displayName),
+                'displayName' => $displayName,
+            ]);
+        }
+
+        $message = sprintf(
+            'Đang hiển thị %d khóa học sắp tới cho %s.',
+            $rows->count(),
+            $displayName
+        );
+
+        return response()->json([
+            'rows'        => $rows,
+            'message'     => $message,
+            'displayName' => $displayName,
+        ]);
+    }
+
+    protected function buildNoUpcomingCoursesMessage(string $name): string
+    {
+        $subject = trim($name) !== '' ? $name : 'Thông tin tra cứu';
+
+        return $subject . ' không có Khóa học, Chuyên đề nghiệp vụ/Kỹ năng mềm được đào tạo trong thời gian tới.';
     }
 
     protected function buildWeekOptions(int $year, ?int $month = null): array
