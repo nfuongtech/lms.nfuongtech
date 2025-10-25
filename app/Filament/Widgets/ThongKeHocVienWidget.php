@@ -90,7 +90,7 @@ class ThongKeHocVienWidget extends Widget
     #[Computed]
     public function monthOptions(): array
     {
-        $options = ['all' => 'Tất cả các tháng'];
+        $options = ['all' => 'Tất cả'];
 
         foreach (range(1, 12) as $month) {
             $options[$month] = sprintf('%02d', $month);

@@ -34,6 +34,9 @@
                 z-index: 25;
                 box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
                 background-color: #ffffff;
+                /* Cột "Loại hình" ~2cm */
+                min-width: 2cm;
+                width: 2cm;
             }
 
             .dark .tkhv-table .tkhv-sticky {
@@ -66,6 +69,30 @@
             .tkhv-table .tkhv-sticky-footer {
                 z-index: 20;
             }
+
+            /* ====== Responsive behavior cho bảng ====== */
+            /* PC: luôn fit chiều ngang, phân bổ bề rộng đều để không che cột cuối */
+            @media (min-width: 1024px) {
+                .tkhv-table { table-layout: fixed; }
+                .tkhv-table th, .tkhv-table td { width: var(--cell-w); }
+                .tkhv-table .tkhv-sticky {
+                    width: var(--type-col) !important;
+                    min-width: var(--type-col) !important;
+                }
+                .tkhv-wrap { overflow-x: hidden; } /* không trượt ngang trên PC */
+            }
+
+            /* Mobile/Tablet: cho phép trượt ngang */
+            @media (max-width: 1023.98px) {
+                .tkhv-wrap {
+                    overflow-x: auto;               /* bật scroll ngang */
+                    -webkit-overflow-scrolling: touch;
+                }
+                .tkhv-table {
+                    table-layout: auto;
+                    min-width: 1400px;              /* tạo overflow để có thể trượt */
+                }
+            }
         </style>
     @endpush
 @endonce
@@ -97,6 +124,9 @@
         ? 'Cả năm'
         : 'Tháng ' . str_pad((string) ((int) $selectedMonthValue), 2, '0', STR_PAD_LEFT);
     $studentSummaryLabel = $activeMonthLabel;
+
+    /* Số ô lá để chia đều bề rộng trên PC (12 tháng x 3 + 3 cột Tổng năm) */
+    $leafColCount = count($months) * 3 + 3;
 @endphp
 
 <x-filament::widget>
@@ -232,12 +262,16 @@
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Bảng số liệu chi tiết theo tháng</h3>
 
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                <div class="overflow-hidden">
-                    <table class="tkhv-table divide-y divide-[#95d8f1] text-slate-700 dark:divide-gray-700 dark:text-slate-200">
+                <!-- THAY ĐỔI: thêm class tkhv-wrap để điều khiển scroll theo thiết bị -->
+                <div class="overflow-hidden tkhv-wrap">
+                    <table
+                        class="tkhv-table divide-y divide-[#95d8f1] text-slate-700 dark:divide-gray-700 dark:text-slate-200"
+                        style="--type-col: 2cm; --cell-w: calc((100% - var(--type-col)) / {{ $leafColCount }});"
+                    >
                         <thead>
                             <tr>
-                                <th scope="col" class="tkhv-sticky min-w-[15rem] px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                                    Loại hình đào tạo
+                                <th scope="col" class="tkhv-sticky min-w-[2cm] px-4 py-3 text-left font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                                    Loại hình
                                 </th>
                                 @foreach ($months as $month)
                                     <th scope="col" colspan="3" class="px-2 py-3 text-center font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">
@@ -249,7 +283,7 @@
                                 </th>
                             </tr>
                             <tr>
-                                <th class="tkhv-sticky min-w-[15rem] px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400"></th>
+                                <th class="tkhv-sticky min-w-[2cm] px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400"></th>
                                 @foreach ($months as $month)
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400 border-l border-[#95d8f1] dark:border-gray-700">ĐK</th>
                                     <th class="px-2 py-2 text-center font-medium text-slate-500 dark:text-slate-400">HT</th>
@@ -263,7 +297,7 @@
                         <tbody class="divide-y divide-[#95d8f1] dark:divide-gray-700">
                             @forelse ($rows as $row)
                                 <tr class="hover:bg-[#b3e2f5] dark:hover:bg-gray-800/70">
-                                    <td class="tkhv-sticky z-10 min-w-[15rem] px-4 py-2 font-medium text-slate-800 dark:text-slate-100">
+                                    <td class="tkhv-sticky z-10 min-w-[2cm] px-4 py-2 font-medium text-slate-800 dark:text-slate-100">
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
@@ -300,7 +334,7 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th class="tkhv-sticky tkhv-sticky-footer min-w-[15rem] px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
+                                <th class="tkhv-sticky tkhv-sticky-footer min-w-[2cm] px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
                                 @foreach ($months as $month)
                                     @php
                                         $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
@@ -403,7 +437,8 @@
                     }
                 }"
             >
-                <div class="relative h-[128px] w-full overflow-hidden rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
+                <!-- THAY ĐỔI: giảm chiều cao xuống 50px -->
+                <div class="relative h-[50px] w-full overflow-hidden rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
                     <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
                 </div>
             </div>
