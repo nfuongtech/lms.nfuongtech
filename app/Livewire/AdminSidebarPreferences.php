@@ -8,13 +8,16 @@ use Livewire\Component;
 
 class AdminSidebarPreferences extends Component
 {
-    public const MODES = ['auto', 'expanded', 'collapsed', 'locked'];
+    public const MODES = ['hidden', 'hover', 'pinned'];
 
-    public string $mode = 'auto';
+    public string $mode = 'pinned';
 
     public function mount(): void
     {
-        $this->mode = AdminNavigationSetting::instance()->sidebar_mode;
+        $setting = AdminNavigationSetting::instance();
+        $this->mode = in_array($setting->sidebar_mode, self::MODES, true)
+            ? $setting->sidebar_mode
+            : 'pinned';
     }
 
     public function setMode(string $mode): void
@@ -44,10 +47,9 @@ class AdminSidebarPreferences extends Component
     {
         return view('livewire.admin-sidebar-preferences', [
             'modes' => [
-                'auto' => 'Tự động ẩn',
-                'expanded' => 'Mở rộng',
-                'collapsed' => 'Thu gọn',
-                'locked' => 'Khóa hiển thị',
+                'hidden' => 'Tự động ẩn',
+                'hover' => 'Hiện khi rê chuột',
+                'pinned' => 'Luôn hiển thị',
             ],
         ]);
     }

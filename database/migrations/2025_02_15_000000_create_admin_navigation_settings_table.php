@@ -6,7 +6,7 @@ return new class extends \Illuminate\Database\Migrations\Migration
     {
         \Illuminate\Support\Facades\Schema::create('admin_navigation_settings', function (\Illuminate\Database\Schema\Blueprint $table) {
             $table->id();
-            $table->string('sidebar_mode')->default('auto');
+            $table->string('sidebar_mode')->default('pinned');
             $table->timestamps();
         });
     }

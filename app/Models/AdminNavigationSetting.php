@@ -14,11 +14,18 @@ class AdminNavigationSetting extends Model
     public static function instance(): self
     {
         if (! Schema::hasTable((new self())->getTable())) {
-            return new self(['sidebar_mode' => 'auto']);
+            return new self(['sidebar_mode' => 'pinned']);
         }
 
-        return static::query()->firstOrCreate([], [
-            'sidebar_mode' => 'auto',
+        $instance = static::query()->firstOrCreate([], [
+            'sidebar_mode' => 'pinned',
         ]);
+
+        if (! in_array($instance->sidebar_mode, \App\Livewire\AdminSidebarPreferences::MODES, true)) {
+            $instance->sidebar_mode = 'pinned';
+            $instance->save();
+        }
+
+        return $instance;
     }
 }
