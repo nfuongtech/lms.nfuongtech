@@ -51,10 +51,11 @@ class AdminPanelProvider extends PanelProvider
                 PanelsRenderHook::TOPBAR_START,
                 fn () => view('filament.components.sidebar-mode-dropdown'),
             )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.components.sidebar-mode-assets'),
+            )
             ->viteTheme('resources/css/app.css')
-            ->viteAssets([
-                'resources/js/app.js',
-            ])
             ->middleware([
                 EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
                 AuthenticateSession::class, ShareErrorsFromSession::class, VerifyCsrfToken::class,
