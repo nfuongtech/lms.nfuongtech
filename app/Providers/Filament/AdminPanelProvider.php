@@ -9,6 +9,8 @@ use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Css;
+use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -45,6 +47,10 @@ class AdminPanelProvider extends PanelProvider
                  ChiPhiDaoTaoChart::class,
 //                 Widgets\AccountWidget::class,
 //                 Widgets\FilamentInfoWidget::class,
+            ])
+            ->assets([
+                Css::make('admin-sidebar-enhancements', 'resources/css/filament/admin/sidebar.css'),
+                Js::make('admin-sidebar-enhancements', 'resources/js/admin-sidebar.js')->module(),
             ])
             ->middleware([
                 EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class,
