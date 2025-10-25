@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use App\Models\AdminSidebarPreference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -56,6 +57,11 @@ class User extends Authenticatable implements FilamentUser
     public function giangVien(): HasOne
     {
         return $this->hasOne(GiangVien::class);
+    }
+
+    public function sidebarPreference(): HasOne
+    {
+        return $this->hasOne(AdminSidebarPreference::class);
     }
 
     /**
