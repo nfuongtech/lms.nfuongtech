@@ -338,6 +338,44 @@
       border-radius:20px;
       padding:24px;
       box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .lookup-tabs {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+    .lookup-tab {
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:8px 18px;
+      background:#fff;
+      color:var(--muted);
+      font-weight:600;
+      cursor:pointer;
+      transition:all .2s ease;
+    }
+
+    .lookup-tab[aria-selected="true"],
+    .lookup-tab.active {
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+      box-shadow:0 6px 16px rgba(37, 99, 235, 0.2);
+    }
+
+    .lookup-panel {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .lookup-panel[hidden] {
+      display:none !important;
     }
 
     .lookup-form {
@@ -373,6 +411,16 @@
       display:flex;
       flex-direction:column;
       gap:20px;
+    }
+
+    .schedule-results {
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .schedule-table {
+      min-width:880px;
     }
 
     .lookup-panel h3 {
@@ -748,7 +796,7 @@
     }
   </style>
 </head>
-<body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}" data-default-year="{{ $defaultYear }}">
+<body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}" data-schedule-url="{{ route('home.lookup-schedule') }}" data-default-year="{{ $defaultYear }}">
   <div class="topbar">
     <div class="brand"><a href="/">QUẢN LÝ ĐÀO TẠO &amp; HỌC VIÊN</a></div>
 
@@ -886,62 +934,99 @@
     </section>
 
     <section class="lookup" id="lookupSection">
-      <h2 class="section-title">TRA CỨU KẾT QUẢ HỌC TẬP</h2>
-      <form class="lookup-form" id="lookupForm">
-        <label class="sr-only" for="lookupInput">Nhập Mã số, Họ &amp; Tên hoặc Email</label>
-        <input type="text" class="lookup-input" id="lookupInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
-        <button type="submit" class="btn btn-primary">Tra cứu</button>
-      </form>
-      <div class="lookup-message" id="lookupMessage" hidden></div>
-      <div class="lookup-actions no-print" id="lookupActions" hidden>
-        <button type="button" class="btn btn-secondary no-print" id="lookupExport">Xuất danh sách</button>
+      <h2 class="section-title">TRA CỨU HỌC TẬP</h2>
+      <div class="lookup-tabs" role="tablist" aria-label="Tra cứu học tập">
+        <button type="button" class="lookup-tab" id="scheduleTab" role="tab" aria-selected="true" aria-controls="schedulePanel" data-tab="schedule">Tra cứu lịch học</button>
+        <button type="button" class="lookup-tab" id="resultTab" role="tab" aria-selected="false" aria-controls="resultPanel" data-tab="results">Tra cứu kết quả học tập</button>
       </div>
-      <div class="lookup-results" id="lookupResults" hidden>
-        <div class="lookup-panel">
-          <h3>Khóa học đã hoàn thành</h3>
+
+      <div class="lookup-panel" id="schedulePanel" role="tabpanel" aria-labelledby="scheduleTab" data-tab-panel="schedule">
+        <form class="lookup-form" id="scheduleForm">
+          <label class="sr-only" for="scheduleInput">Nhập Mã số, Họ &amp; Tên hoặc Email</label>
+          <input type="text" class="lookup-input" id="scheduleInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Tra cứu</button>
+        </form>
+        <div class="lookup-message" id="scheduleMessage" hidden></div>
+        <div class="schedule-results" id="scheduleResults" hidden>
           <div class="table-wrap">
-            <table class="lookup-table" id="completedTable">
+            <table class="training-table schedule-table" id="scheduleTable">
               <thead>
                 <tr>
-                  <th>TT</th>
-                  <th>MS</th>
-                  <th>Họ &amp; Tên</th>
-                  <th>Công ty/Ban NVQT</th>
-                  <th>THACO/TĐTV</th>
+                  <th class="nowrap">TT</th>
+                  <th class="nowrap">Mã khóa</th>
                   <th>Tên khóa học</th>
-                  <th>ĐTB</th>
-                  <th>Giờ thực học</th>
-                  <th>Ngày hoàn thành</th>
-                  <th>Chứng nhận</th>
+                  <th>Giảng viên</th>
+                  <th>Ngày, Giờ đào tạo</th>
+                  <th>Địa điểm</th>
+                  <th class="nowrap">Tuần</th>
+                  <th class="nowrap">DS Học viên</th>
+                  <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
-            <div class="modal-empty" id="completedEmpty" hidden>Chưa có dữ liệu phù hợp.</div>
-          </div>
-        </div>
-        <div class="lookup-panel">
-          <h3>Khóa học chưa hoàn thành</h3>
-          <div class="table-wrap">
-            <table class="lookup-table" id="incompletedTable">
-              <thead>
-                <tr>
-                  <th>TT</th>
-                  <th>MS</th>
-                  <th>Họ &amp; Tên</th>
-                  <th>Công ty/Ban NVQT</th>
-                  <th>THACO/TĐTV</th>
-                  <th>Tên khóa học</th>
-                  <th>Lý do không hoàn thành</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-            <div class="modal-empty" id="incompletedEmpty" hidden>Không có Khóa học chưa hoàn thành.</div>
+            <div class="modal-empty" id="scheduleEmpty" hidden>Không có dữ liệu.</div>
           </div>
         </div>
       </div>
-      <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
+
+      <div class="lookup-panel" id="resultPanel" role="tabpanel" aria-labelledby="resultTab" data-tab-panel="results" hidden>
+        <form class="lookup-form" id="lookupForm">
+          <label class="sr-only" for="lookupInput">Nhập Mã số, Họ &amp; Tên hoặc Email</label>
+          <input type="text" class="lookup-input" id="lookupInput" name="q" placeholder="Nhập Mã số, Họ &amp; Tên hoặc Email để tra cứu" autocomplete="off">
+          <button type="submit" class="btn btn-primary">Tra cứu</button>
+        </form>
+        <div class="lookup-message" id="lookupMessage" hidden></div>
+        <div class="lookup-actions no-print" id="lookupActions" hidden>
+          <button type="button" class="btn btn-secondary no-print" id="lookupExport">Xuất danh sách</button>
+        </div>
+        <div class="lookup-results" id="lookupResults" hidden>
+          <div class="lookup-panel">
+            <h3>Khóa học đã hoàn thành</h3>
+            <div class="table-wrap">
+              <table class="lookup-table" id="completedTable">
+                <thead>
+                  <tr>
+                    <th>TT</th>
+                    <th>MS</th>
+                    <th>Họ &amp; Tên</th>
+                    <th>Công ty/Ban NVQT</th>
+                    <th>THACO/TĐTV</th>
+                    <th>Tên khóa học</th>
+                    <th>ĐTB</th>
+                    <th>Giờ thực học</th>
+                    <th>Ngày hoàn thành</th>
+                    <th>Chứng nhận</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="modal-empty" id="completedEmpty" hidden>Chưa có dữ liệu phù hợp.</div>
+            </div>
+          </div>
+          <div class="lookup-panel">
+            <h3>Khóa học chưa hoàn thành</h3>
+            <div class="table-wrap">
+              <table class="lookup-table" id="incompletedTable">
+                <thead>
+                  <tr>
+                    <th>TT</th>
+                    <th>MS</th>
+                    <th>Họ &amp; Tên</th>
+                    <th>Công ty/Ban NVQT</th>
+                    <th>THACO/TĐTV</th>
+                    <th>Tên khóa học</th>
+                    <th>Lý do không hoàn thành</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+              <div class="modal-empty" id="incompletedEmpty" hidden>Không có Khóa học chưa hoàn thành.</div>
+            </div>
+          </div>
+        </div>
+        <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
+      </div>
     </section>
 
     <section class="featured">
@@ -1092,17 +1177,55 @@
     const modalPrintMain = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-main]') : null;
     const modalPrintMeta = modalPrintTitle ? modalPrintTitle.querySelector('[data-print-meta]') : null;
     const modalCloseTriggers = modal.querySelectorAll('[data-modal-close]');
-    const registrationButtons = document.querySelectorAll('[data-course]');
     const modalExportButton = document.getElementById('modalExport');
     const lookupActions = document.getElementById('lookupActions');
     const lookupExportButton = document.getElementById('lookupExport');
     const lookupPrintFooter = document.getElementById('lookupPrintFooter');
+    const tabButtons = document.querySelectorAll('[data-tab]');
+    const tabPanels = document.querySelectorAll('[data-tab-panel]');
+    const scheduleForm = document.getElementById('scheduleForm');
+    const scheduleInput = document.getElementById('scheduleInput');
+    const scheduleMessage = document.getElementById('scheduleMessage');
+    const scheduleResults = document.getElementById('scheduleResults');
+    const scheduleTableBody = document.querySelector('#scheduleTable tbody');
+    const scheduleEmpty = document.getElementById('scheduleEmpty');
     const pdfSources = [
       @json(asset('vendor/html2pdf.bundle.min.js')),
       'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
       'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js'
     ].filter(Boolean);
     let pdfLoadPromise = null;
+
+    function activateTab(name){
+      if(!name){
+        return;
+      }
+      tabButtons.forEach(btn => {
+        const isActive = (btn.dataset.tab || '') === name;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      tabPanels.forEach(panel => {
+        const isActive = (panel.dataset.tabPanel || '') === name;
+        if(isActive){
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+    }
+
+    if(tabButtons.length){
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const name = btn.dataset.tab || '';
+          if(name){
+            activateTab(name);
+          }
+        });
+      });
+      activateTab('schedule');
+    }
 
     
     function slugifyFileName(value){
@@ -1246,15 +1369,20 @@
       modalExportButton.addEventListener('click', exportRegistrationsPdf);
     }
 
-    registrationButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const courseId = btn.dataset.course;
-        if(!courseId) return;
-        const courseName = btn.dataset.courseName || '';
-        const courseSchedule = btn.dataset.courseSchedule || '';
-        const courseLocation = btn.dataset.courseLocation || '';
-        openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation);
-      });
+    document.addEventListener('click', event => {
+      const trigger = event.target.closest('[data-course]');
+      if(!trigger){
+        return;
+      }
+      const courseId = trigger.dataset.course;
+      if(!courseId){
+        return;
+      }
+      event.preventDefault();
+      const courseName = trigger.dataset.courseName || '';
+      const courseSchedule = trigger.dataset.courseSchedule || '';
+      const courseLocation = trigger.dataset.courseLocation || '';
+      openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation);
     });
 
     function openRegistrationsModal(courseId, courseName, courseSchedule, courseLocation){
@@ -1361,6 +1489,7 @@
       }
     });
 
+    const scheduleUrl = document.body.dataset.scheduleUrl || '';
     const lookupForm = document.getElementById('lookupForm');
     const lookupInput = document.getElementById('lookupInput');
     const lookupMessage = document.getElementById('lookupMessage');
@@ -1370,6 +1499,10 @@
     const completedEmpty = document.getElementById('completedEmpty');
     const incompletedEmpty = document.getElementById('incompletedEmpty');
     const lookupUrl = document.body.dataset.lookupUrl || '';
+
+    if(scheduleEmpty){
+      scheduleEmpty.dataset.defaultMessage = scheduleEmpty.textContent || 'Không có dữ liệu.';
+    }
 
     async function exportLookupPdf(){
       if(!lookupResults || lookupResults.hidden){
@@ -1425,6 +1558,192 @@
       lookupExportButton.addEventListener('click', exportLookupPdf);
     }
 
+    function setScheduleMessage(message){
+      if(!scheduleMessage) return;
+      if(message && message.trim() !== ''){
+        scheduleMessage.textContent = message;
+        scheduleMessage.hidden = false;
+      } else {
+        scheduleMessage.textContent = '';
+        scheduleMessage.hidden = true;
+      }
+    }
+
+    function createScheduleCell(cell, item){
+      const td = document.createElement('td');
+      if(cell.className){
+        td.classList.add(cell.className);
+      }
+
+      if(cell.type === 'html'){
+        const htmlValue = (cell.value ?? '').toString().trim();
+        if(htmlValue){
+          td.innerHTML = htmlValue;
+        } else {
+          td.textContent = '—';
+        }
+        return td;
+      }
+
+      if(cell.type === 'registrations'){
+        const count = Number(item.registered_students_count || 0);
+        if(count > 0){
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'link-btn';
+          button.dataset.course = item.id || '';
+          button.dataset.courseName = item.ten_khoa_hoc || '';
+          button.dataset.courseSchedule = item.primary_schedule_text || '';
+          button.dataset.courseLocation = item.primary_location_text || '';
+          button.textContent = `${count} học viên`;
+          td.appendChild(button);
+        } else {
+          const span = document.createElement('span');
+          span.style.color = 'var(--muted)';
+          span.textContent = 'Chưa có';
+          td.appendChild(span);
+        }
+        return td;
+      }
+
+      if(cell.type === 'status'){
+        const status = (item.trang_thai || '—').toString();
+        const statusClassMap = { 'Dự thảo':'gray', 'Ban hành':'info', 'Đang đào tạo':'warn', 'Kết thúc':'ok', 'Tạm hoãn':'pause' };
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (statusClassMap[status] || 'gray');
+        badge.textContent = status;
+        td.appendChild(badge);
+
+        if(status === 'Tạm hoãn' && item.ly_do_tam_hoan){
+          const note = document.createElement('div');
+          note.className = 'status-note';
+          note.textContent = item.ly_do_tam_hoan;
+          td.appendChild(note);
+        }
+
+        return td;
+      }
+
+      const value = cell.value;
+      if(value !== undefined && value !== null && value !== ''){
+        td.textContent = value;
+      } else {
+        td.textContent = '—';
+      }
+      return td;
+    }
+
+    function renderScheduleRows(items){
+      if(!scheduleTableBody) return;
+      scheduleTableBody.innerHTML = '';
+
+      if(!Array.isArray(items) || !items.length){
+        if(scheduleResults){
+          scheduleResults.hidden = true;
+        }
+        if(scheduleEmpty){
+          scheduleEmpty.hidden = true;
+          const fallback = scheduleEmpty.dataset.defaultMessage || 'Không có dữ liệu.';
+          scheduleEmpty.textContent = fallback;
+        }
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        const cells = [
+          { type:'text', value:item.stt ?? '', className:'nowrap' },
+          { type:'text', value:item.ma_khoa_hoc ?? '—', className:'nowrap' },
+          { type:'text', value:item.ten_khoa_hoc ?? '—', className:'left' },
+          { type:'text', value:item.giang_vien ?? '—' },
+          { type:'html', value:item.ngay_gio_html ?? '' },
+          { type:'html', value:item.dia_diem_html ?? '' },
+          { type:'text', value:item.tuan ?? '—', className:'nowrap' },
+          { type:'registrations', value:null },
+          { type:'status', value:null },
+        ];
+
+        cells.forEach(cell => {
+          tr.appendChild(createScheduleCell(cell, item));
+        });
+
+        fragment.appendChild(tr);
+      });
+
+      scheduleTableBody.appendChild(fragment);
+      if(scheduleResults){
+        scheduleResults.hidden = false;
+      }
+      if(scheduleEmpty){
+        scheduleEmpty.hidden = true;
+      }
+    }
+
+    setScheduleMessage('');
+
+    if(scheduleForm){
+      scheduleForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const query = scheduleInput ? scheduleInput.value.trim() : '';
+        if(!query){
+          setScheduleMessage('Vui lòng nhập thông tin cần tra cứu.');
+          if(scheduleResults){
+            scheduleResults.hidden = true;
+          }
+          if(scheduleEmpty){
+            scheduleEmpty.hidden = true;
+            scheduleEmpty.textContent = scheduleEmpty.dataset.defaultMessage || 'Không có dữ liệu.';
+          }
+          return;
+        }
+
+        setScheduleMessage('Đang tra cứu...');
+        if(scheduleTableBody){
+          scheduleTableBody.innerHTML = '';
+        }
+        if(scheduleResults){
+          scheduleResults.hidden = true;
+        }
+        if(scheduleEmpty){
+          scheduleEmpty.hidden = true;
+          scheduleEmpty.textContent = scheduleEmpty.dataset.defaultMessage || 'Không có dữ liệu.';
+        }
+
+        fetch(scheduleUrl + '?q=' + encodeURIComponent(query))
+          .then(res => {
+            if(res.status === 422){
+              return res.json().then(data => {
+                throw new Error(data.message || 'Vui lòng kiểm tra thông tin nhập.');
+              });
+            }
+            if(!res.ok){
+              throw new Error('Không thể tra cứu lịch học.');
+            }
+            return res.json();
+          })
+          .then(data => {
+            const rows = Array.isArray(data.rows) ? data.rows : [];
+            const message = data.message || (rows.length ? 'Đã cập nhật kết quả tra cứu.' : 'Không tìm thấy kết quả phù hợp.');
+            setScheduleMessage(message);
+            renderScheduleRows(rows);
+          })
+          .catch(error => {
+            setScheduleMessage(error.message || 'Không thể tra cứu lịch học.');
+            if(scheduleTableBody){
+              scheduleTableBody.innerHTML = '';
+            }
+            if(scheduleEmpty){
+              scheduleEmpty.hidden = false;
+              scheduleEmpty.textContent = scheduleEmpty.dataset.defaultMessage || 'Không có dữ liệu.';
+            }
+            if(scheduleResults){
+              scheduleResults.hidden = false;
+            }
+          });
+      });
+    }
+
     function setLookupMessage(message){
       if(!lookupMessage) return;
       if(message && message.trim() !== ''){
@@ -1438,23 +1757,24 @@
 
     setLookupMessage('');
 
-    lookupForm.addEventListener('submit', event => {
-      event.preventDefault();
-      const query = lookupInput.value.trim();
-      if(!query){
-        setLookupMessage('Vui lòng nhập thông tin cần tra cứu.');
-        if(lookupResults){
-          lookupResults.hidden = true;
+    if(lookupForm){
+      lookupForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const query = lookupInput.value.trim();
+        if(!query){
+          setLookupMessage('Vui lòng nhập thông tin cần tra cứu.');
+          if(lookupResults){
+            lookupResults.hidden = true;
+          }
+          if(lookupActions){
+            lookupActions.hidden = true;
+          }
+          return;
         }
-        if(lookupActions){
-          lookupActions.hidden = true;
-        }
-        return;
-      }
 
-      setLookupMessage('Đang tra cứu...');
-      completedBody.innerHTML = '';
-      incompletedBody.innerHTML = '';
+        setLookupMessage('Đang tra cứu...');
+        completedBody.innerHTML = '';
+        incompletedBody.innerHTML = '';
       completedEmpty.hidden = true;
       incompletedEmpty.hidden = true;
       if(lookupResults){
@@ -1495,7 +1815,8 @@
             lookupActions.hidden = true;
           }
         });
-    });
+      });
+    }
 
     function renderLookupTable(body, emptyEl, items, isCompleted){
       body.innerHTML = '';

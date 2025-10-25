@@ -18,6 +18,7 @@ Route::get('/export/chuyende', [ChuyenDeExportController::class, 'export'])
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/khoa-hoc/{khoaHoc}/hoc-vien', [HomeController::class, 'registeredStudents'])->name('home.registrations');
 Route::get('/tra-cuu-ket-qua', [HomeController::class, 'lookupResults'])->name('home.lookup');
+Route::get('/tra-cuu-lich-hoc', [HomeController::class, 'lookupSchedule'])->name('home.lookup-schedule');
 
 // Đăng nhập / Đăng xuất trên trang chủ
 Route::post('/login',  [SiteLoginController::class, 'login'])->name('site.login');
