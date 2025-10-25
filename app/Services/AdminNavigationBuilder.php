@@ -42,8 +42,10 @@ class AdminNavigationBuilder
             ->with(['children' => fn ($query) => $query->active()->ordered()])
             ->get()
             ->map(function (AdminNavigationItem $group) {
-                $items = $group->children->map(function (AdminNavigationItem $item) {
-                    return static::makeNavigationItem($item);
+                $items = $group->children->map(function (AdminNavigationItem $item) use ($group) {
+                    $allowItemIcons = empty($group->icon);
+
+                    return static::makeNavigationItem($item, $allowItemIcons);
                 })->filter()->values();
 
                 if ($items->isEmpty()) {
@@ -63,20 +65,22 @@ class AdminNavigationBuilder
             ->values();
     }
 
-    protected static function makeNavigationItem(AdminNavigationItem $item): ?NavigationItem
+    protected static function makeNavigationItem(AdminNavigationItem $item, bool $allowIcon = true): ?NavigationItem
     {
         $label = $item->title;
-        $icon = $item->icon ?: 'heroicon-o-square-2-stack';
+        $icon = $allowIcon
+            ? ($item->icon ?: 'heroicon-o-square-2-stack')
+            : null;
 
         return match ($item->type) {
-            'resource' => static::resourceItem($item, $label, $icon),
-            'page' => static::pageItem($item, $label, $icon),
+            'resource' => static::resourceItem($item, $label, $icon, $allowIcon),
+            'page' => static::pageItem($item, $label, $icon, $allowIcon),
             'url' => static::urlItem($item, $label, $icon),
             default => null,
         };
     }
 
-    protected static function resourceItem(AdminNavigationItem $item, string $label, string $icon): ?NavigationItem
+    protected static function resourceItem(AdminNavigationItem $item, string $label, ?string $icon, bool $allowIcon): ?NavigationItem
     {
         $class = $item->target;
 
@@ -123,7 +127,7 @@ class AdminNavigationBuilder
             }
         }
 
-        if (method_exists($class, 'getNavigationIcon') && ! $item->icon && $class::getNavigationIcon()) {
+        if ($allowIcon && method_exists($class, 'getNavigationIcon') && ! $item->icon && $class::getNavigationIcon()) {
             $navigation->icon($class::getNavigationIcon());
         }
 
@@ -142,7 +146,7 @@ class AdminNavigationBuilder
         return $navigation;
     }
 
-    protected static function pageItem(AdminNavigationItem $item, string $label, string $icon): ?NavigationItem
+    protected static function pageItem(AdminNavigationItem $item, string $label, ?string $icon, bool $allowIcon): ?NavigationItem
     {
         $class = $item->target;
 
@@ -168,7 +172,7 @@ class AdminNavigationBuilder
             $navigation->icon($icon);
         }
 
-        if (method_exists($class, 'getNavigationIcon') && ! $item->icon && $class::getNavigationIcon()) {
+        if ($allowIcon && method_exists($class, 'getNavigationIcon') && ! $item->icon && $class::getNavigationIcon()) {
             $navigation->icon($class::getNavigationIcon());
         }
 
@@ -187,7 +191,7 @@ class AdminNavigationBuilder
         return $navigation;
     }
 
-    protected static function urlItem(AdminNavigationItem $item, string $label, string $icon): NavigationItem
+    protected static function urlItem(AdminNavigationItem $item, string $label, ?string $icon): NavigationItem
     {
         $navigation = NavigationItem::make($label)->url($item->url ?? '#');
 
