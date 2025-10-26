@@ -1,12 +1,20 @@
 /* ===== Toolbar & trạng thái ===== */
 .nf-toolbar-group{ gap: .5rem; }
 
-/* Trạng thái bên trái icon: nhỏ hơn ~2pt, màu sẫm, không đậm */
+/* ẨN HOÀN TOÀN icon + mô tả trên MOBILE; chỉ HIỆN trên DESKTOP */
+@media (max-width: 1023.98px){
+  .nf-toolbar-group{ display: none !important; }
+}
+@media (min-width: 1024px){
+  .nf-toolbar-group{ display: inline-flex !important; }
+}
+
+/* Trạng thái bên trái icon: nhỏ, sẫm, không đậm */
 .nf-left-status{
-  font-size: 9.5pt;
+  font-size: 9.75pt;   /* theo yêu cầu trước: +1pt */
   line-height: 1rem;
-  color: #334155;         /* slate-700: sẫm, không phải đen đậm */
-  font-weight: 400;       /* không bold */
+  color: #334155;      /* slate-700: sẫm */
+  font-weight: 400;
   user-select: none;
 }
 .dark .nf-left-status{ color: #94a3b8; }
@@ -60,7 +68,7 @@
   .nf-anim-opening{ animation: none !important; }
 }
 
-/* ===== Vùng mép trái kích hoạt Auto ===== */
+/* ===== Vùng mép trái kích hoạt Auto (chỉ desktop – JS đã chặn trên mobile) ===== */
 .nf-sidebar-edge, #nf-sidebar-edge{
   position: fixed;
   top: 0; bottom: 0; left: 0;
@@ -71,54 +79,39 @@
 }
 #nf-sidebar-edge:hover{ background: rgba(0,0,0,0.04); }
 
-/* ===================================================================== */
-/* === Chỉ override NÚT MẶC ĐỊNH (không có màu riêng)                 === */
-/* === Nền vàng #FFFCD5 – chữ xanh #00529C                           === */
-/* ===================================================================== */
-
-/* Nút mặc định của Filament: .fi-btn mà KHÔNG có class màu và KHÔNG inline style */
+/* ===== Chỉ override NÚT MẶC ĐỊNH (không có màu riêng) – vàng/xanh ===== */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]),
 .fi-btn:where(button):not(.btn-native):not([class*="fi-color-"]):not([style]),
 a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) {
-  background-color: #FFFCD5 !important;   /* nền vàng */
-  color: #00529C !important;              /* chữ xanh */
-  border: 1px solid #F5EDB5 !important;   /* viền vàng nhạt */
+  background-color: #FFFCD5 !important;
+  color: #00529C !important;
+  border: 1px solid #F5EDB5 !important;
   border-radius: .75rem;
   box-shadow: 0 2px 6px rgba(0,82,156,0.08);
 }
-
-/* Label/Icon bên trong của NÚT MẶC ĐỊNH */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) .fi-btn-label,
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) svg,
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) [class*="icon"] {
   color: #00529C !important;
   fill: currentColor !important;
 }
-
-/* Hover cho NÚT MẶC ĐỊNH */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):hover,
 a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):hover {
   background-color: #FFF8B8 !important;
   border-color: #F1E89A !important;
   color: #004987 !important;
 }
-
-/* Active cho NÚT MẶC ĐỊNH */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):active,
 a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):active {
   background-color: #FFF39A !important;
   border-color: #EBDD7D !important;
   box-shadow: 0 1px 4px rgba(0,82,156,0.14);
 }
-
-/* Focus cho NÚT MẶC ĐỊNH */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):focus-visible,
 a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):focus-visible {
   outline: 2px solid #00529C !important;
   outline-offset: 2px;
 }
-
-/* Disabled cho NÚT MẶC ĐỊNH */
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):disabled,
 .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style])[disabled],
 a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]).disabled {
@@ -128,12 +121,8 @@ a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]).disabled {
   opacity: 1 !important;
   cursor: not-allowed !important;
 }
-
-/* Button group: chỉ áp dụng cho NÚT MẶC ĐỊNH trong group */
 .fi-btn-group .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) {
   background-color: #FFFCD5 !important;
   color: #00529C !important;
   border-color: #F5EDB5 !important;
 }
-
-/* Vẫn giữ “van an toàn” .btn-native để thoát override khi cần */

@@ -1,11 +1,13 @@
 {{-- resources/views/filament/components/sidebar-mode-toggle.blade.php --}}
-<div id="nf-toolbar-group" class="inline-flex items-center ms-2 nf-toolbar-group"
+<div id="nf-toolbar-group"
+     class="inline-flex items-center ms-2 nf-toolbar-group"
      x-data="sidebarModeToggle()"
      x-init="init()">
-    {{-- Trạng thái hiện hành bên trái icon (không tooltip) --}}
+
+    {{-- Trạng thái hiện hành bên trái icon (PC only - ẩn trên mobile qua CSS) --}}
     <span class="nf-left-status" x-text="label"></span>
 
-    {{-- Nút icon đổi chế độ --}}
+    {{-- Nút icon đổi chế độ (PC only - ẩn trên mobile qua CSS) --}}
     <div class="nf-icon-wrap">
         <button type="button"
                 class="nf-sidebar-toggle"
