@@ -5,6 +5,7 @@ use App\Http\Controllers\DangKyController;
 use App\Http\Controllers\ChuyenDeExportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Auth\SiteLoginController;
+use App\Http\Controllers\AnnouncementController;
 
 // Các route cho Đăng ký
 Route::get('/dang-kies', [DangKyController::class, 'index'])->name('dang-kies.index');
@@ -23,3 +24,6 @@ Route::get('/tra-cuu-lich-hoc', [HomeController::class, 'lookupSchedule'])->name
 // Đăng nhập / Đăng xuất trên trang chủ
 Route::post('/login',  [SiteLoginController::class, 'login'])->name('site.login');
 Route::post('/logout', [SiteLoginController::class, 'logout'])->name('site.logout');
+
+Route::get('/announcements/{slug}', [AnnouncementController::class, 'show'])
+    ->name('announcements.show');

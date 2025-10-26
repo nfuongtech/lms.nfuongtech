@@ -1,6 +1,12 @@
 <!doctype html>
 <html lang="vi">
 <head>
+  <style id="announcement-media-fix">
+    img,video,iframe{max-width:100%;height:auto}
+    .aspect-video{position:relative;width:100%;padding-top:56.25%}
+    .aspect-video > *{position:absolute;inset:0;width:100%;height:100%;border:0}
+  </style>
+
   <meta charset="utf-8">
   <title>Kế hoạch đào tạo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1028,6 +1034,9 @@
         <div class="print-only print-footer" id="lookupPrintFooter">TRUNG TÂM PHÁT TRIỂN KỸ NĂNG NGHỀ NGHIỆP</div>
       </div>
     </section>
+    @include('components.announcements-popup')
+    @include('components.announcements-widget')
+
 
     <section class="featured">
       <h2 class="section-title">HỌC VIÊN TIÊU BIỂU</h2>
@@ -1949,5 +1958,7 @@
       return '—';
     }
   </script>
+
+<script src="https://unpkg.com/alpinejs" defer></script>
 </body>
 </html>
