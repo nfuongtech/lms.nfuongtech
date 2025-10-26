@@ -1,5 +1,5 @@
 {{-- resources/views/filament/resources/hoc-vien-resource/pages/list-hoc-viens.blade.php --}}
-<x-filament-panels::page>
+<x-filament::page>
     {{-- Hiển thị bảng thống kê --}}
     <div class="bg-white shadow rounded-lg p-5 mb-6">
         <h2 class="text-lg font-semibold mb-4">Thống kê số lượng học viên theo đơn vị</h2>
@@ -32,5 +32,9 @@
     </div>
 
     {{-- Hiển thị bảng danh sách học viên như bình thường --}}
-    {{ $this->table }}
-</x-filament-panels::page>
+    <x-filament::resources.pages.list-records
+        :records="$records"
+        :resource="$resource"
+        :table="$this->getTable()"
+    />
+</x-filament::page>

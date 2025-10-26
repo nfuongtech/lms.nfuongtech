@@ -1,0 +1,139 @@
+/* ===== Toolbar & trạng thái ===== */
+.nf-toolbar-group{ gap: .5rem; }
+
+/* Trạng thái bên trái icon: nhỏ hơn ~2pt, màu sẫm, không đậm */
+.nf-left-status{
+  font-size: 9.5pt;
+  line-height: 1rem;
+  color: #334155;         /* slate-700: sẫm, không phải đen đậm */
+  font-weight: 400;       /* không bold */
+  user-select: none;
+}
+.dark .nf-left-status{ color: #94a3b8; }
+
+/* ===== Icon sidebar ===== */
+.nf-icon-wrap{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+}
+
+.nf-sidebar-toggle{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem; width: 2rem;
+  border-radius: .5rem;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #0f172a;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+.nf-sidebar-toggle:hover{ background: #f8fafc; }
+.nf-sidebar-toggle:active{ transform: none; }
+.nf-sidebar-toggle svg{ display: block; }
+.dark .nf-sidebar-toggle{
+  background: #0b1220;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+/* ===== Sidebar mở mượt trái→phải ===== */
+.fi-sidebar{
+  transition: width .28s cubic-bezier(.22,1,.36,1),
+              transform .28s cubic-bezier(.22,1,.36,1),
+              opacity .28s cubic-bezier(.22,1,.36,1);
+  will-change: transform, width, opacity;
+}
+.nf-anim-opening{
+  animation: nf-sidebar-in .28s cubic-bezier(.22,1,.36,1);
+}
+@keyframes nf-sidebar-in{
+  from { transform: translateX(-14px); opacity: .9; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .fi-sidebar{ transition: none !important; }
+  .nf-anim-opening{ animation: none !important; }
+}
+
+/* ===== Vùng mép trái kích hoạt Auto ===== */
+.nf-sidebar-edge, #nf-sidebar-edge{
+  position: fixed;
+  top: 0; bottom: 0; left: 0;
+  width: 12px;
+  z-index: 10050;
+  pointer-events: auto;
+  background: transparent;
+}
+#nf-sidebar-edge:hover{ background: rgba(0,0,0,0.04); }
+
+/* ===================================================================== */
+/* === Chỉ override NÚT MẶC ĐỊNH (không có màu riêng)                 === */
+/* === Nền vàng #FFFCD5 – chữ xanh #00529C                           === */
+/* ===================================================================== */
+
+/* Nút mặc định của Filament: .fi-btn mà KHÔNG có class màu và KHÔNG inline style */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]),
+.fi-btn:where(button):not(.btn-native):not([class*="fi-color-"]):not([style]),
+a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) {
+  background-color: #FFFCD5 !important;   /* nền vàng */
+  color: #00529C !important;              /* chữ xanh */
+  border: 1px solid #F5EDB5 !important;   /* viền vàng nhạt */
+  border-radius: .75rem;
+  box-shadow: 0 2px 6px rgba(0,82,156,0.08);
+}
+
+/* Label/Icon bên trong của NÚT MẶC ĐỊNH */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) .fi-btn-label,
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) svg,
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) [class*="icon"] {
+  color: #00529C !important;
+  fill: currentColor !important;
+}
+
+/* Hover cho NÚT MẶC ĐỊNH */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):hover,
+a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):hover {
+  background-color: #FFF8B8 !important;
+  border-color: #F1E89A !important;
+  color: #004987 !important;
+}
+
+/* Active cho NÚT MẶC ĐỊNH */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):active,
+a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):active {
+  background-color: #FFF39A !important;
+  border-color: #EBDD7D !important;
+  box-shadow: 0 1px 4px rgba(0,82,156,0.14);
+}
+
+/* Focus cho NÚT MẶC ĐỊNH */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):focus-visible,
+a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):focus-visible {
+  outline: 2px solid #00529C !important;
+  outline-offset: 2px;
+}
+
+/* Disabled cho NÚT MẶC ĐỊNH */
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]):disabled,
+.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style])[disabled],
+a.fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]).disabled {
+  background-color: #FFFDE8 !important;
+  border-color: #F4F0C8 !important;
+  color: #7AA2C6 !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+
+/* Button group: chỉ áp dụng cho NÚT MẶC ĐỊNH trong group */
+.fi-btn-group .fi-btn:not(.btn-native):not([class*="fi-color-"]):not([style]) {
+  background-color: #FFFCD5 !important;
+  color: #00529C !important;
+  border-color: #F5EDB5 !important;
+}
+
+/* Vẫn giữ “van an toàn” .btn-native để thoát override khi cần */

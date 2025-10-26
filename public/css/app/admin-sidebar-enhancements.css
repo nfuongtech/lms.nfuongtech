@@ -1,0 +1,141 @@
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced {
+    position: relative;
+    transition: grid-template-columns 0.35s ease;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced .fi-sidebar,
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced .fi-main {
+    transition: transform 0.35s ease, opacity 0.35s ease, margin 0.35s ease, padding 0.35s ease;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced .fi-sidebar {
+    will-change: transform, opacity;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced[data-sidebar-state='visible'] {
+    grid-template-columns: var(--sidebar-width, 18rem) minmax(0, 1fr) !important;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced[data-sidebar-state='hidden'] {
+    grid-template-columns: 0 minmax(0, 1fr) !important;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced[data-sidebar-state='hidden'] .fi-sidebar {
+    transform: translateX(calc(-1 * var(--sidebar-width, 18rem)));
+    opacity: 0;
+    pointer-events: none;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced[data-sidebar-state='visible'] .fi-sidebar {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+body[data-sidebar-enhanced='true'] .fi-layout--sidebar-enhanced[data-sidebar-state='hidden'] .fi-main {
+    margin-left: 0 !important;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-control {
+    position: fixed;
+    top: 1.25rem;
+    left: 1.5rem;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.65rem;
+    border-radius: 9999px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #f8fafc;
+    box-shadow: 0 15px 40px rgba(15, 23, 42, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(14px);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-control.fi-sidebar-mode-control--visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-select-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-select {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding-right: 1.75rem;
+    cursor: pointer;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-select:focus {
+    outline: none;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-select-indicator {
+    position: absolute;
+    right: 0.35rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    pointer-events: none;
+    color: inherit;
+    opacity: 0.65;
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-mode-hint {
+    display: block;
+    font-size: 0.6875rem;
+    opacity: 0.6;
+    margin-top: -0.15rem;
+}
+
+@media (max-width: 1023px) {
+    body[data-sidebar-enhanced='true'] .fi-sidebar-mode-control {
+        display: none;
+    }
+}
+
+body[data-sidebar-enhanced='true'] .fi-sidebar-reveal-zone {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 16px;
+    z-index: 60;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.35), transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+body[data-sidebar-enhanced='true'][data-sidebar-mode='auto'] .fi-sidebar-reveal-zone,
+body[data-sidebar-enhanced='true'][data-sidebar-mode='hover'] .fi-sidebar-reveal-zone {
+    pointer-events: auto;
+    opacity: 0.12;
+}
+
+body[data-sidebar-enhanced='true'][data-sidebar-mode='auto'] .fi-sidebar-reveal-zone:hover,
+body[data-sidebar-enhanced='true'][data-sidebar-mode='hover'] .fi-sidebar-reveal-zone:hover {
+    opacity: 0.35;
+}
+
+body[data-sidebar-enhanced='true'][data-sidebar-mode='hidden'] .fi-sidebar-reveal-zone,
+body[data-sidebar-enhanced='true'][data-sidebar-mode='pinned'] .fi-sidebar-reveal-zone {
+    pointer-events: none;
+    opacity: 0;
+}

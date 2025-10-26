@@ -1,0 +1,9 @@
+/* Hiệu ứng nhẹ cho Sidebar khi chuyển trạng thái */
+.fi-sidebar {
+  transition: width .2s ease, transform .2s ease, opacity .2s ease;
+  will-change: transform, width;
+}
+
+/* Vùng mép trái khi hover có nền rất nhẹ để gợi ý */
+#nf-sidebar-edge { background: transparent; }
+#nf-sidebar-edge:hover { background: rgba(0,0,0,0.03); }
