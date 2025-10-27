@@ -34,7 +34,6 @@
                 z-index: 25;
                 box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
                 background-color: #ffffff;
-                /* Cột "Loại hình" ~2cm */
                 min-width: 2cm;
                 width: 2cm;
             }
@@ -70,8 +69,17 @@
                 z-index: 20;
             }
 
-            /* ====== Responsive behavior cho bảng ====== */
-            /* PC: luôn fit chiều ngang, phân bổ bề rộng đều để không che cột cuối */
+            /* FIX: Prevent overflow on all devices */
+            * {
+                box-sizing: border-box;
+            }
+
+            .fi-wi-card {
+                max-width: 100%;
+                overflow: hidden;
+            }
+
+            /* Responsive behavior cho bảng */
             @media (min-width: 1024px) {
                 .tkhv-table { table-layout: fixed; }
                 .tkhv-table th, .tkhv-table td { width: var(--cell-w); }
@@ -79,19 +87,115 @@
                     width: var(--type-col) !important;
                     min-width: var(--type-col) !important;
                 }
-                .tkhv-wrap { overflow-x: hidden; } /* không trượt ngang trên PC */
+                .tkhv-wrap { overflow-x: hidden; }
             }
 
-            /* Mobile/Tablet: cho phép trượt ngang */
             @media (max-width: 1023.98px) {
                 .tkhv-wrap {
-                    overflow-x: auto;               /* bật scroll ngang */
+                    overflow-x: auto;
                     -webkit-overflow-scrolling: touch;
+                    /* Fix cho mobile - đảm bảo scroll mượt */
+                    max-width: 100%;
                 }
                 .tkhv-table {
                     table-layout: auto;
-                    min-width: 1400px;              /* tạo overflow để có thể trượt */
+                    min-width: 1200px;  /* Giảm từ 1400px để dễ xem hơn trên mobile */
                 }
+                .tkhv-table th,
+                .tkhv-table td {
+                    white-space: nowrap;  /* Ngăn text bị wrap */
+                }
+            }
+
+            /* Mobile specific fixes */
+            @media (max-width: 640px) {
+                .tkhv-table {
+                    min-width: 1000px;  /* Nhỏ hơn nữa cho màn hình nhỏ */
+                }
+                .tkhv-table th,
+                .tkhv-table td {
+                    font-size: 0.7rem;  /* Chữ nhỏ hơn cho mobile */
+                    padding-inline: 0.2rem;
+                }
+            }
+
+            /* Custom layout grid */
+            .tkhv-main-grid {
+                display: grid;
+                gap: 1rem;
+                grid-template-columns: 1fr;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            @media (min-width: 1024px) {
+                .tkhv-main-grid {
+                    grid-template-columns: 380px 1fr;
+                }
+            }
+
+            @media (min-width: 1280px) {
+                .tkhv-main-grid {
+                    grid-template-columns: 420px 1fr;
+                }
+            }
+
+            /* Left column layout */
+            .tkhv-left-column {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0; /* Important: Allow flex items to shrink */
+            }
+
+            .tkhv-left-column > * {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            /* Mobile: Stack vertically with proper width constraints */
+            @media (max-width: 1023px) {
+                .tkhv-main-grid {
+                    grid-template-columns: 1fr;
+                    width: 100%;
+                }
+                .tkhv-left-column {
+                    order: 1;
+                    width: 100%;
+                }
+                .tkhv-chart-wrapper {
+                    order: 2;
+                    width: 100%;
+                    max-width: 100%;
+                }
+            }
+
+            /* Chart container - match left column height */
+            .tkhv-chart-wrapper {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+
+            @media (min-width: 1024px) {
+                .tkhv-chart-wrapper {
+                    /* Chart sẽ tự động khớp với chiều cao tổng của 3 blocks bên trái */
+                }
+            }
+
+            @media (max-width: 1023px) {
+                .tkhv-chart-wrapper {
+                    min-height: 350px;
+                }
+            }
+
+            .tkhv-chart-container {
+                flex: 1;
+                position: relative;
+                min-height: 400px;
             }
         </style>
     @endpush
@@ -125,12 +229,11 @@
         : 'Tháng ' . str_pad((string) ((int) $selectedMonthValue), 2, '0', STR_PAD_LEFT);
     $studentSummaryLabel = $activeMonthLabel;
 
-    /* Số ô lá để chia đều bề rộng trên PC (12 tháng x 3 + 3 cột Tổng năm) */
     $leafColCount = count($months) * 3 + 3;
 @endphp
 
 <x-filament::widget>
-    <x-filament::card class="p-6 space-y-6">
+    <x-filament::card class="p-4 sm:p-6 space-y-6 max-w-full overflow-hidden">
         <div class="space-y-1">
             <h2 class="text-xl font-bold text-slate-800 dark:text-white">Thống kê Học viên</h2>
             <p class="text-sm text-slate-500 dark:text-gray-400">
@@ -138,131 +241,213 @@
             </p>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-3">
-            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
-                <div class="space-y-4">
-                    <div class="flex flex-wrap items-end gap-3 sm:flex-nowrap">
-                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
-                            <span class="mb-1.5">Năm</span>
-                            <select
-                                wire:model.live="year"
-                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                            >
-                                @foreach ($yearOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
-                            <span class="mb-1.5">Tháng</span>
-                            <select
-                                wire:model.live="month"
-                                class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                            >
-                                @foreach ($monthOptions as $value => $label)
-                                    <option value="{{ $value }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    </div>
+        <!-- MAIN LAYOUT: 2 Columns -->
+        <div class="tkhv-main-grid">
+            <!-- LEFT COLUMN: Filters + Summary Cards -->
+            <div class="tkhv-left-column">
+                <!-- 1. Bộ lọc -->
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
+                    <div class="space-y-4">
+                        <!-- Năm & Tháng -->
+                        <div class="flex flex-wrap items-end gap-3 sm:flex-nowrap">
+                            <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
+                                <span class="mb-1.5">Năm</span>
+                                <select
+                                    wire:model.live="year"
+                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                >
+                                    @foreach ($yearOptions as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
+                                <span class="mb-1.5">Tháng</span>
+                                <select
+                                    wire:model.live="month"
+                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                >
+                                    @foreach ($monthOptions as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                        </div>
 
-                    <div class="space-y-2.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Loại hình đào tạo</span>
+                        <!-- Loại hình đào tạo -->
+                        <div class="space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Loại hình đào tạo</span>
 
-                            <div class="flex items-center gap-2">
-                                @if(!$allSelected && $totalTypeCount > 0)
+                                <div class="flex items-center gap-2">
+                                    @if(!$allSelected && $totalTypeCount > 0)
+                                        <button
+                                            type="button"
+                                            wire:click="selectAllTrainingTypes"
+                                            wire:loading.attr="disabled"
+                                            class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                                        >
+                                            Chọn tất cả
+                                        </button>
+                                    @endif
+
+                                    @if($selectedTypes->isNotEmpty())
+                                        <button
+                                            type="button"
+                                            wire:click="clearTrainingTypeFilters"
+                                            wire:loading.attr="disabled"
+                                            class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                                        >
+                                            Bỏ chọn
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2">
+                                @forelse ($trainingTypeOptions as $value => $label)
+                                    @php
+                                        $isSelected = $selectedTypes->contains($value);
+                                    @endphp
                                     <button
                                         type="button"
-                                        wire:click="selectAllTrainingTypes"
+                                        wire:key="training-type-{{ md5($value) }}"
+                                        wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
                                         wire:loading.attr="disabled"
-                                        class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                                        @class([
+                                            'rounded-full border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
+                                            'border-primary-500 bg-primary-500 text-white dark:border-primary-400 dark:bg-primary-500/90' => $isSelected,
+                                            'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-primary-400 dark:hover:bg-slate-700' => ! $isSelected,
+                                        ])
                                     >
-                                        Chọn tất cả
+                                        {{ $label }}
                                     </button>
-                                @endif
-
-                                @if($selectedTypes->isNotEmpty())
-                                    <button
-                                        type="button"
-                                        wire:click="clearTrainingTypeFilters"
-                                        wire:loading.attr="disabled"
-                                        class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                                    >
-                                        Bỏ chọn
-                                    </button>
-                                @endif
+                                @empty
+                                    <p class="text-xs text-slate-400 dark:text-slate-300">
+                                        Chưa có dữ liệu loại hình đào tạo. Vui lòng cập nhật Kế hoạch đào tạo.
+                                    </p>
+                                @endforelse
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div class="flex flex-wrap gap-2">
-                            @forelse ($trainingTypeOptions as $value => $label)
-                                @php
-                                    $isSelected = $selectedTypes->contains($value);
-                                @endphp
-                                <button
-                                    type="button"
-                                    wire:key="training-type-{{ md5($value) }}"
-                                    wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
-                                    wire:loading.attr="disabled"
-                                    @class([
-                                        'rounded-full border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
-                                        'border-primary-500 bg-primary-500 text-white dark:border-primary-400 dark:bg-primary-500/90' => $isSelected,
-                                        'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-primary-400 dark:hover:bg-slate-700' => ! $isSelected,
-                                    ])
-                                >
-                                    {{ $label }}
-                                </button>
-                            @empty
-                                <p class="text-xs text-slate-400 dark:text-slate-300">
-                                    Chưa có dữ liệu loại hình đào tạo. Vui lòng cập nhật Kế hoạch đào tạo.
-                                </p>
-                            @endforelse
-                        </div>
+                <!-- 2. Tổng số học viên -->
+                <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
+                    <p class="mb-4 text-sm font-semibold text-emerald-700 dark:text-emerald-200">{{ $studentSummaryLabel }}</p>
+                    <div class="space-y-2 text-sm text-emerald-700 dark:text-emerald-100">
+                        <p>Đăng ký: <span class="font-semibold">{{ number_format($displayTotals['dk'] ?? 0) }}</span></p>
+                        <p>Hoàn thành: <span class="font-semibold" style="font-size: calc(1em + 2pt);">{{ number_format($displayTotals['ht'] ?? 0) }}</span></p>
+                        <p>Không hoàn thành: <span class="font-semibold">{{ number_format($displayTotals['kht'] ?? 0) }}</span></p>
+                    </div>
+                </div>
+
+                <!-- 3. Tóm tắt -->
+                <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-500/40 dark:bg-sky-500/10">
+                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">Tóm tắt</p>
+                    <div class="space-y-2 text-sm text-sky-700 dark:text-sky-100">
+                        <p>Số loại hình đang hiển thị: <span class="font-semibold">{{ $activeTypeCount }}</span> / {{ $totalTypeCount }}</p>
+                        <p>Tỷ lệ hoàn thành: <span class="font-semibold">{{ $completionRate }}%</span></p>
+                        <p>Phạm vi thời gian: <span class="font-semibold">{{ $activeMonthLabel }}</span></p>
+                        <p>
+                            Bộ lọc hiện tại:
+                            <span class="font-medium">
+                                {{ $selectedTypes->isEmpty() ? 'Tất cả loại hình' : $selectedTypes->map(fn ($value) => $trainingTypeOptions[$value] ?? $value)->implode(', ') }}
+                            </span>
+                        </p>
                     </div>
                 </div>
             </div>
 
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
-                <p class="mb-4 text-sm font-semibold text-emerald-700 dark:text-emerald-200">{{ $studentSummaryLabel }}</p>
-                <dl class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Đăng ký</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['dk'] ?? 0) }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['ht'] ?? 0) }}</dd>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <dt class="text-xs font-medium text-emerald-700 dark:text-emerald-200">Không hoàn thành</dt>
-                        <dd class="text-xl font-semibold text-emerald-800 dark:text-emerald-100">{{ number_format($displayTotals['kht'] ?? 0) }}</dd>
-                    </div>
-                </dl>
-            </div>
+            <!-- RIGHT COLUMN: Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 tkhv-chart-wrapper">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Biểu đồ tổng quan theo tháng</h3>
+                </div>
+                <div
+                    class="p-5 flex-1"
+                    x-data="{
+                        chart: null,
+                        frame: null,
+                        resizeHandler: null,
+                        data: @entangle('chartPayload').live,
+                        opts: @entangle('chartOptionsPayload').live,
+                        init() {
+                            this.resizeHandler = () => this.scheduleRender();
+                            window.addEventListener('resize', this.resizeHandler);
+                            this.$watch('data', () => this.scheduleRender());
+                            this.$watch('opts', () => this.scheduleRender());
+                            this.$nextTick(() => this.scheduleRender());
+                            return () => {
+                                if (this.resizeHandler) {
+                                    window.removeEventListener('resize', this.resizeHandler);
+                                    this.resizeHandler = null;
+                                }
+                                if (this.frame) {
+                                    cancelAnimationFrame(this.frame);
+                                    this.frame = null;
+                                }
+                                if (this.chart) {
+                                    try { this.chart.destroy(); } catch (error) {}
+                                    this.chart = null;
+                                }
+                            };
+                        },
+                        scheduleRender() {
+                            if (this.frame) {
+                                cancelAnimationFrame(this.frame);
+                            }
+                            this.frame = requestAnimationFrame(() => this.render());
+                        },
+                        render() {
+                            this.frame = null;
+                            const canvas = document.getElementById(@js($chartId));
+                            if (!canvas) {
+                                return;
+                            }
 
-            <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-500/40 dark:bg-sky-500/10">
-                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">Tóm tắt</p>
-                <div class="space-y-2 text-sm text-sky-700 dark:text-sky-100">
-                    <p>Số loại hình đang hiển thị: <span class="font-semibold">{{ $activeTypeCount }}</span> / {{ $totalTypeCount }}</p>
-                    <p>Tỷ lệ hoàn thành: <span class="font-semibold">{{ $completionRate }}%</span></p>
-                    <p>Phạm vi thời gian: <span class="font-semibold">{{ $activeMonthLabel }}</span></p>
-                    <p>
-                        Bộ lọc hiện tại:
-                        <span class="font-medium">
-                            {{ $selectedTypes->isEmpty() ? 'Tất cả loại hình' : $selectedTypes->map(fn ($value) => $trainingTypeOptions[$value] ?? $value)->implode(', ') }}
-                        </span>
-                    </p>
+                            if (typeof window.Chart === 'undefined') {
+                                setTimeout(() => this.scheduleRender(), 180);
+                                return;
+                            }
+
+                            const Chart = window.Chart;
+                            const ctx = canvas.getContext('2d');
+
+                            if (this.chart) {
+                                try { this.chart.destroy(); } catch (error) {}
+                                this.chart = null;
+                            }
+
+                            const options = JSON.parse(JSON.stringify(this.opts || {}));
+                            const data = JSON.parse(JSON.stringify(this.data || {}));
+                            options.plugins ??= {};
+                            options.plugins.tooltip ??= {};
+                            options.plugins.tooltip.callbacks ??= {};
+                            options.plugins.tooltip.callbacks.label = function (context) {
+                                const value = context.parsed?.y ?? 0;
+                                const label = context.dataset?.label ?? '';
+                                const formatted = (value || 0).toLocaleString('vi-VN');
+                                return label ? `${label}: ${formatted}` : formatted;
+                            };
+
+                            this.chart = new Chart(ctx, { type: 'bar', data, options });
+                        }
+                    }"
+                >
+                    <div class="tkhv-chart-container" wire:ignore>
+                        <canvas id="{{ $chartId }}" class="!h-full !w-full"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- BOTTOM: Table Full Width -->
         <div class="space-y-3">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Bảng số liệu chi tiết theo tháng</h3>
 
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                <!-- THAY ĐỔI: thêm class tkhv-wrap để điều khiển scroll theo thiết bị -->
                 <div class="overflow-hidden tkhv-wrap">
                     <table
                         class="tkhv-table divide-y divide-[#95d8f1] text-slate-700 dark:divide-gray-700 dark:text-slate-200"
@@ -361,85 +546,6 @@
                             </tr>
                         </tfoot>
                     </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="space-y-3">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">Biểu đồ tổng quan theo tháng</h3>
-            <div
-                x-data="{
-                    chart: null,
-                    frame: null,
-                    resizeHandler: null,
-                    data: @entangle('chartPayload').live,
-                    opts: @entangle('chartOptionsPayload').live,
-                    init() {
-                        this.resizeHandler = () => this.scheduleRender();
-                        window.addEventListener('resize', this.resizeHandler);
-                        this.$watch('data', () => this.scheduleRender());
-                        this.$watch('opts', () => this.scheduleRender());
-                        this.$nextTick(() => this.scheduleRender());
-                        return () => {
-                            if (this.resizeHandler) {
-                                window.removeEventListener('resize', this.resizeHandler);
-                                this.resizeHandler = null;
-                            }
-                            if (this.frame) {
-                                cancelAnimationFrame(this.frame);
-                                this.frame = null;
-                            }
-                            if (this.chart) {
-                                try { this.chart.destroy(); } catch (error) {}
-                                this.chart = null;
-                            }
-                        };
-                    },
-                    scheduleRender() {
-                        if (this.frame) {
-                            cancelAnimationFrame(this.frame);
-                        }
-                        this.frame = requestAnimationFrame(() => this.render());
-                    },
-                    render() {
-                        this.frame = null;
-                        const canvas = document.getElementById(@js($chartId));
-                        if (!canvas) {
-                            return;
-                        }
-
-                        if (typeof window.Chart === 'undefined') {
-                            setTimeout(() => this.scheduleRender(), 180);
-                            return;
-                        }
-
-                        const Chart = window.Chart;
-                        const ctx = canvas.getContext('2d');
-
-                        if (this.chart) {
-                            try { this.chart.destroy(); } catch (error) {}
-                            this.chart = null;
-                        }
-
-                        const options = JSON.parse(JSON.stringify(this.opts || {}));
-                        const data = JSON.parse(JSON.stringify(this.data || {}));
-                        options.plugins ??= {};
-                        options.plugins.tooltip ??= {};
-                        options.plugins.tooltip.callbacks ??= {};
-                        options.plugins.tooltip.callbacks.label = function (context) {
-                            const value = context.parsed?.y ?? 0;
-                            const label = context.dataset?.label ?? '';
-                            const formatted = (value || 0).toLocaleString('vi-VN');
-                            return label ? `${label}: ${formatted}` : formatted;
-                        };
-
-                        this.chart = new Chart(ctx, { type: 'bar', data, options });
-                    }
-                }"
-            >
-                <!-- THAY ĐỔI: giảm chiều cao xuống 50px -->
-                <div class="relative h-[50px] w-full overflow-hidden rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800" wire:ignore>
-                    <canvas id="{{ $chartId }}" class="!h-full w-full"></canvas>
                 </div>
             </div>
         </div>
