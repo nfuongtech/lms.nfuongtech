@@ -70,13 +70,44 @@
             }
 
             /* FIX: Prevent overflow on all devices */
-            * {
-                box-sizing: border-box;
-            }
+            * { box-sizing: border-box; }
 
-            .fi-wi-card {
+            .fi-wi-card { max-width: 100%; overflow: hidden; }
+
+            /* === FIX MOBILE OVERFLOW (không đổi bố cục PC) === */
+            .tkhv-main-grid { /* mobile: 1 cột */
+                display: grid;
+                gap: 1rem;
+                grid-template-columns: minmax(0, 1fr); /* FIX */
+                width: 100%;
                 max-width: 100%;
-                overflow: hidden;
+            }
+            .tkhv-main-grid > * { min-width: 0; } /* FIX: cho phép co */
+            .tkhv-left-column {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0; /* FIX */
+            }
+            .tkhv-left-column > * { width: 100%; max-width: 100%; min-width: 0; } /* FIX */
+
+            /* Chips dài tự xuống dòng, không tràn */
+            .tkhv-left-column .flex.flex-wrap.gap-2 > button { max-width: 100%; overflow-wrap: anywhere; } /* FIX */
+
+            /* Select co giãn theo khung */
+            .tkhv-left-column select { max-width: 100%; min-width: 0; } /* FIX */
+
+            .tkhv-chart-wrapper { display: flex; flex-direction: column; height: 100%; min-width: 0; max-width: 100%; overflow: hidden; } /* FIX */
+            .tkhv-chart-container { flex: 1; position: relative; min-height: 400px; min-width: 0; } /* FIX */
+            .tkhv-chart-container canvas { display: block; width: 100% !important; height: 100% !important; } /* FIX */
+
+            @media (min-width: 1024px) {
+                .tkhv-main-grid { grid-template-columns: 380px 1fr; } /* PC vẫn 2 cột như cũ */
+            }
+            @media (min-width: 1280px) {
+                .tkhv-main-grid { grid-template-columns: 420px 1fr; }
             }
 
             /* Responsive behavior cho bảng */
@@ -93,109 +124,16 @@
             @media (max-width: 1023.98px) {
                 .tkhv-wrap {
                     overflow-x: auto;
-                    -webkit-overflow-scrolling: touch;
-                    /* Fix cho mobile - đảm bảo scroll mượt */
+                    -webkit-overflow-scrolling: touch; /* mượt trên mobile */
                     max-width: 100%;
                 }
-                .tkhv-table {
-                    table-layout: auto;
-                    min-width: 1200px;  /* Giảm từ 1400px để dễ xem hơn trên mobile */
-                }
-                .tkhv-table th,
-                .tkhv-table td {
-                    white-space: nowrap;  /* Ngăn text bị wrap */
-                }
+                .tkhv-table { table-layout: auto; min-width: 1200px; }
+                .tkhv-table th, .tkhv-table td { white-space: nowrap; }
             }
 
-            /* Mobile specific fixes */
             @media (max-width: 640px) {
-                .tkhv-table {
-                    min-width: 1000px;  /* Nhỏ hơn nữa cho màn hình nhỏ */
-                }
-                .tkhv-table th,
-                .tkhv-table td {
-                    font-size: 0.7rem;  /* Chữ nhỏ hơn cho mobile */
-                    padding-inline: 0.2rem;
-                }
-            }
-
-            /* Custom layout grid */
-            .tkhv-main-grid {
-                display: grid;
-                gap: 1rem;
-                grid-template-columns: 1fr;
-                width: 100%;
-                max-width: 100%;
-            }
-
-            @media (min-width: 1024px) {
-                .tkhv-main-grid {
-                    grid-template-columns: 380px 1fr;
-                }
-            }
-
-            @media (min-width: 1280px) {
-                .tkhv-main-grid {
-                    grid-template-columns: 420px 1fr;
-                }
-            }
-
-            /* Left column layout */
-            .tkhv-left-column {
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-                width: 100%;
-                max-width: 100%;
-                min-width: 0; /* Important: Allow flex items to shrink */
-            }
-
-            .tkhv-left-column > * {
-                width: 100%;
-                max-width: 100%;
-                min-width: 0;
-            }
-
-            /* Mobile: Stack vertically with proper width constraints */
-            @media (max-width: 1023px) {
-                .tkhv-main-grid {
-                    grid-template-columns: 1fr;
-                    width: 100%;
-                }
-                .tkhv-left-column {
-                    order: 1;
-                    width: 100%;
-                }
-                .tkhv-chart-wrapper {
-                    order: 2;
-                    width: 100%;
-                    max-width: 100%;
-                }
-            }
-
-            /* Chart container - match left column height */
-            .tkhv-chart-wrapper {
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-            }
-
-            @media (min-width: 1024px) {
-                .tkhv-chart-wrapper {
-                    /* Chart sẽ tự động khớp với chiều cao tổng của 3 blocks bên trái */
-                }
-            }
-
-            @media (max-width: 1023px) {
-                .tkhv-chart-wrapper {
-                    min-height: 350px;
-                }
-            }
-
-            .tkhv-chart-container {
-                flex: 1;
-                position: relative;
-                min-height: 400px;
+                .tkhv-table { min-width: 1000px; }
+                .tkhv-table th, .tkhv-table td { font-size: 0.7rem; padding-inline: 0.2rem; }
             }
         </style>
     @endpush
