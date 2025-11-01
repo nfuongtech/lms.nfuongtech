@@ -5,7 +5,9 @@ namespace App\Providers\Filament;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationGroup;
+use App\Support\AdminNavigationBuilder;
+use BladeUI\Icons\Factory as BladeIconFactory;
+use Filament\Navigation\NavigationBuilder;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -49,12 +51,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
 
-            ->navigationGroups([
-                NavigationGroup::make()->label('Đào tạo'),
-                NavigationGroup::make()->label('Báo cáo'),
-                NavigationGroup::make()->label('Thiết lập'),
-                NavigationGroup::make()->label('User & Phân quyền'),
-            ])
+            ->navigation(fn (NavigationBuilder $builder) => app(AdminNavigationBuilder::class)->build($builder))
 
             ->middleware([
                 EncryptCookies::class,
@@ -78,6 +75,8 @@ class AdminPanelProvider extends PanelProvider
             Css::make('nf-sidebar-css-20251026', resource_path('css/filament/admin/sidebar.css')),
         ], 'nf-lms-admin-20251026');
 
+        $this->registerUploadedMenuIcons();
+
         FilamentView::registerRenderHook(
             PanelsRenderHook::BODY_START,
             fn () => view('filament.components.sidebar-edge')
@@ -88,5 +87,21 @@ class AdminPanelProvider extends PanelProvider
             PanelsRenderHook::TOPBAR_END,
             fn () => view('filament.components.sidebar-mode-toggle')
         );
+    }
+
+    protected function registerUploadedMenuIcons(): void
+    {
+        $disk = config('admin-navigation.upload_disk', 'public');
+        $directory = config('admin-navigation.upload_directory', 'menu-icons');
+
+        /** @var BladeIconFactory $factory */
+        $factory = app(BladeIconFactory::class);
+
+        if (! $factory->hasSet('admin-menu-uploads')) {
+            $factory->add('admin-menu-uploads', [
+                'disk' => $disk,
+                'path' => $directory,
+            ]);
+        }
     }
 }
