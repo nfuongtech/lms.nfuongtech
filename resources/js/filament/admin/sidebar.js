@@ -92,6 +92,30 @@
     requestAnimationFrame(() => {
       const el = ensureSingleToolbar();
       placeLeftOfProfile(el);
+      applyCustomIcons();
+    });
+  }
+
+  /* ===== Icon menu tuỳ chỉnh ===== */
+  function applyCustomIcons() {
+    const items = document.querySelectorAll('[data-custom-icon]');
+    items.forEach((item) => {
+      const url = item.getAttribute('data-custom-icon');
+      if (!url) return;
+
+      const iconContainer = item.querySelector('[data-slot="icon"], .fi-sidebar-item-icon');
+      if (!iconContainer || iconContainer.dataset.customIcon === 'applied') return;
+
+      iconContainer.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      img.decoding = 'async';
+      img.loading = 'lazy';
+      img.className = 'nf-menu-custom-icon';
+
+      iconContainer.appendChild(img);
+      iconContainer.dataset.customIcon = 'applied';
     });
   }
 
@@ -153,8 +177,8 @@
   };
 
   /* ===== Lifecycle ===== */
-  document.addEventListener('alpine:init',        () => { applyMode(); setupEdge(); settleToolbar(); });
-  document.addEventListener('livewire:navigated', () => { applyMode(); setupEdge(); settleToolbar(); });
-  document.addEventListener('DOMContentLoaded',   () => { applyMode(); setupEdge(); settleToolbar(); });
-  window.addEventListener('resize',               () => { settleToolbar(); }); // khi đổi kích thước màn hình
+  document.addEventListener('alpine:init',        () => { applyMode(); setupEdge(); settleToolbar(); applyCustomIcons(); });
+  document.addEventListener('livewire:navigated', () => { applyMode(); setupEdge(); settleToolbar(); applyCustomIcons(); });
+  document.addEventListener('DOMContentLoaded',   () => { applyMode(); setupEdge(); settleToolbar(); applyCustomIcons(); });
+  window.addEventListener('resize',               () => { settleToolbar(); applyCustomIcons(); }); // khi đổi kích thước màn hình
 })();
