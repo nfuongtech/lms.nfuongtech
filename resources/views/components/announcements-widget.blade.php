@@ -31,47 +31,139 @@
         #announcements-widget{max-width:100%}
         #announcements-widget *{box-sizing:border-box}
 
-        /* Tiêu đề căn giữa */
+        /* Tiêu đề căn giữa - Đồng nhất với các section khác */
         #announcements-widget .heading{
-            text-align:center;font-weight:800;font-size:1.125rem;letter-spacing:.02em;margin-bottom:8px
+            font-size:18px;
+            font-weight:700;
+            text-align:center;
+            margin-bottom:12px;
         }
 
         /* Khung hero: không dùng wrapper 16:9 để tránh khoảng trống; media tự cao */
         #announcements-widget .hero{
-            position:relative;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden
+            position:relative;
+            background:#fff;
+            border:1px solid #e5e7eb;
+            border-radius:16px;
+            overflow:hidden;
+            box-shadow:0 12px 32px rgba(15, 23, 42, 0.1);
         }
 
         /* Media: ép full ngang, cao tự nhiên */
-        #announcements-widget .media{width:100% !important;max-width:100% !important}
+        #announcements-widget .media{
+            width:100% !important;
+            max-width:100% !important;
+            position:relative;
+        }
         #announcements-widget .media img{
-            display:block;width:100% !important;height:auto !important;max-width:100% !important;object-fit:contain;border:0
+            display:block;
+            width:100% !important;
+            height:auto !important;
+            max-width:100% !important;
+            object-fit:contain;
+            border:0;
         }
         #announcements-widget .media video{
-            display:block;width:100% !important;height:auto !important;max-width:100% !important;object-fit:contain;border:0;background:#000
+            display:block;
+            width:100% !important;
+            height:auto !important;
+            max-width:100% !important;
+            object-fit:contain;
+            border:0;
+            background:#000;
         }
         /* Với iframe (YouTube/Vimeo) không thể auto-height theo nội dung do cross-origin.
            Dùng width:100% và chiều cao responsive hợp lý theo viewport để tránh tràn/ngắn 150px mặc định. */
         #announcements-widget .media iframe{
-            display:block;width:100% !important;border:0;
+            display:block;
+            width:100% !important;
+            border:0;
             height:clamp(240px, 56.25vw, 720px); /* cao linh hoạt theo viewport, vẫn full ngang */
-            max-width:100% !important;background:#000
+            max-width:100% !important;
+            background:#000;
+        }
+
+        /* Fallback cho nội dung văn bản khi không có media */
+        #announcements-widget .content-fallback{
+            padding:20px;
+            background:#f9fafb;
+            border-radius:12px;
+            line-height:1.6;
+            color:#374151;
+            max-height:400px;
+            overflow-y:auto;
+        }
+        #announcements-widget .content-fallback a{
+            color:#2563eb;
+            text-decoration:underline;
         }
 
         /* Overlay tiêu đề đặt trên cùng, không chiếm chỗ */
         #announcements-widget .overlay{
-            position:absolute;left:0;right:0;bottom:0;
+            position:absolute;
+            left:0;
+            right:0;
+            bottom:0;
             background:linear-gradient(to top,rgba(0,0,0,.65),transparent);
-            padding:12px;pointer-events:none
+            padding:12px;
+            pointer-events:none;
         }
-        #announcements-widget .overlay .date{color:#fff;opacity:.95;font-size:.875rem;margin-bottom:2px}
+        #announcements-widget .overlay .date{
+            color:#fff;
+            opacity:.95;
+            font-size:.875rem;
+            margin-bottom:2px;
+        }
         #announcements-widget .overlay .title{
-            color:#fff;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden
+            color:#fff;
+            font-weight:700;
+            display:-webkit-box;
+            -webkit-line-clamp:2;
+            -webkit-box-orient:vertical;
+            overflow:hidden;
         }
 
         /* Chấm điều hướng */
-        #announcements-widget .dots{display:flex;justify-content:center;gap:8px;padding:8px}
-        #announcements-widget .dot{width:10px;height:10px;border-radius:999px;background:#cbd5e1;border:0}
-        #announcements-widget .dot.is-active{background:#0f172a}
+        #announcements-widget .dots{
+            display:flex;
+            justify-content:center;
+            gap:8px;
+            padding:8px;
+        }
+        #announcements-widget .dot{
+            width:10px;
+            height:10px;
+            border-radius:999px;
+            background:#cbd5e1;
+            border:0;
+            cursor:pointer;
+            transition:all .2s ease;
+        }
+        #announcements-widget .dot:hover{
+            background:#94a3b8;
+        }
+        #announcements-widget .dot.is-active{
+            background:#0f172a;
+        }
+
+        /* Hiệu ứng chuyển tiếp Wipe from Left */
+        #announcements-widget .slide-item{
+            display:block;
+            position:relative;
+        }
+        #announcements-widget .slide-enter{
+            animation: wipeFromLeft 0.5s ease-out;
+        }
+        @keyframes wipeFromLeft {
+            from {
+                clip-path: inset(0 100% 0 0);
+                transform: translateX(-20px);
+            }
+            to {
+                clip-path: inset(0 0 0 0);
+                transform: translateX(0);
+            }
+        }
     </style>
 
     <div class="heading">THÔNG BÁO & TUYỂN SINH</div>
@@ -79,7 +171,7 @@
     <div class="hero" x-data="heroSlider({interval: {{ $speedSec * 1000 }}, auto: {{ $autoSlide ? 'true':'false' }}})" x-init="init()">
         <div class="media" style="position:relative">
             <template x-for="(item, idx) in items" :key="idx">
-                <a :href="item.url" x-show="active===idx" x-transition style="display:block;position:relative">
+                <a :href="item.url" x-show="active===idx" class="slide-item" :class="active===idx ? 'slide-enter' : ''" target="_blank" rel="noopener noreferrer">
                     <!-- Ưu tiên: video self-host (video_path) hoặc direct video URL => <video> (chiều cao tự nhiên) -->
                     <template x-if="item.videoType === 'html5'">
                         <video :src="item.video" controls playsinline></video>
@@ -90,9 +182,14 @@
                         <iframe :src="item.video" allowfullscreen title="video-embed"></iframe>
                     </template>
 
-                    <!-- Nếu không có video: hiển thị ảnh bìa, cao tự nhiên theo ảnh -->
-                    <template x-if="!item.videoType">
+                    <!-- Nếu không có video nhưng có ảnh bìa: hiển thị ảnh -->
+                    <template x-if="!item.videoType && item.cover && !item.cover.includes('placehold.co')">
                         <img :src="item.cover" alt="ann-cover">
+                    </template>
+
+                    <!-- Nếu không có video và không có ảnh: hiển thị nội dung văn bản -->
+                    <template x-if="!item.videoType && (!item.cover || item.cover.includes('placehold.co'))">
+                        <div class="content-fallback" x-html="item.contentPreview"></div>
                     </template>
 
                     <div class="overlay">
@@ -119,7 +216,8 @@
                     title: @js($it->title),
                     date:  @js(optional($it->publish_at)->format('d/m/Y')),
                     url:   @js(route('announcements.show',$it->slug)),
-                    cover: @js($it->cover_path ? asset('storage/'.$it->cover_path) : 'https://placehold.co/1200x675'),
+                    cover: @js($it->cover_path ? asset('storage/'.$it->cover_path) : null),
+                    contentPreview: @js($it->content ? strip_tags(Str::limit($it->content, 300)) : ''),
                     @php
                         $videoType = null; $videoSrc = null;
                         if ($it->video_path) {
@@ -142,6 +240,14 @@
                 window.addEventListener('visibilitychange', () => {
                     if (document.hidden) { if (this.t) clearInterval(this.t); }
                     else { if (auto) this.t = setInterval(() => this.next(), interval); }
+                });
+                
+                // Make all content links open in new tab
+                this.$nextTick(() => {
+                    this.$el.querySelectorAll('.content-fallback a').forEach(link => {
+                        link.setAttribute('target', '_blank');
+                        link.setAttribute('rel', 'noopener noreferrer');
+                    });
                 });
             },
             next(){ this.active = (this.active+1) % this.items.length; },

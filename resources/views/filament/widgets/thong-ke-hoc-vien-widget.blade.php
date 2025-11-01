@@ -16,125 +16,87 @@
                 padding-inline: 0.3rem;
             }
 
-            .tkhv-table th {
-                font-weight: 600;
-            }
+            .tkhv-table th { font-weight: 600; }
 
-            .tkhv-table thead tr:first-child th {
-                background-color: #caeefb;
-            }
-
-            .dark .tkhv-table thead tr:first-child th {
-                background-color: rgba(15, 23, 42, 0.82);
-            }
+            .tkhv-table thead tr:first-child th { background-color: #caeefb; }
+            .dark .tkhv-table thead tr:first-child th { background-color: rgba(15, 23, 42, 0.82); }
 
             .tkhv-table .tkhv-sticky {
-                position: sticky;
-                left: 0;
-                z-index: 25;
+                position: sticky; left: 0; z-index: 25;
                 box-shadow: 4px 0 8px -6px rgba(15, 23, 42, 0.35);
                 background-color: #ffffff;
-                min-width: 2cm;
-                width: 2cm;
+                min-width: 2cm; width: 2cm;
             }
-
             .dark .tkhv-table .tkhv-sticky {
                 box-shadow: 4px 0 12px -7px rgba(15, 23, 42, 0.65);
                 background-color: rgba(15, 23, 42, 0.92);
             }
-
-            .tkhv-table thead tr:first-child .tkhv-sticky {
-                background-color: #caeefb;
-            }
-
-            .dark .tkhv-table thead tr:first-child .tkhv-sticky {
-                background-color: rgba(15, 23, 42, 0.82);
-            }
+            .tkhv-table thead tr:first-child .tkhv-sticky { background-color: #caeefb; }
+            .dark .tkhv-table thead tr:first-child .tkhv-sticky { background-color: rgba(15, 23, 42, 0.82); }
 
             .tkhv-table tbody td,
             .tkhv-table tbody th,
             .tkhv-table tfoot th,
-            .tkhv-table tfoot td {
-                background-color: #ffffff;
-            }
-
+            .tkhv-table tfoot td { background-color: #ffffff; }
             .dark .tkhv-table tbody td,
             .dark .tkhv-table tbody th,
             .dark .tkhv-table tfoot th,
-            .dark .tkhv-table tfoot td {
-                background-color: rgba(15, 23, 42, 0.9);
-            }
+            .dark .tkhv-table tfoot td { background-color: rgba(15, 23, 42, 0.9); }
 
-            .tkhv-table .tkhv-sticky-footer {
-                z-index: 20;
-            }
+            .tkhv-table .tkhv-sticky-footer { z-index: 20; }
 
-            /* FIX: Prevent overflow on all devices */
+            /* CHỐT: ngăn tràn trên mobile/PC */
             * { box-sizing: border-box; }
-
             .fi-wi-card { max-width: 100%; overflow: hidden; }
 
-            /* === FIX MOBILE OVERFLOW (không đổi bố cục PC) === */
-            .tkhv-main-grid { /* mobile: 1 cột */
-                display: grid;
-                gap: 1rem;
-                grid-template-columns: minmax(0, 1fr); /* FIX */
-                width: 100%;
-                max-width: 100%;
-            }
-            .tkhv-main-grid > * { min-width: 0; } /* FIX: cho phép co */
-            .tkhv-left-column {
-                display: flex;
-                flex-direction: column;
-                gap: 1rem;
-                width: 100%;
-                max-width: 100%;
-                min-width: 0; /* FIX */
-            }
-            .tkhv-left-column > * { width: 100%; max-width: 100%; min-width: 0; } /* FIX */
-
-            /* Chips dài tự xuống dòng, không tràn */
-            .tkhv-left-column .flex.flex-wrap.gap-2 > button { max-width: 100%; overflow-wrap: anywhere; } /* FIX */
-
-            /* Select co giãn theo khung */
-            .tkhv-left-column select { max-width: 100%; min-width: 0; } /* FIX */
-
-            .tkhv-chart-wrapper { display: flex; flex-direction: column; height: 100%; min-width: 0; max-width: 100%; overflow: hidden; } /* FIX */
-            .tkhv-chart-container { flex: 1; position: relative; min-height: 400px; min-width: 0; } /* FIX */
-            .tkhv-chart-container canvas { display: block; width: 100% !important; height: 100% !important; } /* FIX */
-
-            @media (min-width: 1024px) {
-                .tkhv-main-grid { grid-template-columns: 380px 1fr; } /* PC vẫn 2 cột như cũ */
-            }
-            @media (min-width: 1280px) {
-                .tkhv-main-grid { grid-template-columns: 420px 1fr; }
-            }
-
-            /* Responsive behavior cho bảng */
+            /* Bảng: PC cố định, mobile cuộn ngang mượt */
             @media (min-width: 1024px) {
                 .tkhv-table { table-layout: fixed; }
                 .tkhv-table th, .tkhv-table td { width: var(--cell-w); }
-                .tkhv-table .tkhv-sticky {
-                    width: var(--type-col) !important;
-                    min-width: var(--type-col) !important;
-                }
+                .tkhv-table .tkhv-sticky { width: var(--type-col) !important; min-width: var(--type-col) !important; }
                 .tkhv-wrap { overflow-x: hidden; }
             }
-
             @media (max-width: 1023.98px) {
                 .tkhv-wrap {
                     overflow-x: auto;
-                    -webkit-overflow-scrolling: touch; /* mượt trên mobile */
+                    -webkit-overflow-scrolling: touch;
                     max-width: 100%;
                 }
                 .tkhv-table { table-layout: auto; min-width: 1200px; }
                 .tkhv-table th, .tkhv-table td { white-space: nowrap; }
             }
-
             @media (max-width: 640px) {
                 .tkhv-table { min-width: 1000px; }
                 .tkhv-table th, .tkhv-table td { font-size: 0.7rem; padding-inline: 0.2rem; }
             }
+
+            /* Lưới chính: mobile 1 cột, PC 2 cột như cũ */
+            .tkhv-main-grid {
+                display: grid;
+                gap: 1rem;
+                grid-template-columns: 1fr;
+                width: 100%;
+                max-width: 100%;
+            }
+            .tkhv-main-grid > * { min-width: 0; } /* CHỐT cho mobile */
+
+            @media (min-width: 1024px) { .tkhv-main-grid { grid-template-columns: 380px 1fr; } }
+            @media (min-width: 1280px) { .tkhv-main-grid { grid-template-columns: 420px 1fr; } }
+
+            .tkhv-left-column {
+                display: flex; flex-direction: column; gap: 1rem;
+                width: 100%; max-width: 100%; min-width: 0;
+            }
+            .tkhv-left-column > * { width: 100%; max-width: 100%; min-width: 0; }
+
+            /* Khối biểu đồ */
+            .tkhv-chart-wrapper {
+                display: flex; flex-direction: column; height: 100%;
+                min-width: 0; max-width: 100%; overflow: hidden;
+            }
+            .tkhv-chart-container { flex: 1; position: relative; min-height: 400px; min-width: 0; }
+            /* CHỐT: canvas fill container -> Chart.js đo đúng */
+            .tkhv-chart-container canvas { width: 100% !important; height: 100% !important; display: block; }
         </style>
     @endpush
 @endonce
@@ -179,21 +141,18 @@
             </p>
         </div>
 
-        <!-- MAIN LAYOUT: 2 Columns -->
+        <!-- MAIN LAYOUT -->
         <div class="tkhv-main-grid">
-            <!-- LEFT COLUMN: Filters + Summary Cards -->
+            <!-- LEFT -->
             <div class="tkhv-left-column">
-                <!-- 1. Bộ lọc -->
+                <!-- 1) Bộ lọc -->
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
                     <div class="space-y-4">
-                        <!-- Năm & Tháng -->
                         <div class="flex flex-wrap items-end gap-3 sm:flex-nowrap">
                             <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
                                 <span class="mb-1.5">Năm</span>
-                                <select
-                                    wire:model.live="year"
-                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                                >
+                                <select wire:model.live="year"
+                                        class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                     @foreach ($yearOptions as $value => $label)
                                         <option value="{{ $value }}">{{ $label }}</option>
                                     @endforeach
@@ -201,10 +160,8 @@
                             </label>
                             <label class="flex w-full flex-col text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto sm:flex-1">
                                 <span class="mb-1.5">Tháng</span>
-                                <select
-                                    wire:model.live="month"
-                                    class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                                >
+                                <select wire:model.live="month"
+                                        class="rounded-md border-slate-300 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                     @foreach ($monthOptions as $value => $label)
                                         <option value="{{ $value }}">{{ $label }}</option>
                                     @endforeach
@@ -216,26 +173,16 @@
                         <div class="space-y-2.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Loại hình đào tạo</span>
-
                                 <div class="flex items-center gap-2">
                                     @if(!$allSelected && $totalTypeCount > 0)
-                                        <button
-                                            type="button"
-                                            wire:click="selectAllTrainingTypes"
-                                            wire:loading.attr="disabled"
-                                            class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                                        >
+                                        <button type="button" wire:click="selectAllTrainingTypes" wire:loading.attr="disabled"
+                                                class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                                             Chọn tất cả
                                         </button>
                                     @endif
-
                                     @if($selectedTypes->isNotEmpty())
-                                        <button
-                                            type="button"
-                                            wire:click="clearTrainingTypeFilters"
-                                            wire:loading.attr="disabled"
-                                            class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                                        >
+                                        <button type="button" wire:click="clearTrainingTypeFilters" wire:loading.attr="disabled"
+                                                class="text-xs font-semibold text-primary-600 transition hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                                             Bỏ chọn
                                         </button>
                                     @endif
@@ -244,33 +191,27 @@
 
                             <div class="flex flex-wrap gap-2">
                                 @forelse ($trainingTypeOptions as $value => $label)
-                                    @php
-                                        $isSelected = $selectedTypes->contains($value);
-                                    @endphp
-                                    <button
-                                        type="button"
-                                        wire:key="training-type-{{ md5($value) }}"
-                                        wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
-                                        wire:loading.attr="disabled"
-                                        @class([
-                                            'rounded-full border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
-                                            'border-primary-500 bg-primary-500 text-white dark:border-primary-400 dark:bg-primary-500/90' => $isSelected,
-                                            'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-primary-400 dark:hover:bg-slate-700' => ! $isSelected,
-                                        ])
-                                    >
+                                    @php $isSelected = $selectedTypes->contains($value); @endphp
+                                    <button type="button"
+                                            wire:key="training-type-{{ md5($value) }}"
+                                            wire:click="toggleTrainingType({{ \Illuminate\Support\Js::from($value) }})"
+                                            wire:loading.attr="disabled"
+                                            @class([
+                                                'rounded-full border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1',
+                                                'border-primary-500 bg-primary-500 text-white dark:border-primary-400 dark:bg-primary-500/90' => $isSelected,
+                                                'border-slate-300 bg-white text-slate-700 hover:border-primary-400 hover:bg-primary-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-primary-400 dark:hover:bg-slate-700' => ! $isSelected,
+                                            ])>
                                         {{ $label }}
                                     </button>
                                 @empty
-                                    <p class="text-xs text-slate-400 dark:text-slate-300">
-                                        Chưa có dữ liệu loại hình đào tạo. Vui lòng cập nhật Kế hoạch đào tạo.
-                                    </p>
+                                    <p class="text-xs text-slate-400 dark:text-slate-300">Chưa có dữ liệu loại hình đào tạo.</p>
                                 @endforelse
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 2. Tổng số học viên -->
+                <!-- 2) Tổng số học viên -->
                 <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10">
                     <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Tổng số học viên</p>
                     <p class="mb-4 text-sm font-semibold text-emerald-700 dark:text-emerald-200">{{ $studentSummaryLabel }}</p>
@@ -281,7 +222,7 @@
                     </div>
                 </div>
 
-                <!-- 3. Tóm tắt -->
+                <!-- 3) Tóm tắt -->
                 <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-500/40 dark:bg-sky-500/10">
                     <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">Tóm tắt</p>
                     <div class="space-y-2 text-sm text-sky-700 dark:text-sky-100">
@@ -298,82 +239,145 @@
                 </div>
             </div>
 
-            <!-- RIGHT COLUMN: Chart -->
+            <!-- RIGHT: Chart -->
             <div class="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 tkhv-chart-wrapper">
                 <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white">Biểu đồ tổng quan theo tháng</h3>
                 </div>
-                <div
-                    class="p-5 flex-1"
-                    x-data="{
+
+                <div class="p-5 flex-1"
+                     x-data="{
                         chart: null,
                         frame: null,
-                        resizeHandler: null,
+                        ro: null,
                         data: @entangle('chartPayload').live,
                         opts: @entangle('chartOptionsPayload').live,
+
+                        getChartLib() {
+                            return window.Chart || window.ChartJS || (window.chartjs && window.chartjs.Chart) || null;
+                        },
+                        loadChartIfNeeded() {
+                            if (this.getChartLib()) return;
+                            if (document.getElementById('chartjs-cdn-fallback')) return;
+                            const s = document.createElement('script');
+                            s.id = 'chartjs-cdn-fallback';
+                            s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+                            s.defer = true;
+                            s.onload = () => this.scheduleRender();
+                            document.head.appendChild(s);
+                        },
+
+                        sanitize(raw) {
+                            // Lấy bản thô (khỏi Proxy) nếu có Alpine
+                            const src = (window.Alpine && Alpine.raw) ? Alpine.raw(raw ?? {}) : (raw ?? {});
+                            // Deep clone an toàn
+                            const clone = (o) => (window.structuredClone ? structuredClone(o) : JSON.parse(JSON.stringify(o || {})));
+                            const data = clone(src);
+
+                            data.labels = Array.isArray(data.labels) ? data.labels : [];
+                            data.datasets = Array.isArray(data.datasets) ? data.datasets : [];
+
+                            // Chuẩn hóa từng dataset
+                            data.datasets = data.datasets.map(ds => {
+                                ds = ds || {};
+                                const arr = Array.isArray(ds.data) ? ds.data : [];
+                                ds.data = arr.map(v => {
+                                    const n = Number(v);
+                                    return Number.isFinite(n) ? n : 0;
+                                });
+                                return ds;
+                            });
+
+                            return data;
+                        },
+
+                        sanitizeOpts(raw) {
+                            const src = (window.Alpine && Alpine.raw) ? Alpine.raw(raw ?? {}) : (raw ?? {});
+                            const clone = (o) => (window.structuredClone ? structuredClone(o) : JSON.parse(JSON.stringify(o || {})));
+                            const options = clone(src);
+
+                            options.responsive = options.responsive ?? true;
+                            options.maintainAspectRatio = false;
+                            options.animation = options.animation ?? false;
+                            options.plugins = options.plugins ?? {};
+                            options.plugins.tooltip = options.plugins.tooltip ?? {};
+                            options.plugins.tooltip.callbacks = options.plugins.tooltip.callbacks ?? {};
+                            if (!options.plugins.tooltip.callbacks.label) {
+                                options.plugins.tooltip.callbacks.label = (c) => {
+                                    const v = c.parsed?.y ?? 0;
+                                    const l = c.dataset?.label ?? '';
+                                    const formatted = (v || 0).toLocaleString('vi-VN');
+                                    return l ? `${l}: ${formatted}` : formatted;
+                                };
+                            }
+                            return options;
+                        },
+
                         init() {
-                            this.resizeHandler = () => this.scheduleRender();
-                            window.addEventListener('resize', this.resizeHandler);
+                            const box = this.$el.querySelector('.tkhv-chart-container');
+                            if ('ResizeObserver' in window && box) {
+                                this.ro = new ResizeObserver(() => this.scheduleRender());
+                                this.ro.observe(box);
+                            }
+                            if (window.Livewire?.hook) {
+                                try { window.Livewire.hook('message.processed', () => this.scheduleRender()); } catch(_) {}
+                            }
+                            document.addEventListener('livewire:load', () => this.scheduleRender());
+                            document.addEventListener('livewire:navigated', () => this.scheduleRender());
+
                             this.$watch('data', () => this.scheduleRender());
                             this.$watch('opts', () => this.scheduleRender());
-                            this.$nextTick(() => this.scheduleRender());
+
+                            this.scheduleRender();
+
                             return () => {
-                                if (this.resizeHandler) {
-                                    window.removeEventListener('resize', this.resizeHandler);
-                                    this.resizeHandler = null;
-                                }
-                                if (this.frame) {
-                                    cancelAnimationFrame(this.frame);
-                                    this.frame = null;
-                                }
-                                if (this.chart) {
-                                    try { this.chart.destroy(); } catch (error) {}
-                                    this.chart = null;
-                                }
+                                if (this.ro) { try { this.ro.disconnect(); } catch(_) {} this.ro = null; }
+                                if (this.frame) { cancelAnimationFrame(this.frame); this.frame = null; }
+                                if (this.chart) { try { this.chart.destroy(); } catch(_) {} this.chart = null; }
                             };
                         },
+
                         scheduleRender() {
-                            if (this.frame) {
-                                cancelAnimationFrame(this.frame);
-                            }
+                            if (this.frame) cancelAnimationFrame(this.frame);
                             this.frame = requestAnimationFrame(() => this.render());
                         },
+
                         render() {
                             this.frame = null;
+
+                            // 1) Đảm bảo có Chart.js
+                            let ChartLib = this.getChartLib();
+                            if (!ChartLib) {
+                                this.loadChartIfNeeded();
+                                setTimeout(() => this.scheduleRender(), 150);
+                                return;
+                            }
+
+                            // 2) Container phải có kích thước > 0
+                            const container = this.$el.querySelector('.tkhv-chart-container');
+                            if (!container) return;
+                            const w = container.clientWidth, h = container.clientHeight;
+                            if (!w || !h) { setTimeout(() => this.scheduleRender(), 80); return; }
+
+                            // 3) Canvas
                             const canvas = document.getElementById(@js($chartId));
-                            if (!canvas) {
-                                return;
-                            }
-
-                            if (typeof window.Chart === 'undefined') {
-                                setTimeout(() => this.scheduleRender(), 180);
-                                return;
-                            }
-
-                            const Chart = window.Chart;
+                            if (!canvas) return;
                             const ctx = canvas.getContext('2d');
 
-                            if (this.chart) {
-                                try { this.chart.destroy(); } catch (error) {}
-                                this.chart = null;
-                            }
+                            // 4) Phá chart cũ (nếu có)
+                            if (this.chart) { try { this.chart.destroy(); } catch(_) {} this.chart = null; }
 
-                            const options = JSON.parse(JSON.stringify(this.opts || {}));
-                            const data = JSON.parse(JSON.stringify(this.data || {}));
-                            options.plugins ??= {};
-                            options.plugins.tooltip ??= {};
-                            options.plugins.tooltip.callbacks ??= {};
-                            options.plugins.tooltip.callbacks.label = function (context) {
-                                const value = context.parsed?.y ?? 0;
-                                const label = context.dataset?.label ?? '';
-                                const formatted = (value || 0).toLocaleString('vi-VN');
-                                return label ? `${label}: ${formatted}` : formatted;
-                            };
+                            // 5) Lấy data/options sạch sẽ
+                            const data = this.sanitize(this.data);
+                            const options = this.sanitizeOpts(this.opts);
 
-                            this.chart = new Chart(ctx, { type: 'bar', data, options });
+                            // Nếu labels rỗng, vẫn dựng khung trục để không trắng
+                            if (!data.labels.length) data.labels = [''];
+
+                            // 6) Vẽ
+                            this.chart = new ChartLib(ctx, { type: 'bar', data, options });
                         }
-                    }"
-                >
+                    }">
                     <div class="tkhv-chart-container" wire:ignore>
                         <canvas id="{{ $chartId }}" class="!h-full !w-full"></canvas>
                     </div>
@@ -381,7 +385,7 @@
             </div>
         </div>
 
-        <!-- BOTTOM: Table Full Width -->
+        <!-- BOTTOM: Table -->
         <div class="space-y-3">
             <h3 class="text-lg font-medium text-gray-900 dark:text-white">Bảng số liệu chi tiết theo tháng</h3>
 
@@ -424,9 +428,7 @@
                                         {{ $row['label'] }}
                                     </td>
                                     @foreach ($months as $month)
-                                        @php
-                                            $bucket = $row['monthly'][$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
-                                        @endphp
+                                        @php $bucket = $row['monthly'][$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0]; @endphp
                                         <td class="px-2 py-2 text-center text-slate-600 dark:text-slate-300 border-l border-[#95d8f1] dark:border-gray-700">
                                             {{ $bucket['dk'] > 0 ? number_format($bucket['dk']) : '—' }}
                                         </td>
@@ -459,9 +461,7 @@
                             <tr>
                                 <th class="tkhv-sticky tkhv-sticky-footer min-w-[2cm] px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-200">Cộng</th>
                                 @foreach ($months as $month)
-                                    @php
-                                        $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0];
-                                    @endphp
+                                    @php $bucket = $perMonth[$month] ?? ['dk' => 0, 'ht' => 0, 'kht' => 0]; @endphp
                                     <th class="px-2 py-3 text-center font-semibold text-slate-700 dark:text-slate-200 border-l border-[#95d8f1] dark:border-gray-700">
                                         {{ $bucket['dk'] > 0 ? number_format($bucket['dk']) : '—' }}
                                     </th>

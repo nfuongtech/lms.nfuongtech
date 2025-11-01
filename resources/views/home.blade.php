@@ -5,10 +5,12 @@
     img,video,iframe{max-width:100%;height:auto}
     .aspect-video{position:relative;width:100%;padding-top:56.25%}
     .aspect-video > *{position:absolute;inset:0;width:100%;height:100%;border:0}
+    .announcement-content-fallback{padding:20px;background:#f9fafb;border-radius:12px;line-height:1.6;}
+    .announcement-content-fallback a{color:#2563eb;text-decoration:underline;}
   </style>
 
   <meta charset="utf-8">
-  <title>Kế hoạch đào tạo</title>
+  <title>LMS QUẢN LÝ ĐÀO TẠO</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -167,10 +169,10 @@
     }
 
     .section-title {
-      font-size:22px;
-      margin-bottom:12px;
+      font-size:18px;
       font-weight:700;
       text-align:center;
+      margin-bottom:12px;
     }
 
     .filters {
@@ -582,6 +584,7 @@
       align-items:center;
       justify-content:center;
       z-index:50;
+      padding:16px;
     }
 
     .modal-backdrop {
@@ -593,8 +596,8 @@
     .modal-card {
       position:relative;
       z-index:1;
-      width:min(920px, 92vw);
-      max-height:85vh;
+      width:min(920px, 100%);
+      max-height:calc(100vh - 32px);
       background:var(--surface-strong);
       border-radius:20px;
       box-shadow:var(--shadow);
@@ -602,6 +605,7 @@
       display:flex;
       flex-direction:column;
       gap:16px;
+      overflow-y:auto;
     }
 
     .modal-header {
@@ -609,6 +613,7 @@
       justify-content:space-between;
       align-items:flex-start;
       gap:12px;
+      padding:6pt 0;
     }
 
     .modal-heading {
@@ -701,6 +706,28 @@
       color:var(--muted);
       font-size:14px;
       padding:12px 0;
+    }
+
+    @media (max-width:768px) {
+      .modal {
+        padding:8px;
+      }
+      
+      .modal-card {
+        max-height:calc(100vh - 16px);
+        padding:16px;
+        border-radius:16px;
+      }
+      
+      .modal-header {
+        flex-direction:column;
+        gap:8px;
+      }
+      
+      .modal-actions {
+        width:100%;
+        justify-content:space-between;
+      }
     }
 
     @media (min-width:768px) {
@@ -804,7 +831,7 @@
 </head>
 <body data-registrations-url="{{ route('home.registrations', ['khoaHoc' => '__ID__']) }}" data-lookup-url="{{ route('home.lookup') }}" data-schedule-url="{{ route('home.lookup-schedule') }}" data-default-year="{{ $defaultYear }}">
   <div class="topbar">
-    <div class="brand"><a href="/">QUẢN LÝ ĐÀO TẠO &amp; HỌC VIÊN</a></div>
+    <div class="brand"><a href="/">LMS QUẢN LÝ ĐÀO TẠO</a></div>
 
     <div class="login-wrap">
       @auth
@@ -1401,7 +1428,7 @@
 
       modal.hidden = false;
       document.body.classList.add('modal-open');
-      const baseTitle = courseName ? `Danh sách học viên “${courseName}”` : 'Danh sách học viên';
+      const baseTitle = courseName ? `Danh sách học viên "${courseName}"` : 'Danh sách học viên';
       const metaParts = [];
       if(courseSchedule){ metaParts.push(courseSchedule); }
       if(courseLocation){ metaParts.push(courseLocation); }
