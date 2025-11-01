@@ -29,7 +29,7 @@ class ChildrenRelationManager extends RelationManager
 
     protected static ?string $title = 'Sub menu';
 
-    public static function form(Form $form): Form
+    public function form(Form $form): Form
     {
         return $form->schema([
             Section::make('Sub menu')->schema([
